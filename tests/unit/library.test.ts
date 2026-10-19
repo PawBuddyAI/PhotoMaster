@@ -1,0 +1,173 @@
+import 'fake-indexeddb/auto'
+import Dexie from 'dexie'
+import { IDBFactory } from 'fake-indexeddb'
+import { createPinia, setActivePinia } from 'pinia'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+/** 解码与缩略图依赖浏览器画布，替换为固定尺寸的桩；每个工程的缩略图内容不同，便于核对封面 */
+vi.mock('~/lib/image/canvas', () => ({
+  decodeImage: vi.fn(async () => ({ width: 1200, height: 800, close: () => {} })),
+  scaleToFit: vi.fn(() => ({})),
+  canvasToBlob: vi.fn(async () => new Blob(['thumbnail'], { type: 'image/jpeg' }))
+}))
+
+let storage: typeof import('~/lib/storage/db')
+let useLibraryStore: typeof import('~/stores/library').useLibraryStore
+
+/** 与存储层单测相同：每项测试换新的 IndexedDB 与新的模块实例（数据库实例是单例） */
+beforeEach(async () => {
+  Dexie.dependencies.indexedDB = new IDBFactory()
+  vi.resetModules()
+  storage = await import('~/lib/storage/db')
+  useLibraryStore = (await import('~/stores/library')).useLibraryStore
+  setActivePinia(createPinia())
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(1000)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
+
+const photo = (name: string) => new File([new Uint8Array([1, 2, 3])], name, { type: 'image/jpeg' })
+
+/** 依次新建工程，每个间隔 1 秒，列表顺序即新建的倒序；按参数个数返回同样长度的 id 元组 */
+async function seed<const T extends Array<[name: string, albumId?: string]>>(...specs: T): Promise<{ [K in keyof T]: string }> {
+  const ids: string[] = []
+  for (const [name, albumId] of specs) {
+    vi.setSystemTime(Date.now() + 1000)
+    ids.push(await storage.createProject(photo(`${name}.jpg`), albumId))
+  }
+  return ids as { [K in keyof T]: string }
+}
+
+describe('useLibraryStore', () => {
+  it('刷新后按相册推导数量与封面，封面取相册里最近修改的工程', async () => {
+    const travel = await storage.createAlbum('旅行')
+    vi.setSystemTime(1500)
+    const empty = await storage.createAlbum('空相册')
+    const [a, b, c] = await seed(['a', travel.id], ['b', travel.id], ['c'])
+    const library = useLibraryStore()
+    expect(library.loaded).toBe(false)
+
+    await library.refresh()
+
+    expect(library.loaded).toBe(true)
+    expect(library.projects.map(p => p.id)).toEqual([c, b, a])
+    expect(library.projectsIn(null).map(p => p.id)).toEqual([c, b, a])
+    expect(library.projectsIn(travel.id).map(p => p.id)).toEqual([b, a])
+    expect(library.albumEntries).toEqual([
+      { ...travel, count: 2, cover: library.thumbnails[b] },
+      { ...empty, count: 0, cover: null }
+    ])
+    expect(library.findAlbum(empty.id)).toEqual(empty)
+  })
+
+  it('缩略图地址按工程缓存：再次刷新只为新工程创建，消失的工程释放地址', async () => {
+    const [a, b] = await seed(['a'], ['b'])
+    const create = vi.spyOn(URL, 'createObjectURL')
+    const revoke = vi.spyOn(URL, 'revokeObjectURL')
+    const library = useLibraryStore()
+    await library.refresh()
+    expect(create).toHaveBeenCalledTimes(2)
+    const urlA = library.thumbnails[a]
+
+    // 另一个标签页删除了 b、新建了 c
+    await storage.deleteProject(b)
+    const [c] = await seed(['c'])
+    await library.refresh()
+
+    expect(create).toHaveBeenCalledTimes(3)
+    expect(library.thumbnails[a]).toBe(urlA)
+    expect(Object.keys(library.thumbnails).sort()).toEqual([a, c].sort())
+    expect(revoke).toHaveBeenCalledTimes(1)
+  })
+
+  it('移动工程就地更新列表与相册统计，与数据库一致', async () => {
+    const travel = await storage.createAlbum('旅行')
+    const [a] = await seed(['a'])
+    const library = useLibraryStore()
+    await library.refresh()
+
+    await library.moveProject(a, travel.id)
+    expect(library.projectsIn(travel.id).map(p => p.id)).toEqual([a])
+    expect(library.albumEntries[0]).toMatchObject({ count: 1, cover: library.thumbnails[a] })
+    expect(await storage.getProject(a)).toMatchObject({ albumId: travel.id })
+
+    await library.moveProject(a, null)
+    expect(library.projects[0]).not.toHaveProperty('albumId')
+    expect(library.albumEntries[0]).toMatchObject({ count: 0, cover: null })
+    expect(await storage.getProject(a)).not.toHaveProperty('albumId')
+  })
+
+  it('移动失败时列表不变', async () => {
+    const [a] = await seed(['a'])
+    const library = useLibraryStore()
+    await library.refresh()
+
+    await expect(library.moveProject(a, 'missing')).rejects.toThrow('相册不存在')
+    expect(library.projects[0]).not.toHaveProperty('albumId')
+  })
+
+  it('新建相册去掉首尾空白，空名称不创建', async () => {
+    const library = useLibraryStore()
+    await library.refresh()
+
+    expect(await library.addAlbum('   ')).toBeNull()
+    const album = await library.addAlbum('  旅行 ')
+    expect(album).toMatchObject({ name: '旅行' })
+    expect(library.albums).toEqual([album])
+    expect(await storage.listAlbums()).toEqual([album])
+  })
+
+  it('重命名相册：空名称或名称未变时不写库', async () => {
+    const library = useLibraryStore()
+    await library.refresh()
+    const album = (await library.addAlbum('旅行'))!
+    const update = vi.spyOn(IDBObjectStore.prototype, 'put')
+
+    await library.renameAlbum(album.id, '  ')
+    await library.renameAlbum(album.id, ' 旅行 ')
+    expect(update).not.toHaveBeenCalled()
+
+    await library.renameAlbum(album.id, '云南旅行')
+    expect(library.findAlbum(album.id)?.name).toBe('云南旅行')
+    expect((await storage.listAlbums())[0]?.name).toBe('云南旅行')
+  })
+
+  it('删除相册后其中的工程留在图库、不再属于任何相册', async () => {
+    const travel = await storage.createAlbum('旅行')
+    const [a, b] = await seed(['a', travel.id], ['b'])
+    const library = useLibraryStore()
+    await library.refresh()
+
+    await library.removeAlbum(travel.id)
+
+    expect(library.albums).toEqual([])
+    expect(library.projects.map(p => p.id)).toEqual([b, a])
+    expect(library.projects.every(p => !('albumId' in p))).toBe(true)
+    expect(await storage.getProject(a)).not.toHaveProperty('albumId')
+  })
+
+  it('删除工程立即从列表移除，缩略图地址在离场过渡结束后释放', async () => {
+    const [a, b] = await seed(['a'], ['b'])
+    const library = useLibraryStore()
+    await library.refresh()
+    const url = library.thumbnails[a]
+    const revoke = vi.spyOn(URL, 'revokeObjectURL')
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout'] })
+
+    await library.removeProject(a)
+
+    expect(library.projects.map(p => p.id)).toEqual([b])
+    expect(await storage.getProject(a)).toBeUndefined()
+    // 淡出期间卡片仍引用这个地址
+    expect(library.thumbnails[a]).toBe(url)
+    expect(revoke).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(1000)
+    expect(revoke).toHaveBeenCalledWith(url)
+    expect(library.thumbnails).not.toHaveProperty(a)
+  })
+})

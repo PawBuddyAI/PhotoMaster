@@ -73,6 +73,20 @@ export default defineAppConfig({
       },
       compoundVariants: [{ color: 'primary', variant: ['outline', 'subtle'], class: 'focus-visible:ring-primary/60' }]
     },
+    // 操作菜单（工程卡片、相册）与 select 的下拉外观一致：不缩放，高亮项用选中底；危险项的红色只落在文字上
+    dropdownMenu: {
+      slots: {
+        content: `rounded-lg bg-default/85 backdrop-blur-xl ${OVERLAY_SHADOW} ${MENU_FADE}`
+      },
+      variants: {
+        active: {
+          false: { item: 'data-highlighted:before:bg-(--mac-selected) data-[state=open]:before:bg-(--mac-selected)' }
+        }
+      },
+      compoundVariants: [
+        { color: STATUS_COLORS, active: false, class: { item: 'data-highlighted:before:bg-(--mac-selected) data-[state=open]:before:bg-(--mac-selected)' } }
+      ]
+    },
     // 可输入的下拉框（模型名称）与 select 外观一致；它的展开动画写在 content 上，没有 transition 变体
     inputMenu: {
       slots: {

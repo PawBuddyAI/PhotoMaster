@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { useEditorStore, type EditorTool } from '~/stores/editor'
 import { useInpaintStore } from '~/stores/inpaint'
+import { useLibraryStore } from '~/stores/library'
 
 definePageMeta({ layout: false })
 
 const route = useRoute()
+const router = useRouter()
+const library = useLibraryStore()
 const editor = useEditorStore()
 const inpaint = useInpaintStore()
 const assets = useProjectAssets()
@@ -18,6 +21,17 @@ const exportOpen = ref(false)
 const leftTab = ref('suggest')
 
 const projectId = computed(() => String(route.params.id))
+
+/** 进入编辑器前所在的页面（vue-router 记在历史状态里）；直接打开链接时没有 */
+const cameFrom = router.options.history.state.back
+/** 返回入口：从相册进来时回到那个相册，其余情况回到图库。刷新编辑器页后外壳没有读取过图库、找不到相册，也回到图库 */
+const back = computed(() => {
+  const albumId = typeof cameFrom === 'string' ? /^\/albums\/([^/?#]+)/.exec(cameFrom)?.[1] : undefined
+  const album = albumId ? library.findAlbum(decodeURIComponent(albumId)) : undefined
+  return album
+    ? { to: `/albums/${album.id}`, label: album.name, ariaLabel: `返回相册「${album.name}」` }
+    : { to: '/', label: '图库', ariaLabel: '返回图库' }
+})
 
 const SAVE_LABELS = {
   saved: '已保存',
@@ -123,9 +137,9 @@ function onShortcutUp(e: KeyboardEvent) {
       :description="loadError"
     />
     <UButton
-      to="/"
+      :to="back.to"
       icon="i-lucide-arrow-left"
-      label="返回工程列表"
+      :label="back.ariaLabel"
       color="neutral"
       variant="outline"
     />
@@ -147,13 +161,13 @@ function onShortcutUp(e: KeyboardEvent) {
     >
       <template #header>
         <UButton
-          to="/"
+          :to="back.to"
           icon="i-lucide-chevron-left"
-          label="工程"
+          :label="back.label"
           color="neutral"
           variant="ghost"
-          aria-label="返回工程列表"
-          class="-ms-2"
+          :aria-label="back.ariaLabel"
+          class="-ms-2 min-w-0"
         />
       </template>
       <UTabs

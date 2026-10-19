@@ -171,6 +171,15 @@ export interface ProjectRecord {
   /** 原图 MIME 类型，导出时决定能否写回 EXIF */
   originalType: string
   thumbnail: Blob
+  /** 所属相册；不在任何相册中时没有这一项 */
+  albumId?: string
+}
+
+/** 相册：工程的分组。一个工程最多属于一个相册；删除相册时其中的工程回到图库，不随之删除 */
+export interface AlbumRecord {
+  id: string
+  name: string
+  createdAt: number
 }
 
 /**

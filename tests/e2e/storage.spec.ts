@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 /**
  * 存储升级：按第 1 版结构（工程文档与 updatedAt 存在 projects 表）预置一个工程，
- * 打开首页后应自动迁移到第 2 版（文档移入 docs 表），列表与编辑器中的内容不变。
+ * 打开图库后应连续升级到第 3 版（文档移入 docs 表，新增相册表），列表与编辑器中的内容不变。
  * 使用真实浏览器的 IndexedDB，与单元测试（fake-indexeddb）互补。
  */
 const LEGACY = {
@@ -14,8 +14,8 @@ const LEGACY = {
 }
 
 test('第 1 版工程升级后仍在列表中，打开后图层保留', async ({ page }) => {
-  // 设置页不访问工程数据库，在应用打开它之前按旧结构建库
-  await page.goto('/settings')
+  // 应用的每个外壳页面都会在侧栏读取图库；在同源但不运行应用的图标文件上按旧结构建库
+  await page.goto('/favicon.ico')
   await page.evaluate(async (legacy) => {
     const canvas = new OffscreenCanvas(400, 300)
     const ctx = canvas.getContext('2d')!
@@ -70,7 +70,7 @@ test('第 1 版工程升级后仍在列表中，打开后图层保留', async ({
   await expect(card).toBeVisible()
   await expect(card).toContainText('400×300')
 
-  // 迁移后的结构：原生版本 20，文档与修改时间在 docs 表，projects 记录不再含这两项
+  // 迁移后的结构：原生版本 30，文档与修改时间在 docs 表，projects 记录不再含这两项，也不属于任何相册
   const migrated = await page.evaluate(async (id) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open('ai-photo-master')
@@ -96,9 +96,9 @@ test('第 1 版工程升级后仍在列表中，打开后图层保留', async ({
     return result
   }, LEGACY.id)
   expect(migrated).toEqual({
-    version: 20,
-    stores: ['blobs', 'docs', 'projects'],
-    projectIndexes: [],
+    version: 30,
+    stores: ['albums', 'blobs', 'docs', 'projects'],
+    projectIndexes: ['albumId'],
     projectKeys: ['createdAt', 'height', 'id', 'name', 'originalBlobId', 'originalType', 'thumbnail', 'width'],
     docUpdatedAt: LEGACY.updatedAt,
     docLayers: [LEGACY.layerName]

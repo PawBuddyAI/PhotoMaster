@@ -103,10 +103,12 @@ describe('第 1 版数据库升级', () => {
     expect(await storage.getProject('a')).toMatchObject({ id: 'a', originalBlobId: 'a-original', createdAt: 100, updatedAt: 3000, doc: docA })
 
     await inspect(async (raw) => {
-      expect(raw.verno).toBe(2)
-      expect(raw.tables.map(t => t.name).sort()).toEqual(['blobs', 'docs', 'projects'])
-      // projects 表不再有 updatedAt 索引，记录里也不再有文档与修改时间
-      expect(raw.table('projects').schema.indexes).toEqual([])
+      // 连续跑完 1 → 2 → 3 两次升级
+      expect(raw.verno).toBe(3)
+      expect(raw.tables.map(t => t.name).sort()).toEqual(['albums', 'blobs', 'docs', 'projects'])
+      // projects 表不再有 updatedAt 索引，记录里也不再有文档与修改时间；第 3 版加上的相册索引里没有旧工程
+      expect(raw.table('projects').schema.indexes.map(i => i.name)).toEqual(['albumId'])
+      expect(await raw.table('projects').where('albumId').notEqual('').count()).toBe(0)
       for (const record of await raw.table('projects').toArray()) {
         expect(record).not.toHaveProperty('doc')
         expect(record).not.toHaveProperty('updatedAt')
@@ -128,12 +130,48 @@ describe('第 1 版数据库升级', () => {
     expect((await storage.listProjects()).map(p => p.id)).toEqual(['a'])
   })
 
-  it('没有旧数据时直接建立第 2 版结构', async () => {
+  it('没有旧数据时直接建立第 3 版结构', async () => {
     expect(await storage.listProjects()).toEqual([])
+    expect(await storage.listAlbums()).toEqual([])
     await inspect(async (raw) => {
-      expect(raw.verno).toBe(2)
-      expect(raw.tables.map(t => t.name).sort()).toEqual(['blobs', 'docs', 'projects'])
+      expect(raw.verno).toBe(3)
+      expect(raw.tables.map(t => t.name).sort()).toEqual(['albums', 'blobs', 'docs', 'projects'])
     })
+  })
+})
+
+describe('第 2 版数据库升级', () => {
+  it('新增相册表与相册索引，已有工程原样保留且不属于任何相册', async () => {
+    const doc = docWithLayers('调整 1')
+    const legacy = new Dexie(DB_NAME)
+    legacy.version(2).stores({ projects: 'id', docs: 'id, updatedAt', blobs: 'id, projectId' })
+    await legacy.table('projects').add({
+      id: 'a',
+      name: '工程 a',
+      createdAt: 100,
+      width: 1200,
+      height: 800,
+      originalBlobId: 'a-original',
+      originalType: 'image/jpeg',
+      thumbnail: new Blob(['a'])
+    })
+    await legacy.table('docs').add({ id: 'a', doc, updatedAt: 2000 })
+    await legacy.table('blobs').add({ id: 'a-original', projectId: 'a', blob: new Blob(['a']) })
+    legacy.close()
+
+    expect(await storage.listProjects()).toEqual([expect.not.objectContaining({ albumId: expect.anything() })])
+    expect(await storage.getProject('a')).toMatchObject({ name: '工程 a', updatedAt: 2000, doc })
+    await inspect(async (raw) => {
+      expect(raw.verno).toBe(3)
+      expect(raw.table('projects').schema.indexes.map(i => i.name)).toEqual(['albumId'])
+      expect(await raw.table('albums').count()).toBe(0)
+      expect(await raw.table('projects').get('a')).not.toHaveProperty('albumId')
+    })
+
+    // 升级后的旧工程可以放进新相册
+    const album = await storage.createAlbum('旅行')
+    await storage.moveProjectToAlbum('a', album.id)
+    expect((await storage.listProjects())[0]).toMatchObject({ id: 'a', albumId: album.id, updatedAt: 2000 })
   })
 })
 
@@ -247,5 +285,101 @@ describe('工程读写', () => {
     await expect(storage.getBlob(stale)).rejects.toThrow('图像数据丢失')
     expect(await (await storage.getBlob(used)).text()).toBe('used')
     expect(await (await storage.getBlob(project.originalBlobId)).text()).toBe('\u0001\u0002\u0003')
+  })
+})
+
+describe('相册', () => {
+  /** 工程在数据库中的原始记录，用来确认移出相册后字段确实被删除，而不是存成 undefined */
+  const rawProject = (id: string) => inspect(raw => raw.table('projects').get(id))
+
+  it('按创建先后列出，重命名只改名称', async () => {
+    const first = await storage.createAlbum('旅行')
+    vi.setSystemTime(2000)
+    const second = await storage.createAlbum('人像')
+    expect(await storage.listAlbums()).toEqual([
+      { id: first.id, name: '旅行', createdAt: 1000 },
+      { id: second.id, name: '人像', createdAt: 2000 }
+    ])
+
+    await storage.renameAlbum(first.id, '云南旅行')
+    expect((await storage.listAlbums()).map(a => [a.id, a.name, a.createdAt])).toEqual([[first.id, '云南旅行', 1000], [second.id, '人像', 2000]])
+    await expect(storage.renameAlbum('missing', '名字')).rejects.toThrow('相册不存在')
+  })
+
+  it('在相册中新建的工程带有归属，列表摘要随之返回；图库里新建的工程没有这一项', async () => {
+    const album = await storage.createAlbum('旅行')
+    const inAlbum = await storage.createProject(photo('a.jpg'), album.id)
+    const loose = await storage.createProject(photo('b.jpg'))
+
+    expect(await storage.getProject(inAlbum)).toMatchObject({ albumId: album.id })
+    expect(await rawProject(loose)).not.toHaveProperty('albumId')
+    const list = await storage.listProjects()
+    expect(list.find(p => p.id === inAlbum)).toMatchObject({ albumId: album.id })
+    expect(list.find(p => p.id === loose)).not.toHaveProperty('albumId')
+  })
+
+  it('在不存在的相册中新建工程时不写入任何记录', async () => {
+    await expect(storage.createProject(photo(), 'missing')).rejects.toThrow('相册不存在')
+    expect(await storage.listProjects()).toEqual([])
+    await inspect(async (raw) => {
+      expect(await raw.table('docs').count()).toBe(0)
+      expect(await raw.table('blobs').count()).toBe(0)
+    })
+  })
+
+  it('移到相册、换相册、移出相册都不刷新修改时间，移出后记录不再含相册字段', async () => {
+    const travel = await storage.createAlbum('旅行')
+    const portrait = await storage.createAlbum('人像')
+    const id = await storage.createProject(photo())
+    vi.setSystemTime(5000)
+
+    await storage.moveProjectToAlbum(id, travel.id)
+    expect(await storage.getProject(id)).toMatchObject({ albumId: travel.id, updatedAt: 1000 })
+    await storage.moveProjectToAlbum(id, portrait.id)
+    expect(await storage.getProject(id)).toMatchObject({ albumId: portrait.id, updatedAt: 1000 })
+
+    await storage.moveProjectToAlbum(id, null)
+    expect(await rawProject(id)).not.toHaveProperty('albumId')
+    expect(await storage.getProject(id)).toMatchObject({ updatedAt: 1000 })
+    // 本来就不在相册中时再移出，不报错
+    await storage.moveProjectToAlbum(id, null)
+  })
+
+  it('移到不存在的相册或移动不存在的工程时报错，归属不变', async () => {
+    const album = await storage.createAlbum('旅行')
+    const id = await storage.createProject(photo(), album.id)
+
+    await expect(storage.moveProjectToAlbum(id, 'missing')).rejects.toThrow('相册不存在')
+    expect(await storage.getProject(id)).toMatchObject({ albumId: album.id })
+    await expect(storage.moveProjectToAlbum('missing', album.id)).rejects.toThrow('工程不存在')
+    await expect(storage.moveProjectToAlbum('missing', null)).rejects.toThrow('工程不存在')
+  })
+
+  it('删除相册只解散分组：其中的工程留在图库并移出相册，其他相册不受影响', async () => {
+    const removed = await storage.createAlbum('旅行')
+    const kept = await storage.createAlbum('人像')
+    const a = await storage.createProject(photo('a.jpg'), removed.id)
+    const b = await storage.createProject(photo('b.jpg'), removed.id)
+    const c = await storage.createProject(photo('c.jpg'), kept.id)
+    const d = await storage.createProject(photo('d.jpg'))
+
+    await storage.deleteAlbum(removed.id)
+
+    expect((await storage.listAlbums()).map(album => album.id)).toEqual([kept.id])
+    expect((await storage.listProjects()).map(p => p.id).sort()).toEqual([a, b, c, d].sort())
+    expect(await rawProject(a)).not.toHaveProperty('albumId')
+    expect(await rawProject(b)).not.toHaveProperty('albumId')
+    expect(await storage.getProject(c)).toMatchObject({ albumId: kept.id })
+    await inspect(async (raw) => {
+      expect(await raw.table('projects').where('albumId').equals(removed.id).count()).toBe(0)
+    })
+  })
+
+  it('删除工程不影响它所在的相册', async () => {
+    const album = await storage.createAlbum('旅行')
+    const id = await storage.createProject(photo(), album.id)
+    await storage.deleteProject(id)
+
+    expect(await storage.listAlbums()).toEqual([album])
   })
 })
