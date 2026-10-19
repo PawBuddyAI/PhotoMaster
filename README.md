@@ -2,7 +2,7 @@
 
 纯前端的 AI 修图工具：多模态 LLM 读图给出修图方案，曝光、白平衡等调色在本地 GPU 上无损完成（可限定区域），去路人、换天空等内容修改通过 OpenAI 兼容的 `images/edits` 局部重绘。
 
-基于 Nuxt 4 + Nuxt UI v4，以 SPA 方式运行，不需要自建后端。
+基于 Nuxt 4 + Nuxt UI v4，以 SPA 方式运行，不需要自建后端；另有 Tauri 2 打包的 Windows 桌面版。
 
 ## 功能
 
@@ -42,6 +42,27 @@ pnpm build      # Node 服务，包含可选的 CORS 代理：node .output/serve
 pnpm generate   # 纯静态站点（.output/public），只能使用直连模式
 ```
 
+### Windows 桌面版
+
+用 Tauri 2 打包，界面与网页版相同，运行在系统自带的 WebView2（Edge 内核）中。与网页版的区别：
+
+- 请求由 Rust 端直接发出，不受跨域限制，设置里不显示「通过本地代理转发」
+- 导出时弹出系统「另存为」对话框，默认打开上次保存的文件夹
+- 工程数据保存在 `%LOCALAPPDATA%\com.k99k5.ai-photo-master\EBWebView`，与浏览器中的网页版互不相通
+
+构建需要 Rust 1.90 以上与 Visual Studio C++ 生成工具：
+
+```bash
+pnpm tauri dev      # 开发：启动 3000 端口的开发服务器并打开桌面窗口
+pnpm tauri build    # 打包：src-tauri/target/release/bundle/nsis/ 下生成安装包
+```
+
+- 由 Tauri 启动的开发服务器与打包使用独立的构建目录（`node_modules/.cache/nuxt-tauri`），另一个 `pnpm dev` 运行时也能打包
+- 安装包按当前用户安装，不需要管理员权限；Windows 11 自带 WebView2，缺少时安装器会联网下载
+- 安装包未签名，首次运行会出现 SmartScreen 提示
+- 发布后不要修改 `src-tauri/tauri.conf.json` 中的 `identifier`：数据目录随之改变，已有工程会「消失」
+- 图标源文件是 `src-tauri/app-icon.svg`，修改后执行 `pnpm tauri icon src-tauri/app-icon.svg`，并删除生成的 `android`、`ios` 目录
+
 ### 快捷键
 
 | 按键 | 作用 |
@@ -72,8 +93,10 @@ app/
   workers/        图像计算 Worker（导出、重绘收尾）
 server/api/proxy  可选的 CORS 代理
 shared/           前端与服务端共享的常量
+src-tauri/        Windows 桌面壳（窗口与打包配置、插件权限、图标）
 tests/unit        Vitest 单元测试
 tests/e2e         Playwright 浏览器测试
+tests/desktop     桌面版端到端测试
 ```
 
 ## 测试
@@ -86,3 +109,15 @@ pnpm typecheck
 ```
 
 浏览器测试默认使用本机 Edge。其他环境可以先执行 `pnpm exec playwright install chromium`，再设置 `PW_CHANNEL=chromium` 运行。测试默认复用（或自动启动）3210 端口的开发服务器，可通过 `PW_PORT` 修改。
+
+桌面版测试连接真实的桌面窗口，需要先构建一个开启了 WebView2 远程调试端口（9333）的 debug 版本，输出到 `src-tauri/target/debug/`，不影响发布版与安装包：
+
+```bash
+pnpm tauri build --debug --no-bundle --config src-tauri/tauri.desktop-test.conf.json
+```
+
+```bash
+pnpm exec playwright test -c playwright.desktop.config.ts
+```
+
+wry 总是显式设置 WebView2 启动参数，`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` 环境变量不生效，所以调试端口只能写进合并配置。`tauri.desktop-test.conf.json` 会整体替换窗口配置，测试开始时会校验它除调试参数外与 `tauri.conf.json` 一致。WebView2 数据目录指向临时文件夹，不影响本机已安装应用的工程数据（debug 版仍会在 `%LOCALAPPDATA%\com.k99k5.ai-photo-master` 下写入空的日志与 cookie 文件）。模拟接口不返回任何 CORS 响应头，另存为对话框由 Windows UI 自动化操作。

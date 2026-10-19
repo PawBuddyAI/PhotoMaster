@@ -110,7 +110,7 @@ onBeforeUnmount(() => Object.values(thumbnails.value).forEach(url => URL.revokeO
           :disabled="importing"
           icon="i-lucide-image-plus"
           label="拖入照片，或点击选择"
-          description="支持 JPEG、PNG、WebP。图片只保存在本机浏览器中，仅在使用 AI 功能时发送给你配置的接口。"
+          description="支持 JPEG、PNG、WebP。图片只保存在本机，仅在使用 AI 功能时发送给你配置的接口。"
           class="w-full"
           :class="projects.length ? 'min-h-36' : 'min-h-56'"
           :ui="{

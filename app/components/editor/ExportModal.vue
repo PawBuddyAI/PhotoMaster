@@ -25,7 +25,12 @@ const canKeepExif = computed(() => format.value === 'image/jpeg' && meta.value?.
 async function start() {
   try {
     const result = await run({ format: format.value, quality: quality.value, keepExif: keepExif.value && canKeepExif.value })
-    notify.success('导出完成', `${result.width}×${result.height}，${(result.blob.size / 1024 / 1024).toFixed(1)} MB`)
+    // 桌面版在另存为对话框中取消：保持弹窗打开，不提示
+    if (!result) {
+      return
+    }
+    const summary = `${result.width}×${result.height}，${(result.blob.size / 1024 / 1024).toFixed(1)} MB`
+    notify.success('导出完成', result.savedPath ? `${summary}，已保存到 ${result.savedPath}` : summary)
     open.value = false
   } catch (err) {
     notify.error(err)

@@ -1,0 +1,4 @@
+# Cargo 编译产物
+# 以及 Tauri 生成的权限 schema
+/target/
+/gen/schemas

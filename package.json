@@ -18,6 +18,10 @@
     "@iconify-json/lucide": "^1.2.146",
     "@nuxt/ui": "^4.12.0",
     "@pinia/nuxt": "^1.0.3",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-dialog": "~2",
+    "@tauri-apps/plugin-fs": "~2",
+    "@tauri-apps/plugin-http": "~2",
     "comlink": "^4.4.2",
     "dexie": "^4.4.6",
     "konva": "^10.9.0",
@@ -33,6 +37,7 @@
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
     "@playwright/test": "^1.64.1",
+    "@tauri-apps/cli": "^2.12.3",
     "@types/piexifjs": "^1.0.0",
     "eslint": "^10.13.0",
     "eslint-plugin-better-tailwindcss": "^4.9.1",

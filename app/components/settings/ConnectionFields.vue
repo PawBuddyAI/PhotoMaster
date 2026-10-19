@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isDesktop } from '~/lib/desktop'
 import { DEFAULT_BASE_URL } from '~/lib/llm/client'
 
 const baseURL = defineModel<string>('baseUrl', { required: true })
@@ -6,6 +7,8 @@ const apiKey = defineModel<string>('apiKey', { required: true })
 const useProxy = defineModel<boolean>('useProxy', { required: true })
 
 const showKey = ref(false)
+/** 桌面版由 Rust 端直连，不受跨域限制，不需要代理 */
+const desktop = isDesktop()
 </script>
 
 <template>
@@ -21,7 +24,7 @@ const showKey = ref(false)
   </SettingsRow>
   <SettingsRow
     label="API Key"
-    description="只保存在本机浏览器中；无需鉴权的服务可填写任意值"
+    description="只保存在本机；无需鉴权的服务可填写任意值"
   >
     <UInput
       v-model="apiKey"
@@ -44,6 +47,7 @@ const showKey = ref(false)
     </UInput>
   </SettingsRow>
   <SettingsRow
+    v-if="!desktop"
     label="通过本地代理转发"
     description="服务不支持浏览器跨域请求（CORS）时开启；需要以 pnpm dev 或 Node 服务方式运行本应用"
     toggle

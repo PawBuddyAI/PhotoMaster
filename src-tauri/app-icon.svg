@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- 应用图标源文件：石墨底 + 系统蓝风景照片 + 星芒（AI）。修改后执行 pnpm tauri icon src-tauri/app-icon.svg 重新生成 icons/ -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3a3c"/>
+      <stop offset="1" stop-color="#1c1c1e"/>
+    </linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#64d2ff"/>
+      <stop offset="1" stop-color="#0a84ff"/>
+    </linearGradient>
+    <path id="spark" d="M772 168 C786 262 814 290 908 304 C814 318 786 346 772 440 C758 346 730 318 636 304 C730 290 758 262 772 168 Z"/>
+    <clipPath id="photo">
+      <rect x="192" y="304" width="576" height="456" rx="64"/>
+    </clipPath>
+    <!-- 星芒压在照片右上角：照片沿星芒外扩一圈挖空，背景上不留描边 -->
+    <mask id="gap" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <use href="#spark" fill="#000" stroke="#000" stroke-width="56" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <rect x="40" y="40" width="944" height="944" rx="212" fill="url(#bg)"/>
+  <rect x="41.5" y="41.5" width="941" height="941" rx="210.5" fill="none" stroke="#fff" stroke-opacity="0.12" stroke-width="3"/>
+  <g mask="url(#gap)">
+    <g clip-path="url(#photo)">
+      <rect x="192" y="304" width="576" height="456" fill="url(#sky)"/>
+      <circle cx="328" cy="430" r="50" fill="#fff" fill-opacity="0.92"/>
+      <path d="M192 760 L392 548 L478 636 L590 520 L768 704 L768 760 Z" fill="#1c1c1e" fill-opacity="0.88"/>
+    </g>
+  </g>
+  <use href="#spark" fill="#fff"/>
+</svg>

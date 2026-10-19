@@ -1,0 +1,48 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "AI 修图",
+  "version": "0.1.0",
+  "identifier": "com.k99k5.ai-photo-master",
+  "build": {
+    "frontendDist": "../.output/public",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "pnpm dev --port 3000 --envName tauri",
+    "beforeBuildCommand": "pnpm generate --envName tauri"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "AI 修图",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600,
+        "center": true,
+        "maximized": true,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "category": "Photography",
+    "shortDescription": "AI 修图",
+    "longDescription": "多模态模型读图给出修图方案，本地 GPU 无损调色，OpenAI 兼容接口局部重绘。",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["SimpChinese"]
+      }
+    }
+  }
+}

@@ -85,6 +85,17 @@ describe('createOpenAIClient', () => {
     const headers = new Headers(calls[0]!.init.headers)
     expect(headers.get('x-target-base-url')).toBe('https://api.mock.test/v1')
   })
+
+  it('桌面版忽略代理设置，直接请求目标服务', async () => {
+    const { calls, fetchImpl } = mockFetch(() => completion(JSON.stringify(SAMPLE)))
+    const desktopClient = createOpenAIClient(
+      { baseURL: 'https://api.mock.test/v1/', apiKey: 'test-key', useProxy: true },
+      { fetch: fetchImpl, origin: 'http://tauri.localhost', desktop: true }
+    )
+    await analyzeImage(desktopClient, { ...BASE_OPTIONS, mode: 'json_schema' })
+    expect(calls[0]!.url).toBe('https://api.mock.test/v1/chat/completions')
+    expect(new Headers(calls[0]!.init.headers).has('x-target-base-url')).toBe(false)
+  })
 })
 
 describe('analyzeImage', () => {

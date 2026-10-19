@@ -6,6 +6,12 @@ export default defineNuxtConfig({
     '@pinia/nuxt'
   ],
 
+  // 桌面版（src-tauri/tauri.conf.json 以 --envName tauri 启动 dev / generate）使用独立的构建目录：
+  // Nuxt 对构建目录加锁，否则另一个开发服务器运行期间无法打包桌面版
+  $env: {
+    tauri: { buildDir: 'node_modules/.cache/nuxt-tauri' }
+  },
+
   // 纯前端 SPA：所有图像处理与模型调用都在浏览器内完成
   ssr: false,
 
@@ -35,7 +41,15 @@ export default defineNuxtConfig({
     worker: { format: 'es' },
     // 预构建运行时才被发现的依赖，避免开发时首次打开页面触发整页重载
     optimizeDeps: {
-      include: ['vue-konva', 'konva', 'dexie', 'openai', 'openai/helpers/zod', 'zod', 'twgl.js', 'comlink', 'piexifjs']
+      include: [
+        'vue-konva', 'konva', 'dexie', 'openai', 'openai/helpers/zod', 'zod', 'twgl.js', 'comlink', 'piexifjs',
+        '@tauri-apps/api/core', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-fs', '@tauri-apps/plugin-http'
+      ]
+    },
+    // 桌面版（Tauri）开发：保留 Rust 编译输出，不监听 src-tauri（target 目录文件极多）
+    clearScreen: false,
+    server: {
+      watch: { ignored: ['**/src-tauri/**'] }
     }
   },
 

@@ -1,5 +1,6 @@
 import * as Comlink from 'comlink'
 import { ref } from 'vue'
+import { type DialogFilter, isDesktop, pickSavePath, writeBlob } from '~/lib/desktop'
 import type { ExportFormat, ExportResult } from '~/lib/image/export'
 import { getBlob } from '~/lib/storage/db'
 import { useEditorStore } from '~/stores/editor'
@@ -12,24 +13,40 @@ export interface ExportOptions {
   keepExif: boolean
 }
 
-const EXTENSIONS: Record<ExportFormat, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp'
+export interface ExportOutcome extends ExportResult {
+  /** 桌面版写入的文件路径；网页版交给浏览器下载，为 null */
+  savedPath: string | null
 }
 
-/** 全分辨率导出：在 Worker 中分块渲染，完成后触发浏览器下载 */
+/** 各格式在另存为对话框中的类型；第一个扩展名用作默认文件名的后缀 */
+const FILE_TYPES: Record<ExportFormat, DialogFilter> = {
+  'image/jpeg': { name: 'JPEG 图像', extensions: ['jpg', 'jpeg'] },
+  'image/png': { name: 'PNG 图像', extensions: ['png'] },
+  'image/webp': { name: 'WebP 图像', extensions: ['webp'] }
+}
+
+/**
+ * 全分辨率导出：在 Worker 中分块渲染。网页版完成后触发浏览器下载；
+ * 桌面版先弹出另存为对话框再渲染，取消时返回 null，不做无用的渲染。
+ */
 export function useExport() {
   const exporting = ref(false)
   const progress = ref(0)
 
-  async function run(opts: ExportOptions): Promise<ExportResult> {
+  async function run(opts: ExportOptions): Promise<ExportOutcome | null> {
     const editor = useEditorStore()
     const assets = useProjectAssets()
     const meta = editor.project
     const original = assets.originalBlob.value
     if (!meta || !original) {
       throw new Error('工程尚未打开')
+    }
+    const fileType = FILE_TYPES[opts.format]
+    const fileName = `${meta.name}-edited.${fileType.extensions[0]}`
+    const desktop = isDesktop()
+    const savedPath = desktop ? await pickSavePath(fileName, fileType) : null
+    if (desktop && !savedPath) {
+      return null
     }
     exporting.value = true
     progress.value = 0
@@ -55,8 +72,12 @@ export function useExport() {
       }, Comlink.proxy((done: number, total: number) => {
         progress.value = done / total
       }))
-      downloadBlob(result.blob, `${meta.name}-edited.${EXTENSIONS[opts.format]}`)
-      return result
+      if (savedPath) {
+        await writeBlob(savedPath, result.blob)
+      } else {
+        downloadBlob(result.blob, fileName)
+      }
+      return { ...result, savedPath }
     } finally {
       exporting.value = false
     }
