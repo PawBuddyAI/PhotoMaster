@@ -10,7 +10,7 @@
 - **区域调色图层**：曝光、对比度、高光、阴影、黑白色阶、色温、色调、自然饱和度、饱和度、清晰度、锐化。每个图层可以限定区域：全图、矩形、椭圆（羽化）、线性渐变，或仅由画笔决定；支持画笔添加和擦除、反转、强度。
 - **局部重绘**：用矩形、椭圆或画笔圈出区域，并填写指令；每次生成多张候选供挑选。结果只替换蒙版内的像素，蒙版外与原图逐位一致。
 - **裁剪与水平校正**：旋转后裁剪框自动收缩到无空白角的最大区域，支持多种长宽比。
-- **非破坏式编辑**：图层可以开关、排序、删除，支持撤销和重做，工程自动保存在浏览器（IndexedDB）中。
+- **非破坏式编辑**：图层可以开关、排序、删除，支持撤销和重做，工程自动保存在浏览器（IndexedDB）中。修改停顿 0.6 秒后写入；页面切到后台、刷新或关闭时立即补存，关闭时如果还有修改没写完，浏览器会先请求确认。
 - **全分辨率导出**：在 Worker 中分块渲染，导出尺寸为原图尺寸，支持 JPEG / PNG / WebP；JPEG 原图可保留 EXIF。
 
 ## 为什么不直接“读图 → 蒙版 → images/edits”
@@ -48,6 +48,7 @@ pnpm generate   # 纯静态站点（.output/public），只能使用直连模式
 
 - 请求由 Rust 端直接发出，不受跨域限制，设置里不显示「通过本地代理转发」
 - 导出时弹出系统「另存为」对话框，默认打开上次保存的文件夹
+- 关闭窗口时先写入还没保存的修改再关闭，最多等 5 秒；保存失败或超时会弹出对话框，可以放弃修改关闭，也可以返回编辑
 - 工程数据保存在 `%LOCALAPPDATA%\com.k99k5.ai-photo-master\EBWebView`，与浏览器中的网页版互不相通
 
 构建需要 Rust 1.90 以上与 Visual Studio C++ 生成工具：
@@ -87,7 +88,9 @@ app/
     geometry/     裁剪与旋转几何
     image/        画布工具、底图合成、EXIF、分块导出
     storage/      IndexedDB（Dexie）
+    project/      工程文档模型、退出前补存
   stores/         Pinia：设置、编辑会话（撤销/自动保存）、读图、重绘任务
+  plugins/        Konva 注册；页面卸载与窗口关闭前补存
   composables/    预览渲染、资源缓存、Worker、导出、提示
   components/     编辑器界面（画布、图层、区域工具、参数、建议、重绘、裁剪、导出）
   workers/        图像计算 Worker（导出、重绘收尾）
@@ -120,4 +123,4 @@ pnpm tauri build --debug --no-bundle --config src-tauri/tauri.desktop-test.conf.
 pnpm exec playwright test -c playwright.desktop.config.ts
 ```
 
-wry 总是显式设置 WebView2 启动参数，`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` 环境变量不生效，所以调试端口只能写进合并配置。`tauri.desktop-test.conf.json` 会整体替换窗口配置，测试开始时会校验它除调试参数外与 `tauri.conf.json` 一致。WebView2 数据目录指向临时文件夹，不影响本机已安装应用的工程数据（debug 版仍会在 `%LOCALAPPDATA%\com.k99k5.ai-photo-master` 下写入空的日志与 cookie 文件）。模拟接口不返回任何 CORS 响应头，另存为对话框由 Windows UI 自动化操作。
+wry 总是显式设置 WebView2 启动参数，`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` 环境变量不生效，所以调试端口只能写进合并配置。`tauri.desktop-test.conf.json` 会整体替换窗口配置，测试开始时会校验它除调试参数外与 `tauri.conf.json` 一致。WebView2 数据目录指向临时文件夹，不影响本机已安装应用的工程数据（debug 版仍会在 `%LOCALAPPDATA%\com.k99k5.ai-photo-master` 下写入空的日志与 cookie 文件）。模拟接口不返回任何 CORS 响应头，另存为对话框由 Windows UI 自动化操作。最后一项用例在应用重绘结果后、自动保存的防抖到期前向主窗口投递 `WM_CLOSE`（与点标题栏关闭按钮相同），再以同一数据目录重启，确认修改已经写入。

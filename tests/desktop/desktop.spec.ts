@@ -8,7 +8,7 @@ import { type Browser, chromium, expect, type Page, test } from '@playwright/tes
 import { startMockServer } from './mock-server'
 
 /**
- * 桌面版端到端：在真实的 Tauri 窗口（WebView2）里跑导入 → 分析 → 流式重绘 → 取消 → 导出。
+ * 桌面版端到端：在真实的 Tauri 窗口（WebView2）里跑导入 → 分析 → 流式重绘 → 取消 → 导出 → 修改后立即关窗再重启。
  * 模拟服务不返回任何 CORS 头且监听非默认端口，请求能成功即说明走的是 Rust 端；
  * 设置里故意打开「代理」，确认桌面版忽略它。WebView2 数据目录指向临时文件夹，不碰本机已安装应用的数据。
  *
@@ -47,9 +47,22 @@ let app: ChildProcess
 let browser: Browser
 let page: Page
 let workDir: string
+let userData: string
 let mock: Awaited<ReturnType<typeof startMockServer>>
 let photoB64 = ''
 let generatedB64 = ''
+
+/** 启动应用并经调试端口连接主窗口；数据目录固定为本次测试的临时文件夹，重启后沿用 */
+async function launch() {
+  app = spawn(EXE, [], {
+    stdio: 'ignore',
+    env: { ...process.env, WEBVIEW2_USER_DATA_FOLDER: userData }
+  })
+  browser = await connect(`http://127.0.0.1:${CDP_PORT}`)
+  const context = browser.contexts()[0]!
+  page = context.pages()[0] ?? await context.waitForEvent('page')
+  await page.waitForURL(`${ORIGIN}/`)
+}
 
 test.beforeAll(async () => {
   // 测试配置整体替换窗口数组，除远程调试参数外必须与正式配置一致，否则测的不是发布出去的窗口
@@ -62,15 +75,8 @@ test.beforeAll(async () => {
   expect(existsSync(EXE), `找不到 ${EXE}，请先执行 pnpm tauri build --debug --no-bundle --config src-tauri/tauri.desktop-test.conf.json`).toBe(true)
   mock = await startMockServer({ analysis: ANALYSIS, generatedB64: () => generatedB64 })
   workDir = await mkdtemp(join(tmpdir(), 'apm-desktop-'))
-  const userData = join(workDir, 'webview')
-  app = spawn(EXE, [], {
-    stdio: 'ignore',
-    env: { ...process.env, WEBVIEW2_USER_DATA_FOLDER: userData }
-  })
-  browser = await connect(`http://127.0.0.1:${CDP_PORT}`)
-  const context = browser.contexts()[0]!
-  page = context.pages()[0] ?? await context.waitForEvent('page')
-  await page.waitForURL(`${ORIGIN}/`)
+  userData = join(workDir, 'webview')
+  await launch()
   // 数据目录没有被重定向时立即停止，避免测试工程写进本机已安装应用的数据里
   expect(existsSync(join(userData, 'EBWebView')), 'WEBVIEW2_USER_DATA_FOLDER 未生效').toBe(true)
 })
@@ -231,6 +237,51 @@ test('导出：另存为对话框取消时不导出；保存后写入所选路�
   test.info().annotations.push({ type: '导出文件', description: `${(exported.length / 1024 / 1024).toFixed(2)} MB` })
 })
 
+test('应用后立即关闭窗口：补存完成才关窗，重启后结果仍在', async () => {
+  // 先移除结果并等它落盘：重启后若还能看到结果，只能来自关窗时的补存
+  await page.getByRole('button', { name: '移除结果', exact: true }).click()
+  await expect(page.getByRole('button', { name: '生成', exact: true })).toBeVisible()
+  await expect(page.getByText('已保存', { exact: true })).toBeVisible()
+
+  const closeWindow = await prepareWindowClose(app.pid!)
+  await page.getByRole('button', { name: '生成', exact: true }).click()
+  await page.getByRole('button', { name: '应用所选' }).click()
+  // 在页面里等到结果写入图层（出现「移除结果」）的那一刻读取保存状态，随即发出关闭请求
+  const stateAtClose = await page.evaluate(() => new Promise<string>((resolve) => {
+    const labels = ['已保存', '未保存', '保存中…', '保存失败']
+    const poll = () => {
+      if (![...document.querySelectorAll('button')].some(b => b.textContent?.trim() === '移除结果')) {
+        setTimeout(poll, 5)
+        return
+      }
+      const label = [...document.querySelectorAll('span')].map(s => s.textContent?.trim() ?? '').find(t => labels.includes(t))
+      resolve(label ?? '')
+    }
+    poll()
+  }))
+  const projectUrl = page.url()
+  const exited = new Promise<void>(resolve => app.once('exit', () => resolve()))
+  const disconnected = new Promise<void>(resolve => browser.once('disconnected', () => resolve()))
+  const closeAt = Date.now()
+  closeWindow()
+  // 关闭请求发出时修改还在防抖中，没有写入
+  expect(stateAtClose).toBe('未保存')
+
+  // 补存最多等 5 秒（CLOSE_SAVE_TIMEOUT），窗口必须能关掉
+  const closed = await Promise.race([exited.then(() => true), new Promise<boolean>(resolve => setTimeout(resolve, 15_000, false))])
+  expect(closed, '发出关闭请求 15 秒后窗口仍未关闭').toBe(true)
+  test.info().annotations.push({ type: '关闭耗时', description: `${Date.now() - closeAt} ms` })
+  await disconnected
+
+  await launch()
+  await page.goto(projectUrl)
+  await expect(page.getByText('正在加载图像')).toBeHidden()
+  await page.getByRole('tab', { name: /图层/ }).click()
+  await page.getByText('移除路人', { exact: true }).first().click()
+  await expect(page.getByRole('button', { name: '移除结果', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '重新生成' })).toBeVisible()
+})
+
 /** 应用启动后远程调试端口才就绪，轮询连接 */
 async function connect(endpoint: string): Promise<Browser> {
   const deadline = Date.now() + 30_000
@@ -294,6 +345,47 @@ if ('${action}' -eq 'save') {
 }
 `
   await promisify(execFile)('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')])
+}
+
+/**
+ * 准备关闭应用主窗口，返回发出关闭请求的函数：向主窗口投递 WM_CLOSE，与点标题栏关闭按钮走同一条路径。
+ * PowerShell 启动并编译 Win32 声明要一两秒，所以提前启动、就绪后等待标准输入的信号，
+ * 关闭请求才能赶在自动保存的防抖（600ms）之前发出。
+ */
+async function prepareWindowClose(pid: number): Promise<() => void> {
+  const script = `
+$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class CloseWin32 {
+  [DllImport("user32.dll")]
+  public static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+}
+'@
+$hwnd = (Get-Process -Id ${pid}).MainWindowHandle
+if ($hwnd -eq [IntPtr]::Zero) { throw '未找到应用主窗口' }
+[Console]::Out.WriteLine('ready')
+[void][Console]::In.ReadLine()
+$WM_CLOSE = 0x0010
+if (-not [CloseWin32]::PostMessage($hwnd, $WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero)) { throw '投递 WM_CLOSE 失败' }
+`
+  const ps = spawn('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')])
+  let stderr = ''
+  ps.stderr.on('data', (chunk) => {
+    stderr += chunk
+  })
+  await new Promise<void>((resolve, reject) => {
+    ps.stdout.on('data', (chunk) => {
+      if (String(chunk).includes('ready')) {
+        resolve()
+      }
+    })
+    ps.once('exit', code => reject(new Error(`关闭窗口脚本提前退出（${code}）：${stderr}`)))
+  })
+  return () => {
+    ps.stdin.end('close\n')
+  }
 }
 
 /** 在 WebView 里生成测试图片并返回 base64：照片带确定性噪声，体积接近真实照片，便于观察大请求经 IPC 的开销 */

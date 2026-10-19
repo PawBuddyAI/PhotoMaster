@@ -56,8 +56,14 @@ export const useEditorStore = defineStore('editor', () => {
   const history = markRaw(new HistoryStack<ProjectDoc>())
   const historyTick = ref(0)
   let saveTimer: ReturnType<typeof setTimeout> | null = null
+  /** 每次修改递增；保存完成时版本已变，说明保存期间又有修改，不能标记为已保存 */
+  let revision = 0
+  /** 正在进行的写入，保证同一时刻只有一次保存 */
+  let saving: Promise<void> | null = null
 
   const layers = computed(() => doc.value.layers)
+  /** 有修改尚未写入（防抖等待中、保存中或上次保存失败），退出前需要补存 */
+  const hasUnsavedChanges = computed(() => saveState.value !== 'saved')
   const selectedLayer = computed<Layer | null>(() => layers.value.find(l => l.id === selectedLayerId.value) ?? null)
   const canUndo = computed(() => historyTick.value >= 0 && history.canUndo)
   const canRedo = computed(() => historyTick.value >= 0 && history.canRedo)
@@ -294,6 +300,7 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   function scheduleSave(): void {
+    revision++
     saveState.value = 'dirty'
     if (saveTimer) {
       clearTimeout(saveTimer)
@@ -303,22 +310,36 @@ export const useEditorStore = defineStore('editor', () => {
     }, SAVE_DELAY)
   }
 
+  /**
+   * 立即写入尚未保存的修改，不再等防抖。已有保存在进行时先等它结束再补存，
+   * 因此 resolve 时调用前的所有修改都已落盘；失败时状态记为 error 并抛出。
+   */
   async function flush(): Promise<void> {
     if (saveTimer) {
       clearTimeout(saveTimer)
       saveTimer = null
+    }
+    while (saving) {
+      await saving.catch(() => {})
     }
     const meta = project.value
     if (!meta || saveState.value === 'saved') {
       return
     }
     saveState.value = 'saving'
+    const savingRevision = revision
+    const task = saveProjectDoc(meta.id, doc.value)
+    saving = task
     try {
-      await saveProjectDoc(meta.id, doc.value)
-      saveState.value = 'saved'
+      await task
+      saveState.value = revision === savingRevision ? 'saved' : 'dirty'
     } catch (err) {
       saveState.value = 'error'
       throw err
+    } finally {
+      if (saving === task) {
+        saving = null
+      }
     }
   }
 
@@ -335,6 +356,7 @@ export const useEditorStore = defineStore('editor', () => {
     compareOriginal,
     hoverMask,
     saveState,
+    hasUnsavedChanges,
     canUndo,
     canRedo,
     open,

@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "主窗口权限：请求任意 OpenAI 兼容服务、弹出另存为对话框、写入对话框选定的文件",
+  "description": "主窗口权限：请求任意 OpenAI 兼容服务、弹出另存为对话框、写入对话框选定的文件、关闭前补存后销毁窗口并在保存失败时弹出确认",
   "windows": [
     "main"
   ],
   "permissions": [
     "core:default",
+    "core:window:allow-destroy",
     {
       "identifier": "http:default",
       "allow": [
@@ -15,6 +16,7 @@
       ]
     },
     "dialog:allow-save",
+    "dialog:allow-message",
     "fs:allow-write-file"
   ]
 }

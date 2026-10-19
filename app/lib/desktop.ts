@@ -1,10 +1,11 @@
 import { isTauri } from '@tauri-apps/api/core'
-import { type DialogFilter, save } from '@tauri-apps/plugin-dialog'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { ask, type DialogFilter, save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 
 /**
- * 桌面版（Tauri）适配：运行时判定、跨域请求与本地文件保存。
+ * 桌面版（Tauri）适配：运行时判定、跨域请求、本地文件保存与窗口关闭拦截。
  * 网页版不会调用这些插件；Worker 与 node 测试中 isDesktop() 恒为 false。
  * 插件权限见 src-tauri/capabilities/default.json。
  */
@@ -36,4 +37,34 @@ export function pickSavePath(fileName: string, filter: DialogFilter): Promise<st
 /** 把 Blob 写入对话框选定的路径，已有文件会被覆盖 */
 export async function writeBlob(path: string, blob: Blob): Promise<void> {
   await writeFile(path, new Uint8Array(await blob.arrayBuffer()))
+}
+
+/**
+ * 拦截主窗口关闭（标题栏关闭按钮、Alt+F4、任务栏关闭）：beforeClose 返回 false 时保持窗口打开。
+ * 前端注册监听后 Tauri 不再自行关窗，而是在回调结束后由前端 destroy（需要 core:window:allow-destroy）。
+ * beforeClose 出错时照常关闭；处理期间再次请求关闭会被忽略，由正在进行的那次决定。返回取消监听的函数。
+ */
+export function guardWindowClose(beforeClose: () => Promise<boolean>): Promise<() => void> {
+  let pending = false
+  return getCurrentWindow().onCloseRequested(async (event) => {
+    if (pending) {
+      event.preventDefault()
+      return
+    }
+    pending = true
+    try {
+      if (!await beforeClose()) {
+        event.preventDefault()
+      }
+    } catch {
+      // 拦截逻辑本身出错时放行，不能让窗口关不掉
+    } finally {
+      pending = false
+    }
+  })
+}
+
+/** 系统警告对话框，返回用户是否点了 ok 按钮（需要 dialog:allow-message） */
+export function askWarning(title: string, message: string, buttons: { ok: string, cancel: string }): Promise<boolean> {
+  return ask(message, { title, kind: 'warning', okLabel: buttons.ok, cancelLabel: buttons.cancel })
 }
