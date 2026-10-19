@@ -2,7 +2,8 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cloneDoc, emptyDoc } from '~/lib/project/doc'
 import { flushOnPageHide, type PendingSave, saveBeforeClose, type VisibilityTarget } from '~/lib/project/save-on-exit'
-import type { ProjectDoc, ProjectRecord } from '~/lib/types'
+import type { Project } from '~/lib/storage/db'
+import type { ProjectDoc } from '~/lib/types'
 import { useEditorStore } from '~/stores/editor'
 
 /** node 中没有 IndexedDB：替换存储层，记录每次写入时的文档快照，写入何时完成由测试控制 */
@@ -15,7 +16,7 @@ const db = vi.hoisted(() => ({
 }))
 
 vi.mock('~/lib/storage/db', () => ({
-  getProject: vi.fn(async (id: string): Promise<ProjectRecord> => ({
+  getProject: vi.fn(async (id: string): Promise<Project> => ({
     id,
     name: '测试工程',
     createdAt: 0,
