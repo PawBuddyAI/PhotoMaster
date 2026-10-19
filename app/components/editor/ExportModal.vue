@@ -50,17 +50,20 @@ async function start() {
             :disabled="exporting"
           />
         </UFormField>
-        <EditorParamSlider
-          v-if="format !== 'image/png'"
-          v-model="quality"
-          label="质量"
-          :min="0.5"
-          :max="1"
-          :step="0.01"
-          :default-value="0.92"
-          :disabled="exporting"
-          :format="v => `${Math.round(v * 100)}`"
-        />
+        <!-- PNG 无损没有质量参数：切换格式时滑块原地收起、展开 -->
+        <Transition name="reveal">
+          <EditorParamSlider
+            v-if="format !== 'image/png'"
+            v-model="quality"
+            label="质量"
+            :min="0.5"
+            :max="1"
+            :step="0.01"
+            :default-value="0.92"
+            :disabled="exporting"
+            :format="v => `${Math.round(v * 100)}`"
+          />
+        </Transition>
         <USwitch
           v-model="keepExif"
           label="保留 EXIF 信息"
@@ -73,11 +76,13 @@ async function start() {
         >
           输出尺寸 {{ outputSize.w }}×{{ outputSize.h }}
         </p>
-        <UProgress
-          v-if="exporting"
-          :model-value="progress * 100"
-          size="sm"
-        />
+        <Transition name="reveal">
+          <UProgress
+            v-if="exporting"
+            :model-value="progress * 100"
+            size="sm"
+          />
+        </Transition>
       </div>
     </template>
     <template #footer>

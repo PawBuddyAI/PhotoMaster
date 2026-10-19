@@ -17,6 +17,8 @@ const ACCENT = '#0a84ff'
 const HOVER = '#ffd60a'
 const MIN_SCALE = 0.02
 const MAX_SCALE = 32
+/** 按钮、快捷键与进入/退出裁剪触发的视角过渡时长；滚轮缩放和拖动平移始终直接跟手 */
+const VIEW_TWEEN_MS = 280
 
 const container = ref<HTMLDivElement | null>(null)
 const layerRef = ref<VueKonvaRef<Konva.Layer> | null>(null)
@@ -43,7 +45,57 @@ const px = (n: number) => n / vp.scale
 
 // ---------- 视图 ----------
 
-function fit() {
+type View = { scale: number, x: number, y: number }
+
+let tweenFrame = 0
+/** 过渡进行中时的终点；连续点击放大会在终点上累加，而不是在半途的视角上 */
+let tweenTarget: View | null = null
+
+function stopTween() {
+  cancelAnimationFrame(tweenFrame)
+  tweenTarget = null
+}
+
+/** 视口中心对应的图像坐标 */
+function centerOf(view: View) {
+  return { x: (size.width / 2 - view.x) / view.scale, y: (size.height / 2 - view.y) / view.scale }
+}
+
+/**
+ * 切换到目标视角。过渡时缩放按对数插值（放大、缩小的观感速度一致），视口中心对应的图像点线性移动，
+ * 两者合成后缩放中心不会漂移；用户要求减少动态效果时直接到位
+ */
+function setView(target: View, animate: boolean) {
+  stopTween()
+  if (!animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    Object.assign(vp, target)
+    return
+  }
+  tweenTarget = target
+  const fromScale = vp.scale
+  const from = centerOf(vp)
+  const to = centerOf(target)
+  // 起点取第一帧的时间戳：帧时间戳可能早于触发过渡的点击，用 performance.now() 会算出负进度、先倒退一下
+  let start: number | null = null
+  const step = (now: number) => {
+    start ??= now
+    const t = Math.min(1, (now - start) / VIEW_TWEEN_MS)
+    const k = t >= 1 ? 1 : 1 - 2 ** (-10 * t)
+    const scale = fromScale * (target.scale / fromScale) ** k
+    vp.scale = scale
+    vp.x = size.width / 2 - (from.x + (to.x - from.x) * k) * scale
+    vp.y = size.height / 2 - (from.y + (to.y - from.y) * k) * scale
+    if (t < 1) {
+      tweenFrame = requestAnimationFrame(step)
+    } else {
+      tweenTarget = null
+      Object.assign(vp, target)
+    }
+  }
+  tweenFrame = requestAnimationFrame(step)
+}
+
+function fit(animate = false) {
   if (!size.width || !size.height) {
     return
   }
@@ -52,31 +104,33 @@ function fit() {
     : { x: 0, y: 0, w: W.value, h: H.value }
   const margin = 24
   const scale = Math.max(MIN_SCALE, Math.min((size.width - margin * 2) / target.w, (size.height - margin * 2) / target.h))
-  vp.scale = scale
-  vp.x = size.width / 2 - (target.x + target.w / 2) * scale
-  vp.y = size.height / 2 - (target.y + target.h / 2) * scale
+  setView({
+    scale,
+    x: size.width / 2 - (target.x + target.w / 2) * scale,
+    y: size.height / 2 - (target.y + target.h / 2) * scale
+  }, animate)
   fitted = true
 }
 
-function zoomAt(factor: number, cx: number, cy: number) {
-  const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, vp.scale * factor))
-  const wx = (cx - vp.x) / vp.scale
-  const wy = (cy - vp.y) / vp.scale
-  vp.scale = scale
-  vp.x = cx - wx * scale
-  vp.y = cy - wy * scale
+function zoomAt(factor: number, cx: number, cy: number, animate = false) {
+  const base = tweenTarget ?? { scale: vp.scale, x: vp.x, y: vp.y }
+  const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, base.scale * factor))
+  const wx = (cx - base.x) / base.scale
+  const wy = (cy - base.y) / base.scale
+  setView({ scale, x: cx - wx * scale, y: cy - wy * scale }, animate)
 }
 
 function zoomBy(factor: number) {
-  zoomAt(factor, size.width / 2, size.height / 2)
+  zoomAt(factor, size.width / 2, size.height / 2, true)
 }
 
 /** 原图 1 像素对应屏幕 1 像素 */
 function actualSize() {
-  zoomAt(1 / vp.scale, size.width / 2, size.height / 2)
+  zoomAt(1 / (tweenTarget ?? vp).scale, size.width / 2, size.height / 2, true)
 }
 
-defineExpose({ fit, zoomBy, actualSize })
+// 对外的视图操作都由按钮或快捷键触发，带过渡
+defineExpose({ fit: () => fit(true), zoomBy, actualSize })
 
 let resizeObserver: ResizeObserver | null = null
 onMounted(() => {
@@ -95,13 +149,15 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  stopTween()
   resizeObserver?.disconnect()
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('keyup', onKeyUp)
   window.removeEventListener('pointerup', finishPointer)
 })
 
-watch(cropMode, () => nextTick(fit))
+// 进入裁剪时镜头拉远露出整张原图，完成裁剪时再推近到裁剪框
+watch(cropMode, () => nextTick(() => fit(true)))
 
 // 工程与渲染器就绪后才知道图像尺寸，此时再做首次自适应
 watch(() => props.view.ready.value, (ready) => {
@@ -371,6 +427,7 @@ function isBackground(target: Konva.Node): boolean {
 function onPointerDown(e: KonvaEventObject<PointerEvent>) {
   const evt = e.evt
   if (evt.button === 1 || spaceDown.value || (evt.button === 0 && !brushActive.value && isBackground(e.target))) {
+    stopTween()
     panning = { startX: evt.clientX, startY: evt.clientY, vpX: vp.x, vpY: vp.y }
     isPanning.value = true
     return
@@ -429,6 +486,8 @@ function onWheel(e: KonvaEventObject<WheelEvent>) {
   const p = stage?.getPointerPosition()
   if (!p) return
   const factor = Math.exp(-e.evt.deltaY * (e.evt.ctrlKey ? 0.01 : 0.0015))
+  // 滚轮直接跟手：打断进行中的过渡，从当前看到的视角继续缩放
+  stopTween()
   zoomAt(factor, p.x, p.y)
 }
 
@@ -533,9 +592,11 @@ function onCropChange(e: KonvaEventObject<Event>) {
     @contextmenu.prevent
     @pointerleave="pointer = null"
   >
+    <!-- 照片第一次落到画布上时合焦：这是打开工程时唯一的一段编排动效 -->
     <v-stage
       v-if="view.ready.value && size.width > 0"
       :config="stageConfig"
+      class="motion-safe:animate-photo-focus motion-reduce:animate-[emerge_200ms_var(--ease-out)]"
       @wheel="onWheel"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"

@@ -10,6 +10,7 @@ const inpaint = useInpaintStore()
 const assets = useProjectAssets()
 const view = useEditorRenderer()
 const notify = useNotify()
+const backdrop = useBackdrop()
 
 const canvasRef = ref<{ fit: () => void, zoomBy: (f: number) => void, actualSize: () => void } | null>(null)
 const loadError = ref<string | null>(null)
@@ -31,6 +32,13 @@ const tools: Array<{ value: EditorTool, label: string, icon: string, key: string
   { value: 'erase', label: '画笔擦除区域', icon: 'i-lucide-eraser', key: 'E' },
   { value: 'crop', label: '裁剪与校正', icon: 'i-lucide-crop', key: 'C' }
 ]
+
+// 侧栏透出当前工程的照片；从工程列表进来时由上一张照片的色调溶解过来
+watch(() => editor.project?.thumbnail, (thumbnail) => {
+  if (thumbnail) {
+    backdrop.value = thumbnail
+  }
+}, { immediate: true })
 
 onMounted(async () => {
   try {
@@ -129,8 +137,6 @@ function onShortcutUp(e: KeyboardEvent) {
     storage="local"
     storage-key="apm-editor"
   >
-    <AppBackdrop :image="editor.project?.thumbnail" />
-
     <UDashboardSidebar
       id="editor-left"
       :default-size="21"
@@ -154,7 +160,7 @@ function onShortcutUp(e: KeyboardEvent) {
         v-model="leftTab"
         :items="[
           { label: 'AI 建议', value: 'suggest', icon: 'i-lucide-sparkles', slot: 'suggest' as const },
-          { label: '图层', value: 'layers', icon: 'i-lucide-layers', slot: 'layers' as const, badge: editor.layers.length ? { label: String(editor.layers.length), color: 'neutral' as const, variant: 'soft' as const } : undefined }
+          { label: '图层', value: 'layers', icon: 'i-lucide-layers', slot: 'layers' as const }
         ]"
         variant="pill"
         color="neutral"
@@ -162,10 +168,22 @@ function onShortcutUp(e: KeyboardEvent) {
         class="w-full"
         :ui="{
           list: 'rounded-lg bg-transparent p-0.5 ring ring-default ring-inset',
-          indicator: 'rounded-md bg-surface shadow-none ring ring-default transition-none',
+          indicator: 'rounded-md bg-surface shadow-none ring ring-default',
           trigger: 'data-[state=active]:text-highlighted'
         }"
       >
+        <!-- 图层数每次变化都重新挂载并落定：采纳一条建议时，用户能看到它变成了「图层」里的一项 -->
+        <template #trailing="{ item }">
+          <UBadge
+            v-if="item.value === 'layers' && editor.layers.length"
+            :key="editor.layers.length"
+            :label="String(editor.layers.length)"
+            color="neutral"
+            variant="soft"
+            size="sm"
+            class="shrink-0 tabular-nums motion-safe:animate-settle-in"
+          />
+        </template>
         <template #suggest>
           <div class="pt-3">
             <EditorSuggestionPanel :source="view.displayCanvas.value" />

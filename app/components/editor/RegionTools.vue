@@ -70,26 +70,31 @@ const brushPercent = computed({
           />
         </UTooltip>
       </div>
-      <p
-        v-if="mask.shape === 'linear'"
-        class="text-xs text-muted"
-      >
-        拖动画布上的两个端点：起点效果最强，终点效果为零
-      </p>
+      <!-- 随形状出现、消失的说明与羽化滑块原地展开收起，下方控件平滑让位 -->
+      <Transition name="reveal">
+        <p
+          v-if="mask.shape === 'linear'"
+          class="text-xs text-muted"
+        >
+          拖动画布上的两个端点：起点效果最强，终点效果为零
+        </p>
+      </Transition>
     </div>
 
-    <EditorParamSlider
-      v-if="hasFeather"
-      :model-value="mask.feather"
-      label="羽化"
-      :min="0"
-      :max="1"
-      :step="0.01"
-      :default-value="defaultFeather(mask.shape)"
-      :disabled="locked"
-      :format="v => `${Math.round(v * 100)}%`"
-      @update:model-value="v => update({ feather: v }, 'feather')"
-    />
+    <Transition name="reveal">
+      <EditorParamSlider
+        v-if="hasFeather"
+        :model-value="mask.feather"
+        label="羽化"
+        :min="0"
+        :max="1"
+        :step="0.01"
+        :default-value="defaultFeather(mask.shape)"
+        :disabled="locked"
+        :format="v => `${Math.round(v * 100)}%`"
+        @update:model-value="v => update({ feather: v }, 'feather')"
+      />
+    </Transition>
     <EditorParamSlider
       :model-value="mask.density"
       label="强度"

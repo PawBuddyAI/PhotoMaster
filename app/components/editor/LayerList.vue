@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pinLeaving } from '~/lib/motion'
 import type { Layer } from '~/lib/types'
 import { useEditorStore } from '~/stores/editor'
 import { useInpaintStore } from '~/stores/inpaint'
@@ -66,9 +67,13 @@ function statusOf(layer: Layer): { label: string, color: 'neutral' | 'success' |
       size="sm"
     />
 
-    <ul
+    <!-- 上移、下移、增删和撤销重做时其余图层平滑让位，叠放顺序的变化看得见 -->
+    <TransitionGroup
       v-else
-      class="space-y-1"
+      tag="ul"
+      name="list"
+      class="relative space-y-1"
+      @before-leave="pinLeaving"
     >
       <li
         v-for="layer in displayLayers"
@@ -163,7 +168,7 @@ function statusOf(layer: Layer): { label: string, color: 'neutral' | 'success' |
           />
         </div>
       </li>
-    </ul>
+    </TransitionGroup>
     <p
       v-if="displayLayers.length"
       class="text-xs text-muted"

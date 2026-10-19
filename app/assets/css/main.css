@@ -9,6 +9,14 @@
    */
   --font-sans: 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /*
+   * 全局减速曲线：指数减速，确定地到位、没有回弹。
+   * 覆盖 Tailwind 默认值，`ease-out` 工具类与 Nuxt UI 浮层的 var(--ease-out) 共用这一条
+   */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-photo-focus: photo-focus 560ms var(--ease-out);
+  --animate-settle-in: settle-in 300ms var(--ease-out);
 }
 
 /*
@@ -131,9 +139,197 @@ textarea {
   scrollbar-color: var(--mac-scrollbar) transparent;
 }
 
-/* 等待中的旋转指示是功能性的；用户要求减少动态效果时也停下 */
+/*
+ * 动效只解释反馈、状态与连续性：颜色过渡、条件内容展开、列表让位、视角移动，外加打开照片时的一次合焦。
+ * 离场比入场快。「减少动态效果」时去掉位移、缩放、模糊和高度变化，只保留透明度与颜色。
+ */
+
+/* 照片落到画布或候选框里时像镜头合焦：从柔焦、透明到清晰。只写起点，终点取元素自身的样式 */
+@keyframes photo-focus {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+  }
+}
+
+/* 只写起点的淡入：终点保留元素自身的不透明度（例如 80% 的中间图） */
+@keyframes emerge {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 小的状态标记（对勾、图层数）落定 */
+@keyframes settle-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* 页面切换：整页快速交叉淡化，不做位移 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+}
+
+/*
+ * 窗口底图换成另一张照片时缓慢溶解：新图叠在上方淡入，旧图原样垫在下面直到被完全盖住，
+ * 侧栏色调因此不会在中途变暗。只有旧图、没有新图时旧图自己淡出
+ */
+.backdrop-enter-active {
+  transition: opacity 700ms var(--ease-in-out);
+}
+
+.backdrop-enter-from,
+.backdrop-leave-to:only-child {
+  opacity: 0;
+}
+
+/* 旧图压到新图下面（容器已隔离层叠上下文，负值不会沉到页面背后） */
+.backdrop-leave-active {
+  z-index: -1;
+  transition: opacity 0s 700ms;
+}
+
+.backdrop-leave-active:only-child {
+  transition: opacity 700ms var(--ease-in-out);
+}
+
+/* 条件出现的设置行、提示和进度：高度与透明度一起展开，下方内容平滑让位而不是跳动 */
+.reveal-enter-active,
+.reveal-leave-active {
+  transition: opacity 150ms var(--ease-out);
+}
+
+.reveal-enter-from,
+.reveal-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal-enter-active,
+  .reveal-leave-active {
+    interpolate-size: allow-keywords;
+    overflow: clip;
+    transition-property: height, padding-block, margin-block, opacity;
+    transition-duration: 260ms, 260ms, 260ms, 180ms;
+  }
+
+  .reveal-leave-active {
+    transition-duration: 180ms, 180ms, 180ms, 120ms;
+  }
+
+  .reveal-enter-from,
+  .reveal-leave-to {
+    height: 0;
+    padding-block: 0;
+    margin-block: 0;
+  }
+}
+
+/* 图层排序、增删与删除工程：其余条目平滑让位，新条目原位淡入，被删条目原地淡出 */
+.list-enter-active {
+  transition: opacity 200ms var(--ease-out), transform 260ms var(--ease-out);
+}
+
+.list-leave-active {
+  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .list-move {
+    transition: transform 260ms var(--ease-out);
+  }
+
+  .list-enter-from {
+    transform: translateY(-4px);
+  }
+
+  .list-leave-to {
+    transform: scale(0.97);
+  }
+}
+
+/* 新的读图结果：整体分析与各组建议按阅读顺序依次浮现，总时长封顶 560ms（由组件的 duration 兜住） */
+.results-leave-active,
+.swap-leave-active {
+  display: none;
+}
+
+.results-enter-active > * {
+  animation: rise-in 320ms var(--ease-out) both;
+}
+
+.results-enter-active > :nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.results-enter-active > :nth-child(3) {
+  animation-delay: 120ms;
+}
+
+.results-enter-active > :nth-child(4) {
+  animation-delay: 180ms;
+}
+
+.results-enter-active > :nth-child(n + 5) {
+  animation-delay: 240ms;
+}
+
+/* 检查器换了对象：内容快速淡入，提示「这是另一个图层了」 */
+.swap-enter-active {
+  animation: emerge 150ms var(--ease-out);
+}
+
+/* 采纳后状态标签淡入，对勾落定 */
+.adopt-enter-active {
+  animation: emerge 150ms var(--ease-out);
+}
+
+/* 第一个子元素是对勾图标 */
+.adopt-enter-active > :first-child {
+  animation: settle-in 300ms var(--ease-out) both;
+}
+
+/* 重绘的中间图与候选图逐张合焦出现 */
+.develop-enter-active {
+  animation: photo-focus 480ms var(--ease-out) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  /* 等待中的旋转指示是功能性的；用户要求减少动态效果时也停下 */
   .animate-spin {
+    animation: none;
+  }
+
+  .backdrop-enter-active,
+  .backdrop-leave-active:only-child {
+    transition-duration: 250ms;
+  }
+
+  .backdrop-leave-active {
+    transition-delay: 250ms;
+  }
+
+  .results-enter-active > *,
+  .develop-enter-active {
+    animation: emerge 200ms var(--ease-out) both;
+  }
+
+  .adopt-enter-active > :first-child {
     animation: none;
   }
 }

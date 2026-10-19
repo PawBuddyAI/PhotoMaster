@@ -2,14 +2,15 @@
  * macOS Vibrancy 组件主题。
  * 颜色全部来自 main.css 的三级深度令牌：deep（侧栏、凹槽）→ mid（面板、卡片）→ surface（按钮）。
  * 强调色只标记交互状态（焦点、选中工具、滑块填充、开关开启），从不做按钮或面板底色；
- * 过渡只作用于颜色，浮层不做缩放、滑动动画。
+ * 浮层沿用 macOS 的分寸：菜单和提示气泡只淡入淡出，弹窗带轻微放大，离场比入场快。
  */
 const ALL_COLORS = ['primary', 'secondary', 'success', 'info', 'warning', 'error', 'neutral']
 const STATUS_COLORS = ['primary', 'secondary', 'success', 'info', 'warning', 'error']
 
 const RAISED = 'bg-surface ring ring-inset ring-default hover:bg-(--mac-surface-hover) active:bg-surface disabled:bg-surface aria-disabled:bg-surface'
 const OVERLAY_SHADOW = 'shadow-[0_2px_8px_rgba(0,0,0,0.3)]'
-const NO_ANIMATION = 'data-[state=open]:animate-none data-[state=closed]:animate-none'
+/** 菜单与提示气泡：不缩放，只做 100ms 淡入淡出 */
+const MENU_FADE = 'data-[state=open]:animate-[fade-in_100ms_var(--ease-out)] data-[state=closed]:animate-[fade-out_100ms_var(--ease-out)]'
 
 export default defineAppConfig({
   ui: {
@@ -68,7 +69,7 @@ export default defineAppConfig({
       },
       variants: {
         variant: { outline: 'bg-field ring-accented' },
-        transition: { true: { content: NO_ANIMATION } }
+        transition: { true: { content: MENU_FADE } }
       },
       compoundVariants: [{ color: 'primary', variant: ['outline', 'subtle'], class: 'focus-visible:ring-primary/60' }]
     },
@@ -76,7 +77,7 @@ export default defineAppConfig({
     inputMenu: {
       slots: {
         base: 'rounded-lg duration-200 ease-out',
-        content: `rounded-lg bg-default/85 backdrop-blur-xl ${OVERLAY_SHADOW} ${NO_ANIMATION}`,
+        content: `rounded-lg bg-default/85 backdrop-blur-xl ${OVERLAY_SHADOW} ${MENU_FADE}`,
         item: 'before:rounded-md data-highlighted:not-data-disabled:before:bg-(--mac-selected)'
       },
       variants: { variant: { outline: 'bg-field ring-accented' } },
@@ -86,7 +87,8 @@ export default defineAppConfig({
       slots: {
         // 用 2px 内边距代替 2px 透明边框，保持几何尺寸不变
         base: 'rounded-xl border-0 p-0.5 focus-visible:outline-2',
-        thumb: 'rounded-xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.35)] transition-none'
+        // 旋钮沿用默认的 200ms 平移（减少动态效果时直接到位），与 macOS 开关一致
+        thumb: 'rounded-xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.35)]'
       },
       variants: { color: { primary: { base: 'outline-primary/60' } } }
     },
@@ -103,7 +105,7 @@ export default defineAppConfig({
     },
     tooltip: {
       slots: {
-        content: `rounded-md bg-mid ring-default ${OVERLAY_SHADOW} data-[state=delayed-open]:animate-none data-[state=closed]:animate-none`
+        content: `rounded-md bg-mid ring-default ${OVERLAY_SHADOW} data-[state=delayed-open]:animate-[fade-in_100ms_var(--ease-out)] data-[state=closed]:animate-[fade-out_100ms_var(--ease-out)]`
       }
     },
     modal: {
@@ -113,7 +115,13 @@ export default defineAppConfig({
       variants: {
         fullscreen: { false: { content: `rounded-xl ${OVERLAY_SHADOW}` } },
         overlay: { true: { overlay: 'bg-(--mac-scrim)' } },
-        transition: { true: { overlay: NO_ANIMATION, content: NO_ANIMATION } }
+        // 弹窗从 95% 放大淡入（减少动态效果时只淡入），关闭时直接淡出、比打开更快
+        transition: {
+          true: {
+            overlay: 'data-[state=open]:animate-[fade-in_200ms_var(--ease-out)] data-[state=closed]:animate-[fade-out_150ms_var(--ease-out)]',
+            content: 'data-[state=open]:animate-[scale-in_200ms_var(--ease-out)] data-[state=closed]:animate-[fade-out_150ms_var(--ease-out)]'
+          }
+        }
       }
     },
     toast: {

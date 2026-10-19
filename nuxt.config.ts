@@ -23,6 +23,11 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // 路由切换走浏览器原生的视图过渡（整页交叉淡化，时长见 main.css）；系统开启「减少动态效果」时 Nuxt 自动跳过
+  experimental: {
+    viewTransition: true
+  },
+
   compatibilityDate: '2026-06-30',
 
   vite: {

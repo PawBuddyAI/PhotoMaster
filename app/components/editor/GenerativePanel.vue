@@ -13,6 +13,8 @@ const notify = useNotify()
 const job = computed(() => inpaint.jobs[props.layer.id] ?? null)
 const running = computed(() => inpaint.isRunning(props.layer.id))
 const selected = ref(0)
+/** 候选图是在本面板打开期间才生成出来的：只有这时逐张合焦出现，重新选中图层时直接显示 */
+const candidatesArriving = ref(false)
 const now = ref(Date.now())
 let timer: ReturnType<typeof setInterval> | null = null
 
@@ -37,8 +39,11 @@ watch(running, (value) => {
   }
 }, { immediate: true })
 
-watch(() => job.value?.candidates.length, () => {
+watch(() => job.value?.candidates.length, (count, previous) => {
   selected.value = 0
+  if (count && !previous) {
+    candidatesArriving.value = true
+  }
 })
 
 onBeforeUnmount(() => {
@@ -110,123 +115,137 @@ async function apply() {
       />
     </div>
 
-    <div
-      v-if="job"
-      class="space-y-3 rounded-xl border border-default p-3"
-    >
-      <div class="flex items-center justify-between gap-2 text-xs">
-        <span
-          class="flex items-center gap-1.5"
-          :class="job.stage === 'error' ? 'text-error' : 'text-highlighted'"
-        >
-          <UIcon
-            v-if="running"
-            name="i-lucide-loader-circle"
-            class="size-3.5 animate-spin"
-          />
-          {{ STAGE_LABELS[job.stage] }}
-        </span>
-        <span
-          v-if="running"
-          class="tabular-nums text-muted"
-        >{{ elapsed }} 秒</span>
-      </div>
-      <p class="text-xs text-muted tabular-nums">
-        编辑分辨率 {{ job.plan.outW }}×{{ job.plan.outH }}，对应原图区域 {{ job.plan.crop.w }}×{{ job.plan.crop.h }}
-      </p>
-      <p
-        v-if="job.plan.distortion > 0.02"
-        class="text-xs text-warning"
-      >
-        区域过于狭长，超出模型支持的 3:1 比例，结果会有轻微拉伸；建议缩小区域后分段重绘。
-      </p>
+    <!-- 任务框随生成开始展开，应用或丢弃后收起，与下方「已应用」提示前后衔接 -->
+    <Transition name="reveal">
       <div
-        v-if="job.partialUrls.length"
-        class="grid grid-cols-2 gap-2"
+        v-if="job"
+        class="space-y-3 rounded-xl border border-default p-3"
       >
-        <img
-          v-for="(url, i) in job.partialUrls"
-          :key="i"
-          :src="url"
-          alt="生成中间结果"
-          class="aspect-square w-full rounded-lg object-cover opacity-80"
-        >
-      </div>
-
-      <p
-        v-if="job.error"
-        class="text-xs text-error"
-      >
-        {{ job.error.title }}：{{ job.error.description }}
-      </p>
-
-      <template v-if="job.candidates.length">
-        <div class="grid grid-cols-2 gap-2">
-          <button
-            v-for="(candidate, i) in job.candidates"
-            :key="candidate.previewUrl"
-            type="button"
-            :aria-pressed="selected === i"
-            class="relative overflow-hidden rounded-lg bg-deep ring-1 outline-primary/60 transition-colors duration-200 ease-out focus-visible:outline-2"
-            :class="selected === i ? 'ring-primary' : 'ring-default hover:ring-accented'"
-            @click="selected = i"
+        <div class="flex items-center justify-between gap-2 text-xs">
+          <span
+            class="flex items-center gap-1.5"
+            :class="job.stage === 'error' ? 'text-error' : 'text-highlighted'"
           >
-            <img
-              :src="candidate.previewUrl"
-              :alt="`候选 ${i + 1}`"
-              class="w-full object-contain"
-            >
-            <span class="absolute top-1 left-1 flex h-5 items-center gap-0.5 rounded-md bg-deep/80 px-1.5 text-[11px] font-medium text-highlighted tabular-nums ring ring-default backdrop-blur-xl">
-              <UIcon
-                v-if="selected === i"
-                name="i-lucide-check"
-                class="size-3 text-primary"
-              />
-              {{ i + 1 }}
-            </span>
-          </button>
+            <UIcon
+              v-if="running"
+              name="i-lucide-loader-circle"
+              class="size-3.5 animate-spin"
+            />
+            {{ STAGE_LABELS[job.stage] }}
+          </span>
+          <span
+            v-if="running"
+            class="tabular-nums text-muted"
+          >{{ elapsed }} 秒</span>
         </div>
-        <p
-          v-if="job.usage"
-          class="text-xs text-muted tabular-nums"
-        >
-          本次消耗 {{ job.usage.totalTokens.toLocaleString() }} tokens（输入 {{ job.usage.inputTokens.toLocaleString() }} / 输出 {{ job.usage.outputTokens.toLocaleString() }}）
+        <p class="text-xs text-muted tabular-nums">
+          编辑分辨率 {{ job.plan.outW }}×{{ job.plan.outH }}，对应原图区域 {{ job.plan.crop.w }}×{{ job.plan.crop.h }}
         </p>
-        <div class="flex gap-2">
-          <UButton
-            icon="i-lucide-check"
-            label="应用所选"
-            block
-            @click="apply"
-          />
-          <UButton
-            icon="i-lucide-x"
-            label="丢弃"
-            color="neutral"
-            variant="ghost"
-            @click="inpaint.discard(layer.id)"
-          />
-        </div>
-      </template>
-    </div>
+        <p
+          v-if="job.plan.distortion > 0.02"
+          class="text-xs text-warning"
+        >
+          区域过于狭长，超出模型支持的 3:1 比例，结果会有轻微拉伸；建议缩小区域后分段重绘。
+        </p>
+        <!-- 中间图与候选图到达时像镜头合焦一样清晰起来，与画布上照片出现的方式一致 -->
+        <TransitionGroup
+          v-if="job.partialUrls.length"
+          tag="div"
+          name="develop"
+          appear
+          class="grid grid-cols-2 gap-2"
+        >
+          <img
+            v-for="(url, i) in job.partialUrls"
+            :key="i"
+            :src="url"
+            alt="生成中间结果"
+            class="aspect-square w-full rounded-lg object-cover opacity-80"
+          >
+        </TransitionGroup>
 
-    <div
-      v-if="layer.result && !job"
-      class="flex items-center justify-between gap-2 rounded-xl border border-default p-3 text-xs"
-    >
-      <span class="flex items-center gap-1.5 text-highlighted">
-        <UIcon
-          name="i-lucide-circle-check"
-          class="size-3.5 text-success"
+        <p
+          v-if="job.error"
+          class="text-xs text-error"
+        >
+          {{ job.error.title }}：{{ job.error.description }}
+        </p>
+
+        <template v-if="job.candidates.length">
+          <TransitionGroup
+            tag="div"
+            name="develop"
+            :appear="candidatesArriving"
+            class="grid grid-cols-2 gap-2"
+          >
+            <button
+              v-for="(candidate, i) in job.candidates"
+              :key="candidate.previewUrl"
+              type="button"
+              :aria-pressed="selected === i"
+              class="relative overflow-hidden rounded-lg bg-deep ring-1 outline-primary/60 transition-colors duration-200 ease-out focus-visible:outline-2"
+              :class="selected === i ? 'ring-primary' : 'ring-default hover:ring-accented'"
+              @click="selected = i"
+            >
+              <img
+                :src="candidate.previewUrl"
+                :alt="`候选 ${i + 1}`"
+                class="w-full object-contain"
+              >
+              <span class="absolute top-1 left-1 flex h-5 items-center gap-0.5 rounded-md bg-deep/80 px-1.5 text-[11px] font-medium text-highlighted tabular-nums ring ring-default backdrop-blur-xl">
+                <UIcon
+                  v-if="selected === i"
+                  name="i-lucide-check"
+                  class="size-3 text-primary"
+                />
+                {{ i + 1 }}
+              </span>
+            </button>
+          </TransitionGroup>
+          <p
+            v-if="job.usage"
+            class="text-xs text-muted tabular-nums"
+          >
+            本次消耗 {{ job.usage.totalTokens.toLocaleString() }} tokens（输入 {{ job.usage.inputTokens.toLocaleString() }} / 输出 {{ job.usage.outputTokens.toLocaleString() }}）
+          </p>
+          <div class="flex gap-2">
+            <UButton
+              icon="i-lucide-check"
+              label="应用所选"
+              block
+              @click="apply"
+            />
+            <UButton
+              icon="i-lucide-x"
+              label="丢弃"
+              color="neutral"
+              variant="ghost"
+              @click="inpaint.discard(layer.id)"
+            />
+          </div>
+        </template>
+      </div>
+    </Transition>
+
+    <Transition name="reveal">
+      <div
+        v-if="layer.result && !job"
+        class="flex items-center justify-between gap-2 rounded-xl border border-default p-3 text-xs"
+      >
+        <span class="flex items-center gap-1.5 text-highlighted">
+          <UIcon
+            name="i-lucide-circle-check"
+            class="size-3.5 text-success"
+          />
+          已应用重绘结果
+        </span>
+        <UButton
+          label="移除结果"
+          color="neutral"
+          variant="link"
+          @click="editor.setGenerativeResult(layer.id, null)"
         />
-        已应用重绘结果
-      </span>
-      <UButton
-        label="移除结果"
-        color="neutral"
-        variant="link"
-        @click="editor.setGenerativeResult(layer.id, null)"
-      />
-    </div>
+      </div>
+    </Transition>
   </div>
 </template>

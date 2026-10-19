@@ -1,6 +1,5 @@
 <script setup lang="ts">
-/** 工程列表与设置共用的窗口外壳：毛玻璃导航侧栏 + 内容区 */
-const backdrop = useBackdrop()
+/** 工程列表与设置共用的窗口外壳：毛玻璃导航侧栏 + 内容区；侧栏背后的照片底图由 app.vue 常驻渲染 */
 const colorMode = useColorMode()
 
 const navItems = [
@@ -21,8 +20,6 @@ const appearanceItems = [
     storage="local"
     storage-key="apm-shell"
   >
-    <AppBackdrop :image="backdrop" />
-
     <UDashboardSidebar
       id="app-nav"
       :default-size="14"

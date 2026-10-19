@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { pinLeaving } from '~/lib/motion'
 import { createProject, deleteProject, listProjects, type ProjectSummary, SUPPORTED_IMAGE_TYPES } from '~/lib/storage/db'
 import { useSettingsStore } from '~/stores/settings'
 
@@ -9,6 +10,8 @@ const backdrop = useBackdrop()
 
 const projects = ref<ProjectSummary[]>([])
 const thumbnails = ref<Record<string, string>>({})
+/** 已解码完成的缩略图：解码前只露出凹槽底色，完成后再淡入，网格不会逐张闪现 */
+const decoded = ref(new Set<string>())
 const loading = ref(true)
 const importing = ref(false)
 const file = ref<File | null>(null)
@@ -57,7 +60,10 @@ async function confirmDelete() {
   try {
     await deleteProject(target.id)
     pendingDelete.value = null
-    await refresh()
+    // 只从列表中移除这一项：卡片原地淡出、其余卡片让位；整表刷新会重建所有缩略图并闪一遍骨架。
+    // 它的缩略图地址留到页面卸载时统一释放，离场淡出期间仍可显示
+    projects.value = projects.value.filter(p => p.id !== target.id)
+    backdrop.value = projects.value[0]?.thumbnail ?? null
   } catch (err) {
     notify.error(err)
   }
@@ -141,9 +147,12 @@ onBeforeUnmount(() => Object.values(thumbnails.value).forEach(url => URL.revokeO
             title="还没有工程"
             description="导入一张照片开始修图"
           />
-          <ul
+          <TransitionGroup
             v-else
-            class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+            tag="ul"
+            name="list"
+            class="relative grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+            @before-leave="pinLeaving"
           >
             <li
               v-for="project in projects"
@@ -159,7 +168,9 @@ onBeforeUnmount(() => Object.values(thumbnails.value).forEach(url => URL.revokeO
                 <img
                   :src="thumbnails[project.id]"
                   alt=""
-                  class="aspect-4/3 w-full border-b border-default bg-deep object-cover"
+                  class="aspect-4/3 w-full border-b border-default bg-deep object-cover transition-opacity duration-300 ease-out"
+                  :class="decoded.has(project.id) ? 'opacity-100' : 'opacity-0'"
+                  @load="decoded.add(project.id)"
                 >
               </NuxtLink>
               <div class="flex items-center justify-between gap-2 py-2 ps-3 pe-1.5">
@@ -182,7 +193,7 @@ onBeforeUnmount(() => Object.values(thumbnails.value).forEach(url => URL.revokeO
                 />
               </div>
             </li>
-          </ul>
+          </TransitionGroup>
         </section>
       </div>
       <UModal

@@ -12,7 +12,7 @@ related_targets: ["app/pages/index.vue","app/pages/settings.vue","app/layouts/de
 - 访客模式：Operate。用户来完成修图任务，界面首先是一款合格的桌面修图工具。
 - 范围：工程列表首页、设置页、编辑器三栏界面，以及共用的 Nuxt UI 组件主题。
 - 用户：自带 OpenAI 兼容接口的摄影爱好者，桌面浏览器，长时间停留在编辑器。
-- 约束：保持全部功能、文案、快捷键与 e2e 依赖的按钮名称不变；亮/暗两套外观并保留切换；等待中的旋转指示保留，其余动画去掉。
+- 约束：保持全部功能、文案、快捷键与 e2e 依赖的按钮名称不变；亮/暗两套外观并保留切换；动效只用于反馈、状态与连续性，不做装饰（2026-10-19 起取代「除等待旋转外去掉所有动画」）。
 
 ## Direction contract
 
@@ -24,6 +24,6 @@ STORY: 用户打开工程列表，一眼看出最近修过的照片；进入编�
 
 FIRST VIEWPORT: 编辑器：左侧 21rem 毛玻璃侧栏（顶部是分段控件「AI 建议 / 图层」，下方是建议分组）；中间是统一工具栏（衬线工程名、撤销、重做、对比、凸起的「导出」）、工具条，以及 #1c1c1e 画布凹槽里的照片；右侧是 #2c2c2e 属性检查器。首页：左侧毛玻璃导航（衬线品牌名、工程、设置，底部是外观切换）；内容区顶栏为衬线标题「工程」和「导入照片」，下方是拖放凹槽和缩略图网格。设置页：系统设置式分组行，标签在左、控件在右。
 
-FORM: 用户指定的 macOS Vibrancy 风格（固定方向，排序第 1，无掷骰）。seed: none (brief-pinned, no roll)。招牌交互：照片着色的毛玻璃侧栏，每个工程的侧栏色调都不同；动效语法只有颜色过渡（200ms ease-out）和等待时的旋转指示。
+FORM: 用户指定的 macOS Vibrancy 风格（固定方向，排序第 1，无掷骰）。seed: none (brief-pinned, no roll)。招牌交互：照片着色的毛玻璃侧栏，每个工程的侧栏色调都不同。动效论点：打开照片时画布上的照片像镜头合焦一样清晰起来、侧栏同时溶解成这张照片的色调；其余动效只做反馈、状态与连续性（颜色过渡、展开收起、列表让位、视角移动），统一指数减速曲线。
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance

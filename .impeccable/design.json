@@ -540,19 +540,54 @@
     ],
     "motion": [
       {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "全局唯一的减速曲线（覆盖 Tailwind 的 --ease-out，Nuxt UI 浮层同用）：指数减速、没有回弹。"
+      },
+      {
         "name": "color-transition",
         "value": "200ms ease-out",
-        "purpose": "唯一的状态过渡：只作用于背景色、文字色和边框色。"
+        "purpose": "按钮、导航项、卡片、开关轨道的颜色过渡；开关旋钮同时长平移。"
+      },
+      {
+        "name": "photo-focus",
+        "value": "560ms ease-out; from opacity 0 + blur(12px)",
+        "purpose": "招牌时刻：照片第一次落到画布上时合焦；重绘中间图与候选图到达时同样合焦（480ms）。减少动态效果时改为 200ms 淡入。"
+      },
+      {
+        "name": "backdrop-dissolve",
+        "value": "700ms ease-in-out",
+        "purpose": "窗口底图换照片时新图在上方溶解进来，旧图垫底直到被盖住；侧栏色调不中途变暗。"
+      },
+      {
+        "name": "reveal",
+        "value": "260ms ease-out in / 180ms out; height + padding-block + opacity",
+        "purpose": "依赖开关或形状的行、提示、任务框原地展开收起；依赖 interpolate-size，不支持时只淡入淡出。"
+      },
+      {
+        "name": "list-move",
+        "value": "260ms ease-out (FLIP)",
+        "purpose": "图层排序、增删、撤销重做与删除工程时其余条目让位，被删条目原地淡出。"
+      },
+      {
+        "name": "view-tween",
+        "value": "280ms exponential ease-out, log-scale zoom",
+        "purpose": "缩放按钮、适应窗口、1:1 与进入/退出裁剪时画布视角移动；滚轮与拖动直接跟手并打断过渡。"
+      },
+      {
+        "name": "overlay",
+        "value": "menus/tooltips fade 100ms; modal scale-in 200ms, fade-out 150ms",
+        "purpose": "macOS 分寸的浮层：菜单与提示气泡不缩放，弹窗从 95% 放大淡入，离场更快。"
+      },
+      {
+        "name": "page",
+        "value": "view transition root crossfade 180ms",
+        "purpose": "路由切换整页交叉淡化；减少动态效果时由 Nuxt 跳过。"
       },
       {
         "name": "spinner",
         "value": "spin 1s linear infinite",
-        "purpose": "等待中的功能性旋转指示；prefers-reduced-motion: reduce 时停止。"
-      },
-      {
-        "name": "overlay-enter",
-        "value": "none",
-        "purpose": "弹窗、菜单、提示气泡不做缩放或滑入动画，直接出现。"
+        "purpose": "等待中的功能性旋转指示，唯一的循环动画；prefers-reduced-motion: reduce 时停止。"
       }
     ],
     "breakpoints": [

@@ -199,12 +199,19 @@ async function testImage() {
             >
               <USwitch v-model="settings.image.sameAsVision" />
             </SettingsRow>
-            <SettingsConnectionFields
-              v-if="!settings.image.sameAsVision"
-              v-model:base-url="settings.image.baseURL"
-              v-model:api-key="settings.image.apiKey"
-              v-model:use-proxy="settings.image.useProxy"
-            />
+            <!-- 依赖开关的行原地展开、收起：外层分隔线仍落在包裹层上，三行之间由内层分隔 -->
+            <Transition name="reveal">
+              <div
+                v-if="!settings.image.sameAsVision"
+                class="divide-y divide-default"
+              >
+                <SettingsConnectionFields
+                  v-model:base-url="settings.image.baseURL"
+                  v-model:api-key="settings.image.apiKey"
+                  v-model:use-proxy="settings.image.useProxy"
+                />
+              </div>
+            </Transition>
             <SettingsRow
               label="模型"
               description="可从模型列表中选择或直接输入；gpt-image-2.5-sunburst 编辑精度更高，gpt-image-2.5-flare 更快"
@@ -245,21 +252,23 @@ async function testImage() {
                 class="w-full"
               />
             </SettingsRow>
-            <SettingsRow
-              v-if="settings.image.sizeMode === 'custom'"
-              label="编辑分辨率长边上限"
-              description="越大细节越好、成本越高"
-            >
-              <UInputNumber
-                v-model="settings.image.maxLongSide"
-                :increment="STEPPER"
-                :decrement="STEPPER"
-                :min="settings.maxLongSideRange.min"
-                :max="settings.maxLongSideRange.max"
-                :step="128"
-                class="w-full"
-              />
-            </SettingsRow>
+            <Transition name="reveal">
+              <SettingsRow
+                v-if="settings.image.sizeMode === 'custom'"
+                label="编辑分辨率长边上限"
+                description="越大细节越好、成本越高"
+              >
+                <UInputNumber
+                  v-model="settings.image.maxLongSide"
+                  :increment="STEPPER"
+                  :decrement="STEPPER"
+                  :min="settings.maxLongSideRange.min"
+                  :max="settings.maxLongSideRange.max"
+                  :step="128"
+                  class="w-full"
+                />
+              </SettingsRow>
+            </Transition>
             <SettingsRow
               label="流式返回中间结果"
               description="生成过程中实时显示预览；服务需支持 stream 参数"
@@ -267,19 +276,21 @@ async function testImage() {
             >
               <USwitch v-model="settings.image.stream" />
             </SettingsRow>
-            <SettingsRow
-              v-if="settings.image.stream"
-              label="中间图数量"
-            >
-              <UInputNumber
-                v-model="settings.image.partialImages"
-                :increment="STEPPER"
-                :decrement="STEPPER"
-                :min="0"
-                :max="3"
-                class="w-full"
-              />
-            </SettingsRow>
+            <Transition name="reveal">
+              <SettingsRow
+                v-if="settings.image.stream"
+                label="中间图数量"
+              >
+                <UInputNumber
+                  v-model="settings.image.partialImages"
+                  :increment="STEPPER"
+                  :decrement="STEPPER"
+                  :min="0"
+                  :max="3"
+                  class="w-full"
+                />
+              </SettingsRow>
+            </Transition>
           </div>
         </section>
 
