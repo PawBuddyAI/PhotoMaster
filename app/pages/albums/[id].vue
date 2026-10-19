@@ -15,6 +15,9 @@ const count = computed(() => library.projectsIn(albumId.value).length)
 const draftName = ref<string | null>(null)
 const renameInput = ref<{ inputRef: HTMLInputElement | undefined } | null>(null)
 const confirmingDelete = ref(false)
+const pickingEmoji = ref(false)
+/** 更换图标弹窗里还没确认的选择 */
+const draftEmoji = ref<string | null>(null)
 
 /**
  * 菜单关闭时默认把焦点还给菜单按钮。选了「重命名相册」时改为交给标题栏的输入框，
@@ -34,6 +37,13 @@ const menuItems: DropdownMenuItem[][] = [
     onSelect: () => {
       draftName.value = album.value?.name ?? ''
     }
+  }, {
+    label: '更换图标',
+    icon: 'i-lucide-smile',
+    onSelect: () => {
+      draftEmoji.value = album.value?.emoji ?? null
+      pickingEmoji.value = true
+    }
   }],
   [{
     label: '删除相册',
@@ -45,10 +55,11 @@ const menuItems: DropdownMenuItem[][] = [
   }]
 ]
 
-// 换到另一个相册时放弃未提交的重命名
+// 换到另一个相册时放弃未提交的重命名与图标
 watch(albumId, () => {
   draftName.value = null
   confirmingDelete.value = false
+  pickingEmoji.value = false
 })
 
 /** 回车与失焦都会提交：先清空草稿，输入框卸载时再触发的失焦就不会重复写入 */
@@ -60,6 +71,15 @@ async function commitRename() {
   }
   try {
     await library.renameAlbum(albumId.value, name)
+  } catch (err) {
+    notify.error(err)
+  }
+}
+
+async function commitEmoji() {
+  pickingEmoji.value = false
+  try {
+    await library.setAlbumEmoji(albumId.value, draftEmoji.value)
   } catch (err) {
     notify.error(err)
   }
@@ -116,6 +136,29 @@ async function confirmDeleteAlbum() {
           aria-label="相册操作"
         />
       </UDropdownMenu>
+      <UModal
+        v-model:open="pickingEmoji"
+        title="更换图标"
+        description="选「照片封面」时，侧栏显示相册里最近修改的那张照片"
+      >
+        <template #body>
+          <LibraryEmojiPicker v-model="draftEmoji" />
+        </template>
+        <template #footer>
+          <div class="flex w-full justify-end gap-2">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              label="取消"
+              @click="pickingEmoji = false"
+            />
+            <UButton
+              label="完成"
+              @click="commitEmoji"
+            />
+          </div>
+        </template>
+      </UModal>
       <UModal
         v-model:open="confirmingDelete"
         title="删除相册"

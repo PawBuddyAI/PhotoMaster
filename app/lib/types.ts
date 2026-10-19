@@ -180,6 +180,8 @@ export interface AlbumRecord {
   id: string
   name: string
   createdAt: number
+  /** 侧栏里代替封面显示的 emoji；没有这一项时显示封面（相册里最近修改的那张照片） */
+  emoji?: string
 }
 
 /**

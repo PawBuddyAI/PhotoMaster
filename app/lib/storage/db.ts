@@ -149,8 +149,9 @@ export async function listAlbums(): Promise<AlbumRecord[]> {
   return db().albums.toCollection().sortBy('createdAt')
 }
 
-export async function createAlbum(name: string): Promise<AlbumRecord> {
-  const album: AlbumRecord = { id: newId(), name, createdAt: Date.now() }
+/** emoji 不建索引，相册记录多出这一项不需要升级数据库版本 */
+export async function createAlbum(name: string, emoji?: string): Promise<AlbumRecord> {
+  const album: AlbumRecord = { id: newId(), name, createdAt: Date.now(), ...(emoji ? { emoji } : {}) }
   await db().albums.add(album)
   return album
 }
@@ -159,6 +160,14 @@ export async function renameAlbum(id: string, name: string): Promise<void> {
   await db().transaction('rw', db().albums, async () => {
     await requireAlbum(id)
     await db().albums.update(id, { name })
+  })
+}
+
+/** emoji 为 null 时删除这一项，侧栏改回显示封面 */
+export async function setAlbumEmoji(id: string, emoji: string | null): Promise<void> {
+  await db().transaction('rw', db().albums, async () => {
+    await requireAlbum(id)
+    await db().albums.update(id, { emoji: emoji ?? undefined })
   })
 }
 

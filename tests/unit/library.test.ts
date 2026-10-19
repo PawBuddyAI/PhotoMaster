@@ -121,6 +121,49 @@ describe('useLibraryStore', () => {
     expect(await storage.listAlbums()).toEqual([album])
   })
 
+  it('新建相册可带 emoji，不带时没有这一项', async () => {
+    const library = useLibraryStore()
+    await library.refresh()
+
+    const travel = await library.addAlbum('旅行', '✈️')
+    vi.setSystemTime(2000)
+    const plain = await library.addAlbum('人像', null)
+    expect(travel).toMatchObject({ name: '旅行', emoji: '✈️' })
+    expect(plain).not.toHaveProperty('emoji')
+    expect(library.albumEntries.map(entry => entry.emoji)).toEqual(['✈️', undefined])
+    expect(await storage.listAlbums()).toEqual([travel, plain])
+  })
+
+  it('更换图标：未改变时不写库，去掉 emoji 后与数据库一致', async () => {
+    const library = useLibraryStore()
+    await library.refresh()
+    const album = (await library.addAlbum('旅行'))!
+    const update = vi.spyOn(IDBObjectStore.prototype, 'put')
+
+    await library.setAlbumEmoji(album.id, null)
+    expect(update).not.toHaveBeenCalled()
+
+    await library.setAlbumEmoji(album.id, '🏖️')
+    expect(library.findAlbum(album.id)?.emoji).toBe('🏖️')
+    update.mockClear()
+    await library.setAlbumEmoji(album.id, '🏖️')
+    expect(update).not.toHaveBeenCalled()
+
+    await library.setAlbumEmoji(album.id, null)
+    expect(library.findAlbum(album.id)).not.toHaveProperty('emoji')
+    expect((await storage.listAlbums())[0]).not.toHaveProperty('emoji')
+  })
+
+  it('更换不存在的相册的图标时报错，列表不变', async () => {
+    const library = useLibraryStore()
+    await library.refresh()
+    const album = (await library.addAlbum('旅行'))!
+    await storage.deleteAlbum(album.id)
+
+    await expect(library.setAlbumEmoji(album.id, '⭐')).rejects.toThrow('相册不存在')
+    expect(library.findAlbum(album.id)).toEqual(album)
+  })
+
   it('重命名相册：空名称或名称未变时不写库', async () => {
     const library = useLibraryStore()
     await library.refresh()

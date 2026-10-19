@@ -1,10 +1,14 @@
 <script setup lang="ts">
-/** 毛玻璃侧栏里的一行导航：图标或封面、名称、可选的数量。当前页为选中底 + 高亮文字 + 系统蓝图标 */
+/**
+ * 毛玻璃侧栏里的一行导航：图标、相册的 emoji 或封面，名称，可选的数量。当前页为选中底 + 高亮文字 + 系统蓝图标。
+ * 相册的 emoji 优先于封面；两者都没有时显示图标
+ */
 defineProps<{
   to: string
   label: string
   icon: string
-  /** 相册封面（相册里最近修改的那张照片）；空相册没有封面，显示图标 */
+  emoji?: string
+  /** 相册封面（相册里最近修改的那张照片）；空相册没有封面 */
   cover?: string | null
   count?: number
 }>()
@@ -23,8 +27,13 @@ defineProps<{
       :class="isExactActive ? 'bg-(--mac-selected) text-highlighted' : 'text-muted hover:bg-elevated hover:text-highlighted'"
       @click="navigate"
     >
+      <span
+        v-if="emoji"
+        aria-hidden="true"
+        class="flex size-4.5 shrink-0 items-center justify-center text-[15px] leading-none"
+      >{{ emoji }}</span>
       <img
-        v-if="cover"
+        v-else-if="cover"
         :src="cover"
         alt=""
         class="size-4.5 shrink-0 rounded-sm object-cover"

@@ -306,6 +306,22 @@ describe('相册', () => {
     await expect(storage.renameAlbum('missing', '名字')).rejects.toThrow('相册不存在')
   })
 
+  it('emoji 可在新建时指定、之后更换或去掉，去掉后记录不再含这一项', async () => {
+    const plain = await storage.createAlbum('人像')
+    vi.setSystemTime(2000)
+    const travel = await storage.createAlbum('旅行', '✈️')
+    expect(plain).not.toHaveProperty('emoji')
+    expect(travel).toMatchObject({ emoji: '✈️' })
+    expect(await storage.listAlbums()).toEqual([plain, travel])
+
+    await storage.setAlbumEmoji(plain.id, '👨‍👩‍👧')
+    await storage.setAlbumEmoji(travel.id, null)
+    const rawAlbum = (id: string) => inspect(raw => raw.table('albums').get(id))
+    expect(await rawAlbum(plain.id)).toMatchObject({ name: '人像', emoji: '👨‍👩‍👧' })
+    expect(await rawAlbum(travel.id)).not.toHaveProperty('emoji')
+    await expect(storage.setAlbumEmoji('missing', '⭐')).rejects.toThrow('相册不存在')
+  })
+
   it('在相册中新建的工程带有归属，列表摘要随之返回；图库里新建的工程没有这一项', async () => {
     const album = await storage.createAlbum('旅行')
     const inAlbum = await storage.createProject(photo('a.jpg'), album.id)

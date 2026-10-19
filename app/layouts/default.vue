@@ -9,7 +9,6 @@ import { useLibraryStore } from '~/stores/library'
 const colorMode = useColorMode()
 const library = useLibraryStore()
 const notify = useNotify()
-const router = useRouter()
 const backdrop = useBackdrop()
 
 const appearanceItems = [
@@ -18,8 +17,7 @@ const appearanceItems = [
   { value: 'dark', label: '深色', icon: 'i-lucide-moon' }
 ]
 
-/** 正在侧栏里新建的相册名称；null 表示没有在新建 */
-const draftName = ref<string | null>(null)
+const creatingAlbum = ref(false)
 
 onMounted(async () => {
   try {
@@ -30,23 +28,6 @@ onMounted(async () => {
     notify.error(err)
   }
 })
-
-/** 回车与失焦都会提交：先清空草稿，输入框卸载时再触发的失焦就不会重复创建 */
-async function commitDraft() {
-  const name = draftName.value
-  draftName.value = null
-  if (!name?.trim()) {
-    return
-  }
-  try {
-    const album = await library.addAlbum(name)
-    if (album) {
-      await router.push(`/albums/${album.id}`)
-    }
-  } catch (err) {
-    notify.error(err)
-  }
-}
 </script>
 
 <template>
@@ -101,8 +82,7 @@ async function commitDraft() {
                 color="neutral"
                 variant="ghost"
                 aria-label="新建相册"
-                :disabled="draftName !== null"
-                @click="draftName = ''"
+                @click="creatingAlbum = true"
               />
             </UTooltip>
           </div>
@@ -112,26 +92,12 @@ async function commitDraft() {
             :to="`/albums/${album.id}`"
             :label="album.name"
             icon="i-lucide-folder"
+            :emoji="album.emoji"
             :cover="album.cover"
             :count="album.count"
           />
-          <form
-            v-if="draftName !== null"
-            @submit.prevent="commitDraft"
-          >
-            <UInput
-              v-model="draftName"
-              placeholder="相册名称"
-              aria-label="新相册名称"
-              icon="i-lucide-folder"
-              autofocus
-              class="w-full"
-              @keydown.esc="draftName = null"
-              @blur="commitDraft"
-            />
-          </form>
           <p
-            v-else-if="library.loaded && !library.albums.length"
+            v-if="library.loaded && !library.albums.length"
             class="px-2.5 py-1.5 text-sm text-muted"
           >
             还没有相册
@@ -173,6 +139,8 @@ async function commitDraft() {
         </div>
       </template>
     </UDashboardSidebar>
+
+    <LibraryNewAlbumModal v-model:open="creatingAlbum" />
 
     <slot />
   </UDashboardGroup>

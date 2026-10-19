@@ -77,7 +77,8 @@ function cardMenu(project: ProjectSummary): DropdownMenuItem[][] {
     label: '移到相册',
     icon: 'i-lucide-folder-input',
     children: targets.length
-      ? targets.map(album => ({ label: album.name, icon: 'i-lucide-folder', onSelect: () => move(project, album.id) }))
+      // 有 emoji 的相册走 album 插槽，用 emoji 代替文件夹图标
+      ? targets.map(album => ({ label: album.name, icon: 'i-lucide-folder', emoji: album.emoji, slot: album.emoji ? 'album' : undefined, onSelect: () => move(project, album.id) }))
       : [{ label: library.albums.length ? '没有其他相册' : '还没有相册，可在侧栏新建', disabled: true }]
   }]
   if (project.albumId) {
@@ -232,6 +233,13 @@ async function confirmDelete() {
                   :items="cardMenu(project)"
                   :content="{ align: 'end' }"
                 >
+                  <!-- 菜单项是运行时拼出来的，slot 名不是字面量，Nuxt UI 推断不出插槽参数的类型 -->
+                  <template #album-leading="{ item }">
+                    <span
+                      aria-hidden="true"
+                      class="flex size-4 shrink-0 items-center justify-center text-sm leading-none"
+                    >{{ (item as DropdownMenuItem).emoji }}</span>
+                  </template>
                   <UButton
                     icon="i-lucide-ellipsis"
                     color="neutral"

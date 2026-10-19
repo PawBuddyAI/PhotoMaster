@@ -8,7 +8,8 @@ import {
   listProjects,
   moveProjectToAlbum,
   type ProjectSummary,
-  renameAlbum as renameAlbumRecord
+  renameAlbum as renameAlbumRecord,
+  setAlbumEmoji as setAlbumEmojiRecord
 } from '~/lib/storage/db'
 import type { AlbumRecord } from '~/lib/types'
 
@@ -105,13 +106,13 @@ export const useLibraryStore = defineStore('library', () => {
     projects.value = projects.value.map(project => project.id === projectId ? withAlbum(project, albumId) : project)
   }
 
-  /** 名称去掉首尾空白；为空时不创建，返回 null */
-  async function addAlbum(name: string): Promise<AlbumRecord | null> {
+  /** 名称去掉首尾空白；为空时不创建，返回 null。emoji 为 null 时侧栏显示封面 */
+  async function addAlbum(name: string, emoji: string | null = null): Promise<AlbumRecord | null> {
     const trimmed = name.trim()
     if (!trimmed) {
       return null
     }
-    const album = await createAlbum(trimmed)
+    const album = await createAlbum(trimmed, emoji ?? undefined)
     albums.value = [...albums.value, album]
     return album
   }
@@ -124,6 +125,26 @@ export const useLibraryStore = defineStore('library', () => {
     }
     await renameAlbumRecord(id, trimmed)
     albums.value = albums.value.map(album => album.id === id ? { ...album, name: trimmed } : album)
+  }
+
+  /** emoji 未改变时不写库；为 null 时去掉 emoji，侧栏改回显示封面 */
+  async function setAlbumEmoji(id: string, emoji: string | null): Promise<void> {
+    if ((findAlbum(id)?.emoji ?? null) === emoji) {
+      return
+    }
+    await setAlbumEmojiRecord(id, emoji)
+    albums.value = albums.value.map((album) => {
+      if (album.id !== id) {
+        return album
+      }
+      const next = { ...album }
+      if (emoji) {
+        next.emoji = emoji
+      } else {
+        delete next.emoji
+      }
+      return next
+    })
   }
 
   async function removeAlbum(id: string): Promise<void> {
@@ -145,6 +166,7 @@ export const useLibraryStore = defineStore('library', () => {
     moveProject,
     addAlbum,
     renameAlbum,
+    setAlbumEmoji,
     removeAlbum
   }
 })

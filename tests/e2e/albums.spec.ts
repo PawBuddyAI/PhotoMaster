@@ -1,8 +1,8 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 
 /**
- * 图库与相册：在侧栏新建相册、在相册里导入照片、从编辑器回到来时的相册、
- * 在图库里把工程移出和移回相册、重命名与删除相册。不涉及模型接口。
+ * 图库与相册：在侧栏新建带 emoji 的相册、在相册里导入照片、从编辑器回到来时的相册、
+ * 在图库里把工程移出和移回相册、重命名、更换图标与删除相册。不涉及模型接口。
  */
 const PHOTO_NAME = 'album-e2e'
 
@@ -24,21 +24,50 @@ async function makePhoto(page: Page): Promise<string> {
   })
 }
 
-test('新建相册 → 在相册中导入 → 移出移回 → 重命名 → 删除相册后工程仍在图库', async ({ page }) => {
+/** 图标选项的单选按钮是视觉隐藏的，用户点的是包住它的方格（label） */
+async function pick(option: Locator): Promise<void> {
+  await option.locator('xpath=ancestor::label[1]').click()
+}
+
+test('新建相册 → 在相册中导入 → 移出移回 → 重命名 → 更换图标 → 删除相册后工程仍在图库', async ({ page }) => {
   await page.goto('/')
   const sidebar = page.getByRole('navigation', { name: '主导航' })
   await expect(sidebar.getByText('还没有相册')).toBeVisible()
   const photoB64 = await makePhoto(page)
 
-  // 侧栏里输入名称后回车，新相册被选中
+  // 侧栏的加号打开新建弹窗：默认照片封面，名称为空时不能新建；选一个 emoji 后回车，新相册被选中
   await sidebar.getByRole('button', { name: '新建相册' }).click()
-  await sidebar.getByRole('textbox', { name: '新相册名称' }).fill('  云南旅行 ')
-  await page.keyboard.press('Enter')
+  const createDialog = page.getByRole('dialog', { name: '新建相册' })
+  const nameField = createDialog.getByRole('textbox', { name: '名称' })
+  await expect(nameField).toBeFocused()
+  const coverOption = createDialog.getByRole('radio', { name: '照片封面' })
+  await expect(coverOption).toBeChecked()
+  await expect(createDialog.getByRole('button', { name: '新建相册' })).toBeDisabled()
+  await nameField.fill('  云南旅行 ')
+  // 动物单独成组；各组共用一个值，组内方向键移动选择
+  const pandaEmoji = createDialog.getByRole('radio', { name: '熊猫', exact: true })
+  await pick(pandaEmoji)
+  await expect(pandaEmoji).toBeChecked()
+  await expect(coverOption).not.toBeChecked()
+  const travelEmoji = createDialog.getByRole('radio', { name: '旅行', exact: true })
+  await pick(travelEmoji)
+  await expect(pandaEmoji).not.toBeChecked()
+  // Reka 在焦点移过去之后、方向键仍按着时才选中，所以分开按下与抬起
+  await travelEmoji.focus()
+  await page.keyboard.down('ArrowRight')
+  await expect(createDialog.getByRole('radio', { name: '海边', exact: true })).toBeChecked()
+  await page.keyboard.up('ArrowRight')
+  await page.keyboard.down('ArrowLeft')
+  await expect(travelEmoji).toBeChecked()
+  await page.keyboard.up('ArrowLeft')
+  await nameField.press('Enter')
   await page.waitForURL(/\/albums\//)
+  await expect(createDialog).toBeHidden()
   const albumUrl = page.url()
   const albumLink = sidebar.getByRole('link', { name: /云南旅行/ })
   const albumCount = albumLink.locator('span').last()
   await expect(albumLink).toHaveAttribute('aria-current', 'page')
+  await expect(albumLink).toContainText('✈️')
   await expect(albumCount).toHaveText('0')
   await expect(page.getByText('相册里还没有工程')).toBeVisible()
 
@@ -65,7 +94,10 @@ test('新建相册 → 在相册中导入 → 移出移回 → 重命名 → 删
   await expect(albumCount).toHaveText('0')
   await page.getByRole('button', { name: '更多操作' }).click()
   await page.getByRole('menuitem', { name: '移到相册' }).click()
-  await page.getByRole('menuitem', { name: '云南旅行' }).click()
+  // 子菜单里的相册用它的 emoji 代替文件夹图标
+  const target = page.getByRole('menuitem', { name: '云南旅行' })
+  await expect(target).toContainText('✈️')
+  await target.click()
   await expect(albumCount).toHaveText('1')
 
   // 从图库打开的工程，返回入口回到图库
@@ -84,8 +116,29 @@ test('新建相册 → 在相册中导入 → 移出移回 → 重命名 → 删
   await expect(nameInput).toBeFocused()
   await nameInput.fill('大理')
   await nameInput.press('Enter')
-  await expect(sidebar.getByRole('link', { name: /大理/ })).toHaveAttribute('aria-current', 'page')
+  const renamedLink = sidebar.getByRole('link', { name: /大理/ })
+  await expect(renamedLink).toHaveAttribute('aria-current', 'page')
   await expect(nameInput).toBeHidden()
+
+  // 更换图标：弹窗里标出当前的 emoji；取消不改变，改回照片封面后侧栏显示相册里的照片
+  await page.getByRole('button', { name: '相册操作' }).click()
+  await page.getByRole('menuitem', { name: '更换图标' }).click()
+  const emojiDialog = page.getByRole('dialog', { name: '更换图标' })
+  await expect(emojiDialog.getByRole('radio', { name: '旅行', exact: true })).toBeChecked()
+  await pick(emojiDialog.getByRole('radio', { name: '雪山', exact: true }))
+  await emojiDialog.getByRole('button', { name: '取消' }).click()
+  await expect(emojiDialog).toBeHidden()
+  await expect(renamedLink).toContainText('✈️')
+  await page.getByRole('button', { name: '相册操作' }).click()
+  await page.getByRole('menuitem', { name: '更换图标' }).click()
+  await expect(emojiDialog.getByRole('radio', { name: '旅行', exact: true })).toBeChecked()
+  await pick(emojiDialog.getByRole('radio', { name: '照片封面' }))
+  await emojiDialog.getByRole('button', { name: '完成' }).click()
+  await expect(emojiDialog).toBeHidden()
+  await expect(renamedLink).not.toContainText('✈️')
+  await expect(renamedLink.locator('img')).toBeVisible()
+  await page.reload()
+  await expect(renamedLink.locator('img')).toBeVisible()
 
   // 删除相册：回到图库，工程还在
   await page.getByRole('button', { name: '相册操作' }).click()
