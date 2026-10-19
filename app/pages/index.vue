@@ -95,7 +95,7 @@ onBeforeUnmount(() => Object.values(thumbnails.value).forEach(url => URL.revokeO
         icon="i-lucide-key-round"
         title="尚未配置模型接口"
         description="填写 OpenAI 兼容接口的 Base URL 和 API Key 后，即可使用 AI 读图建议与局部重绘。不配置也可以手动调色和导出。"
-        :actions="[{ label: '前往设置', to: '/settings', color: 'warning', variant: 'solid' }]"
+        :actions="[{ label: '前往设置', to: '/settings', color: 'warning', variant: 'solid', size: 'lg' }]"
       />
 
       <UFileUpload

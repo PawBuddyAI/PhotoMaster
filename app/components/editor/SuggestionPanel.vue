@@ -72,7 +72,7 @@ onBeforeUnmount(() => hover(null))
       icon="i-lucide-key-round"
       title="尚未配置读图模型"
       description="配置后可以让 AI 分析照片并给出修图方案"
-      :actions="[{ label: '前往设置', to: '/settings', color: 'warning', variant: 'link' }]"
+      :actions="[{ label: '前往设置', to: '/settings', color: 'warning', variant: 'link', size: 'lg' }]"
     />
 
     <UTextarea
@@ -119,7 +119,6 @@ onBeforeUnmount(() => hover(null))
           <UButton
             v-if="pendingAdjustments.length > 1"
             label="全部采纳"
-            size="xs"
             variant="link"
             @click="adoptAllAdjustments"
           />
@@ -144,7 +143,6 @@ onBeforeUnmount(() => hover(null))
               :label="adopted.has(item.id) ? '已采纳' : '采纳'"
               :icon="adopted.has(item.id) ? 'i-lucide-check' : undefined"
               :disabled="adopted.has(item.id)"
-              size="xs"
               :variant="adopted.has(item.id) ? 'ghost' : 'soft'"
               @click="editor.adoptSuggestion(item.id)"
             />
@@ -195,7 +193,6 @@ onBeforeUnmount(() => hover(null))
               :label="adopted.has(item.id) ? '已采纳' : '采纳'"
               :icon="adopted.has(item.id) ? 'i-lucide-check' : undefined"
               :disabled="adopted.has(item.id)"
-              size="xs"
               :variant="adopted.has(item.id) ? 'ghost' : 'soft'"
               @click="editor.adoptSuggestion(item.id)"
             />
@@ -228,7 +225,6 @@ onBeforeUnmount(() => hover(null))
           <UButton
             :label="adopted.has(result.crop.id) ? '已采纳' : '采纳'"
             :disabled="adopted.has(result.crop.id)"
-            size="xs"
             :variant="adopted.has(result.crop.id) ? 'ghost' : 'soft'"
             @click="editor.adoptSuggestion(result.crop.id)"
           />

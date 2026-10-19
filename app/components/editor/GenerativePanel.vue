@@ -71,7 +71,7 @@ async function apply() {
       variant="subtle"
       icon="i-lucide-key-round"
       title="尚未配置修图模型"
-      :actions="[{ label: '前往设置', to: '/settings', color: 'warning', variant: 'link' }]"
+      :actions="[{ label: '前往设置', to: '/settings', color: 'warning', variant: 'link', size: 'lg' }]"
     />
 
     <UFormField
@@ -222,7 +222,6 @@ async function apply() {
         label="移除结果"
         color="neutral"
         variant="link"
-        size="xs"
         @click="editor.setGenerativeResult(layer.id, null)"
       />
     </div>

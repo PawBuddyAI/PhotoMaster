@@ -45,7 +45,6 @@ function statusOf(layer: Layer): { label: string, color: 'neutral' | 'success' |
         label="调整图层"
         color="neutral"
         variant="outline"
-        size="sm"
         block
         @click="editor.addAdjustmentLayer()"
       />
@@ -54,7 +53,6 @@ function statusOf(layer: Layer): { label: string, color: 'neutral' | 'success' |
         label="重绘区域"
         color="neutral"
         variant="outline"
-        size="sm"
         block
         @click="editor.addGenerativeLayer()"
       />

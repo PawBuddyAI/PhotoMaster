@@ -122,7 +122,6 @@ const brushPercent = computed({
           icon="i-lucide-eraser"
           color="neutral"
           variant="link"
-          size="xs"
           :disabled="locked"
           @click="editor.clearStrokes(layer.id)"
         />

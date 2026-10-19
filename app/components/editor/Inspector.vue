@@ -48,7 +48,7 @@ function unlockRegion() {
         icon="i-lucide-lock"
         title="区域已锁定"
         description="区域与已生成的结果绑定。如需修改区域，请先移除结果。"
-        :actions="[{ label: '移除结果并编辑区域', color: 'neutral', variant: 'link', onClick: unlockRegion }]"
+        :actions="[{ label: '移除结果并编辑区域', color: 'neutral', variant: 'link', onClick: unlockRegion, size: 'lg' }]"
       />
 
       <EditorRegionTools

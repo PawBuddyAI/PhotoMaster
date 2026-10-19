@@ -46,7 +46,6 @@ function formatValue(def: AdjustParamDef, value: number): string {
       label="重置全部参数"
       color="neutral"
       variant="ghost"
-      size="sm"
       block
       @click="editor.resetParams(props.layer.id)"
     />
