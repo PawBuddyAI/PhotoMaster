@@ -3,6 +3,7 @@ import { analyzeImage, parseAnalysisJson } from '~/lib/llm/analyze'
 import { createOpenAIClient } from '~/lib/llm/client'
 import { AnalysisFormatError, describeError } from '~/lib/llm/errors'
 import { requestImageEdit } from '~/lib/llm/imageEdit'
+import { filterModels, listModels, partitionModels } from '~/lib/llm/models'
 import { probeStructuredOutput } from '~/lib/llm/probe'
 import { detectCoordDivisor, normalizeAnalysis } from '~/lib/llm/schema'
 
@@ -339,5 +340,49 @@ describe('probeStructuredOutput', () => {
     const { calls, fetchImpl } = mockFetch(() => completion('{"ok":true}'))
     await probeStructuredOutput(client(fetchImpl), 'test-model')
     expect(bodyOf(calls[0]!)).not.toHaveProperty('reasoning_effort')
+  })
+})
+
+const modelPage = (ids: string[]) => json({
+  object: 'list',
+  data: ids.map(id => ({ id, object: 'model', created: 0, owned_by: 'test' }))
+})
+
+describe('listModels', () => {
+  it('请求 /models，去重并按名称排序（数字按数值比较）', async () => {
+    const { calls, fetchImpl } = mockFetch(() => modelPage(['gpt-10', 'gpt-image-2', 'GPT-4o', 'gpt-4', 'gpt-10']))
+    const models = await listModels(client(fetchImpl))
+    expect(calls[0]!.url).toBe('https://api.mock.test/v1/models')
+    expect((calls[0]!.init.method ?? 'GET').toUpperCase()).toBe('GET')
+    expect(models).toEqual(['gpt-4', 'GPT-4o', 'gpt-10', 'gpt-image-2'])
+  })
+
+  it('服务没有模型列表接口时返回 null', async () => {
+    for (const status of [404, 405, 501]) {
+      const { fetchImpl } = mockFetch(() => json({ error: { message: 'Not Found' } }, status))
+      expect(await listModels(client(fetchImpl))).toBeNull()
+    }
+  })
+
+  it('鉴权失败等错误直接抛出', async () => {
+    const { fetchImpl } = mockFetch(() => json({ error: { message: 'bad key', code: 'invalid_api_key' } }, 401))
+    const err = await listModels(client(fetchImpl)).catch(e => e)
+    expect(describeError(err).title).toBe('API Key 无效')
+  })
+})
+
+describe('filterModels / partitionModels', () => {
+  const MODELS = ['dall-e-3', 'gpt-6.1-sol', 'gpt-image-2', 'GPT-Image-2.5-flare', 'whisper-1']
+
+  it('忽略大小写的子串匹配，关键字为空时返回全部', () => {
+    expect(filterModels(MODELS, ' IMAGE ')).toEqual(['gpt-image-2', 'GPT-Image-2.5-flare'])
+    expect(filterModels(MODELS, '')).toEqual(MODELS)
+    expect(filterModels(MODELS, 'claude')).toEqual([])
+  })
+
+  it('按规则分组且保持原有顺序', () => {
+    const [preferred, others] = partitionModels(MODELS, /image|dall-e/i)
+    expect(preferred).toEqual(['dall-e-3', 'gpt-image-2', 'GPT-Image-2.5-flare'])
+    expect(others).toEqual(['gpt-6.1-sol', 'whisper-1'])
   })
 })

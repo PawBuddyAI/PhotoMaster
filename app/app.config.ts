@@ -72,6 +72,16 @@ export default defineAppConfig({
       },
       compoundVariants: [{ color: 'primary', variant: ['outline', 'subtle'], class: 'focus-visible:ring-primary/60' }]
     },
+    // 可输入的下拉框（模型名称）与 select 外观一致；它的展开动画写在 content 上，没有 transition 变体
+    inputMenu: {
+      slots: {
+        base: 'rounded-lg duration-200 ease-out',
+        content: `rounded-lg bg-default/85 backdrop-blur-xl ${OVERLAY_SHADOW} ${NO_ANIMATION}`,
+        item: 'before:rounded-md data-highlighted:not-data-disabled:before:bg-(--mac-selected)'
+      },
+      variants: { variant: { outline: 'bg-field ring-accented' } },
+      compoundVariants: [{ color: 'primary', variant: ['outline', 'subtle'], class: 'focus-visible:ring-primary/60' }]
+    },
     switch: {
       slots: {
         // 用 2px 内边距代替 2px 透明边框，保持几何尺寸不变

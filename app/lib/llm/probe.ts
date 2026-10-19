@@ -1,5 +1,4 @@
 import type OpenAI from 'openai'
-import { APIError } from 'openai'
 import { zodResponseFormat } from 'openai/helpers/zod'
 import { z } from 'zod'
 import type { ReasoningEffortSetting, StructuredOutputMode } from './analyze'
@@ -44,24 +43,4 @@ export async function probeStructuredOutput(
   }
   await client.chat.completions.create({ ...base, messages }, { signal })
   return 'none'
-}
-
-/**
- * 检查模型是否出现在服务的模型列表中。
- * 返回 null 表示服务不提供模型列表接口（不代表模型不可用）。
- */
-export async function probeModelListed(client: OpenAI, model: string, signal?: AbortSignal): Promise<boolean | null> {
-  try {
-    for await (const item of client.models.list({ signal })) {
-      if (item.id === model) {
-        return true
-      }
-    }
-    return false
-  } catch (err) {
-    if (err instanceof APIError && (err.status === 404 || err.status === 405 || err.status === 501)) {
-      return null
-    }
-    throw err
-  }
 }

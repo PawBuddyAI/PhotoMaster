@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { VISION_MAX_SIDE } from '~/lib/llm/analyze'
 import { createOpenAIClient } from '~/lib/llm/client'
-import { probeModelListed, probeStructuredOutput } from '~/lib/llm/probe'
+import { probeStructuredOutput } from '~/lib/llm/probe'
+import { useModelListStore } from '~/stores/models'
 import { useSettingsStore } from '~/stores/settings'
 
 const settings = useSettingsStore()
+const modelList = useModelListStore()
 const notify = useNotify()
 const testing = reactive({ vision: false, image: false })
 
@@ -39,6 +41,8 @@ const qualityItems = [
 ]
 /** 数字输入的增减按钮用中性色，强调色只留给选中与焦点 */
 const STEPPER = { color: 'neutral' as const }
+/** 修图模型下拉中优先列出的图像模型 */
+const IMAGE_MODELS = { label: '图像模型', pattern: /image|dall-e/i }
 const sizeModeItems = [
   { label: '自定义尺寸（gpt-image-2 及以后）', value: 'custom' },
   { label: '固定尺寸（1024² / 1536×1024 / 1024×1536）', value: 'fixed' }
@@ -61,11 +65,10 @@ async function testVision() {
 async function testImage() {
   testing.image = true
   try {
-    const client = createOpenAIClient(settings.imageConnection, { timeout: 60_000 })
-    const listed = await probeModelListed(client, settings.image.model)
-    if (listed === true) {
+    const models = await modelList.load(settings.imageConnection, { force: true })
+    if (models?.includes(settings.image.model)) {
       notify.success('修图模型连接正常', `已在模型列表中找到 ${settings.image.model}`)
-    } else if (listed === false) {
+    } else if (models) {
       notify.warning('连接正常，但未找到该模型', `模型列表中没有 ${settings.image.model}，请确认模型名称`)
     } else {
       notify.info('连接正常', '该服务不提供模型列表接口，无法确认模型名称是否正确')
@@ -123,12 +126,11 @@ async function testImage() {
             />
             <SettingsRow
               label="模型"
-              description="例如 gpt-6.1-sol；想节省成本可用 gpt-6-luna"
+              description="可从服务的模型列表中选择或直接输入，例如 gpt-6.1-sol；想节省成本可用 gpt-6-luna"
             >
-              <UInput
+              <SettingsModelPicker
                 v-model="settings.vision.model"
-                class="w-full"
-                :ui="{ base: 'font-mono' }"
+                :connection="settings.visionConnection"
               />
             </SettingsRow>
             <SettingsRow
@@ -205,12 +207,12 @@ async function testImage() {
             />
             <SettingsRow
               label="模型"
-              description="gpt-image-2.5-sunburst 编辑精度更高；gpt-image-2.5-flare 更快"
+              description="可从模型列表中选择或直接输入；gpt-image-2.5-sunburst 编辑精度更高，gpt-image-2.5-flare 更快"
             >
-              <UInput
+              <SettingsModelPicker
                 v-model="settings.image.model"
-                class="w-full"
-                :ui="{ base: 'font-mono' }"
+                :connection="settings.imageConnection"
+                :preferred="IMAGE_MODELS"
               />
             </SettingsRow>
             <SettingsRow label="质量">
