@@ -44,7 +44,7 @@
   --mac-scrollbar: rgb(0 0 0 / 0.22);
 
   --ui-header-height: 3.25rem;
-  --ui-primary: #007aff;
+  /* 强调色取 app.config 的 sky 色板：亮色 sky-500、暗色 sky-400，沿用 Nuxt UI 的默认映射，这里不再覆盖 --ui-primary */
   --ui-info: #0066cc;
   --ui-success: #1e7b34;
   --ui-warning: #b25000;
@@ -82,7 +82,6 @@
   --mac-scrim: rgb(0 0 0 / 0.45);
   --mac-scrollbar: rgb(255 255 255 / 0.2);
 
-  --ui-primary: #0a84ff;
   /* 信息色会以小字出现在 #2c2c2e 上，取系统蓝的高对比版本 */
   --ui-info: #409cff;
   --ui-success: #30d158;

@@ -1,7 +1,7 @@
 /**
  * macOS Vibrancy 组件主题。
  * 颜色全部来自 main.css 的三级深度令牌：deep（侧栏、凹槽）→ mid（面板、卡片）→ surface（按钮）。
- * 强调色只标记交互状态（焦点、选中工具、滑块填充、开关开启），从不做按钮或面板底色；
+ * 强调色标记交互状态（焦点、选中工具、滑块填充、开关开启），也是主按钮的底色，从不做面板底色；
  * 浮层沿用 macOS 的分寸：菜单和提示气泡只淡入淡出，弹窗带轻微放大，离场比入场快。
  */
 const ALL_COLORS = ['primary', 'secondary', 'success', 'info', 'warning', 'error', 'neutral']
@@ -15,7 +15,7 @@ const MENU_FADE = 'data-[state=open]:animate-[fade-in_100ms_var(--ease-out)] dat
 export default defineAppConfig({
   ui: {
     colors: {
-      primary: 'blue',
+      primary: 'sky',
       neutral: 'neutral'
     },
     button: {
@@ -27,8 +27,8 @@ export default defineAppConfig({
         size: 'lg'
       },
       compoundVariants: [
-        // 主按钮：凸起灰填充，不用强调色做底
-        { color: ['primary', 'neutral'], variant: 'solid', class: `${RAISED} text-highlighted` },
+        // 主按钮（primary solid）沿用 Nuxt UI 默认的强调色填充；中性实心按钮是凸起灰
+        { color: 'neutral', variant: 'solid', class: `${RAISED} text-highlighted` },
         // 危险、警示操作沿用凸起底，语义色只落在文字上
         { color: 'error', variant: 'solid', class: `${RAISED} text-error` },
         { color: 'warning', variant: 'solid', class: `${RAISED} text-warning` },
