@@ -37,27 +37,27 @@ colors:
   region-hover-yellow: "#ffd60a"
 typography:
   headline:
-    fontFamily: "Georgia, 'Noto Serif SC', 'Songti SC', STSong, serif"
+    fontFamily: "'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'PingFang SC', 'Microsoft YaHei', sans-serif"
     fontSize: "17px"
     fontWeight: 600
     lineHeight: 1.35
   title:
-    fontFamily: "Georgia, 'Noto Serif SC', 'Songti SC', STSong, serif"
+    fontFamily: "'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'PingFang SC', 'Microsoft YaHei', sans-serif"
     fontSize: "15px"
     fontWeight: 600
     lineHeight: 1.4
   body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif"
+    fontFamily: "'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'PingFang SC', 'Microsoft YaHei', sans-serif"
     fontSize: "14px"
     fontWeight: 400
     lineHeight: "20px"
   body-strong:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif"
+    fontFamily: "'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'PingFang SC', 'Microsoft YaHei', sans-serif"
     fontSize: "14px"
     fontWeight: 500
     lineHeight: "20px"
   label:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif"
+    fontFamily: "'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'PingFang SC', 'Microsoft YaHei', sans-serif"
     fontSize: "12px"
     fontWeight: 400
     lineHeight: "16px"
@@ -200,7 +200,7 @@ components:
 
 这扇窗口的壁纸就是用户正在修的那张照片。macOS 的侧栏会透出桌面，这里的毛玻璃侧栏透出当前照片放大模糊后的色调：每个工程的侧栏颜色都不一样，用户进入编辑器的第一眼就知道这是「这张照片的工作台」。除了这一处透色，界面的其余部分只用三档深灰（亮色为三档浅灰）和 1px 发丝线分层，安静地退到照片后面。产品原则「照片优先」在视觉上的含义是：界面颜色不得干扰用户对照片色彩的判断。
 
-整体密度属于专业桌面工具：编辑器是三栏工作台，长时间停留；控件紧凑、对齐严格，信息靠字重、字体和三档背景区分层级，不靠色块和装饰。标题用衬线（Georgia 搭配 Noto Serif SC），给工程名、图层名、分组名一种「编辑过的」气质；正文、标签和控件全部用系统无衬线；提示词和模型名用等宽字体。动效语法只有两种：200ms ease-out 的颜色过渡，以及等待时功能性的旋转指示。
+整体密度属于专业桌面工具：编辑器是三栏工作台，长时间停留；控件紧凑、对齐严格，信息靠字号、字重和三档背景区分层级，不靠色块和装饰。标题、正文、标签和控件全部用思源黑体，中文与拉丁字形同出一源，跨平台观感一致；提示词和模型名用等宽字体。动效语法只有两种：200ms ease-out 的颜色过渡，以及等待时功能性的旋转指示。
 
 明确拒绝的方向：AI 工具的品类默认，即紫色主色、渐变按钮、发光效果和营销式的卡片堆叠。强调色系统蓝只标记交互状态，从不铺成按钮或面板的底色。亮色与暗色是同一套语法的两种外观，必须同时提供并保留切换。
 
@@ -208,7 +208,7 @@ components:
 - 照片着色的毛玻璃侧栏是唯一的大面积透明材质，也是招牌交互。
 - 深度只来自三档背景（deep → mid → surface）和 1px 发丝线，静止的表面没有阴影。
 - 系统蓝只出现在焦点环、选中工具、滑块填充、开关开启和选中候选框上。
-- 衬线只给「名字」用：品牌、工程、图层、分组、弹窗标题。
+- 一套思源黑体覆盖全部界面文字，层级只靠字号与字重，等宽字体只标机器读的文字。
 - 只有颜色过渡和等待旋转两种动效，用户要求减少动态效果时旋转也停下。
 
 ## Colors
@@ -242,34 +242,33 @@ components:
 
 ## Typography
 
-**Display Font:** Georgia（中文字形 Noto Serif SC，回退到 Songti SC、STSong、serif）
-**Body Font:** 系统无衬线（-apple-system、Segoe UI、PingFang SC、Microsoft YaHei 等）
+**Display / Body Font:** 思源黑体（Google Fonts 名称 Noto Sans SC；回退到本机的 Source Han Sans SC/CN、PingFang SC、Microsoft YaHei、sans-serif）
 **Label/Mono Font:** SF Mono（回退到 Menlo、Consolas、Liberation Mono）
 
-**Character:** 衬线标题像 macOS 原生应用里少见的一点人文气，让工程名和图层名读起来是「作品的名字」；系统无衬线负责所有操作性文字，保证和操作系统控件一样清晰；等宽字体把提示词和模型名标成「机器读的文字」。
+**Character:** 一套黑体贯穿标题与操作性文字，中文与拉丁字形同源、字面和灰度均匀，在 macOS 与 Windows 上看起来是同一个应用，而不是分别落到苹方和微软雅黑；名字与正文的区别交给字号和字重。等宽字体把提示词和模型名标成「机器读的文字」。
 
-中文衬线由 `@nuxt/fonts` 从 Google Fonts 下载后自托管，只取 600 一个字重，按编号切片声明 unicode-range，浏览器只下载页面实际用到的字。由于 `@nuxt/fonts` 只解析字体栈的第一个家族，中文衬线单独放在 `--font-cjk-serif` 变量里，再拼进 `--font-serif`。
+思源黑体由 `@nuxt/fonts` 从 Google Fonts 下载后自托管，按 400–600 的可变字重区间请求，每个编号切片一个文件同时覆盖 400、500、600 三档；切片以 unicode-range 声明，浏览器只下载页面实际用到的字。由于 `@nuxt/fonts` 只解析字体栈的第一个家族，`--font-sans` 必须以 `'Noto Sans SC'` 开头。
 
 ### Hierarchy
-- **Headline**（600，17px，行高 1.35，衬线）：品牌名「AI 修图」、导航栏里的工程名与页面标题、检查器中当前对象的名字（图层名、「裁剪与校正」）、弹窗标题。同屏只出现一到两处。
-- **Title**（600，15px，行高 1.4，衬线）：面板里的分组标题，如「调色建议」「区域」「画笔」「光线」「读图模型」。不加小号大写眉标，只靠字体和字重与正文区分。
+- **Headline**（600，17px，行高 1.35）：品牌名「AI 修图」、导航栏里的工程名与页面标题、检查器中当前对象的名字（图层名、「裁剪与校正」）、弹窗标题。同屏只出现一到两处。
+- **Title**（600，15px，行高 1.4）：面板里的分组标题，如「调色建议」「区域」「画笔」「光线」「读图模型」。不加小号大写眉标，只靠字号和字重与正文区分。
 - **Body**（400，14px，行高 20px）：正文、导航项、设置行标签、AI 的整体分析段落（行高放宽到 relaxed）。
 - **Body Strong**（500，14px）：按钮文字、建议卡片标题、工程卡片名称。
 - **Label**（400，12px，行高 16px）：说明文字、参数名与数值、保存状态、元信息（尺寸、时间、tokens）。面板标签「属性」用 14px 500 的弱化色，比分组标题更轻。
 - **Mono**（400，11px，行高 1.625）：重绘建议里的英文提示词；模型名输入框也用等宽，但沿用输入框自身的字号。
 
 ### Named Rules
-**「衬线只给名字」规则。** 衬线只用于命名性的标题：品牌、工程、图层、分组、弹窗。按钮、标签、正文、数值一律不用衬线。
+**「一套黑体」规则。** 除提示词和模型名用等宽外，界面文字只用思源黑体，字重只取 400、500、600 三档。层级靠字号与字重表达，不为标题引入第二种展示字体。
 
 **「数字对齐」规则。** 所有会变化的数字（参数值、尺寸、耗时、tokens、候选编号）都加 `tabular-nums`，拖动滑块时数字不跳动。
 
 ## Layout
 
-**应用外壳**（首页与设置页）：左侧 14rem 的毛玻璃导航侧栏（顶部品牌名，中间「工程」「设置」，底部外观三段切换），右侧是 deep 底的内容区。内容区顶栏高 3.25rem，衬线标题居左、主操作居右。首页内容最宽 72rem，设置页最宽 48rem，均水平居中。
+**应用外壳**（首页与设置页）：左侧 14rem 的毛玻璃导航侧栏（顶部品牌名，中间「工程」「设置」，底部外观三段切换），右侧是 deep 底的内容区。内容区顶栏高 3.25rem，标题居左、主操作居右。首页内容最宽 72rem，设置页最宽 48rem，均水平居中。
 
 **编辑器**是三栏工作台，三栏都可拖动调宽并记住尺寸：
 - 左栏：毛玻璃侧栏，默认 21rem（16–32rem）。顶部只有一个「‹ 工程」返回按钮，下面第一眼就是「AI 建议 / 图层」分段控件，再往下是建议分组或图层列表。
-- 中栏：统一工具栏（衬线工程名、保存状态、撤销、重做、对比原图、凸起的「导出」），下面是工具条（选择、画笔、擦除、裁剪；缩放控制在右侧），再下面是 deep 底的画布凹槽，照片居中。
+- 中栏：统一工具栏（工程名、保存状态、撤销、重做、对比原图、凸起的「导出」），下面是工具条（选择、画笔、擦除、裁剪；缩放控制在右侧），再下面是 deep 底的画布凹槽，照片居中。
 - 右栏：mid 底的属性检查器，默认 19rem（15–28rem），按「区域 → 画笔 → 光线 → 颜色 → 细节」纵向分组。区域、画笔和参数三大块之间用 1px 分隔线，光线、颜色、细节这些参数分组之间只留 20px 间距。
 
 **间距节奏**以 4px 为基数。控件内部和相邻控件之间用 2–8px，卡片内边距 12px，设置行内边距 12px × 16px，面板内分组之间 16–20px，页面级区块之间 32–40px。工程缩略图网格窄屏 2 列、≥640px 3 列、≥1024px 4 列，间距 16px，缩略图比例 4:3。
@@ -343,7 +342,7 @@ components:
 建议卡片右上角未采纳时是描边按钮「采纳」；采纳后换成不可交互的状态标签：对勾图标加「已采纳」文字，弱化色、同样 36px 高，卡片不跳动。不得用半透明的禁用按钮表达「已完成」。
 
 ### 检查器层级
-检查器顶部的「属性」是面板标签（14px 500 弱化色），当前对象名用 Headline（17px 衬线），下面的「区域 / 画笔 / 光线 / 颜色」用 Title（15px 衬线），三级一眼可分。
+检查器顶部的「属性」是面板标签（14px 500 弱化色），当前对象名用 Headline（17px 600），下面的「区域 / 画笔 / 光线 / 颜色」用 Title（15px 600），三级一眼可分。
 
 ### 浮层
 弹窗、下拉菜单、提示气泡、通知条只做颜色和透明度变化，不做缩放或滑入动画。弹窗遮罩是 20%（暗色 45%）的黑。下拉菜单的高亮项用 6px 圆角的选中底。
@@ -358,7 +357,7 @@ components:
 - **Do** 把系统蓝限定在焦点环、选中工具图标、导航激活图标、滑块填充、开关开启和选中候选框上。
 - **Do** 主按钮用凸起灰填充，次按钮用透明底加 1px 描边，工具按钮无边框。
 - **Do** 带文字的按钮保持 36px 高，同排图标按钮与之等高。
-- **Do** 标题用衬线（Headline 17px / Title 15px，600），其余文字用系统无衬线，提示词和模型名用等宽。
+- **Do** 界面文字统一用思源黑体，标题靠字号与字重区分（Headline 17px / Title 15px，600），提示词和模型名用等宽。
 - **Do** 毛玻璃侧栏上的说明文字至少用弱化档；最弱档只放在不透明底上。
 - **Do** 让按钮、导航项、图层行等可聚焦元素显示 2px 系统蓝 outline（60%），输入类显示系统蓝内描边加 3px 浅色光圈；给会变化的数字加等宽数字。
 - **Do** 同时验证亮色和暗色两套外观，以及纯白、纯黑照片作为侧栏底图的最坏情况。

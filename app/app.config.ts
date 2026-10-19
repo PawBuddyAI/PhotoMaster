@@ -98,7 +98,7 @@ export default defineAppConfig({
     },
     modal: {
       slots: {
-        title: 'font-serif text-[17px]'
+        title: 'text-[17px]'
       },
       variants: {
         fullscreen: { false: { content: `rounded-xl ${OVERLAY_SHADOW}` } },
@@ -130,7 +130,7 @@ export default defineAppConfig({
       slots: { root: 'rounded-xl' }
     },
     empty: {
-      slots: { title: 'font-serif font-semibold' },
+      slots: { title: 'font-semibold' },
       variants: { variant: { outline: { root: 'bg-transparent ring-0' } } }
     },
     card: {
@@ -149,7 +149,7 @@ export default defineAppConfig({
       }
     },
     dashboardNavbar: {
-      slots: { title: 'font-serif text-[17px]' }
+      slots: { title: 'text-[17px]' }
     }
   }
 })

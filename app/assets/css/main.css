@@ -2,15 +2,13 @@
 @import "@nuxt/ui";
 
 @theme static {
-  /* 正文用系统无衬线，标题用衬线（拉丁字形 Georgia，中文字形 Noto Serif SC），代码与数值用等宽 */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-  --font-serif: Georgia, var(--font-cjk-serif);
+  /*
+   * 界面文字（含标题）统一用思源黑体，提示词与模型名用等宽。
+   * 思源黑体在 Google Fonts 上名为 Noto Sans SC；@nuxt/fonts 只解析字体栈的第一个家族，所以它必须排第一，
+   * 后面的本机名称只在网络字体加载失败时兜底
+   */
+  --font-sans: 'Noto Sans SC', 'Source Han Sans SC', 'Source Han Sans CN', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
-}
-
-:root {
-  /* @nuxt/fonts 只解析字体栈的第一个家族，中文衬线单独成栈才会被下载并注入 @font-face */
-  --font-cjk-serif: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
 }
 
 /*
@@ -101,16 +99,14 @@
 
 /* 检查器中当前对象（图层名、裁剪）的标题，与工具栏标题同级 */
 @utility panel-title {
-  font-family: var(--font-serif);
   font-size: 17px;
   line-height: 1.35;
   font-weight: 600;
   color: var(--ui-text-highlighted);
 }
 
-/* 面板内的分组标题：衬线、比正文略大，只靠字重和字体区分层级，不加眉标 */
+/* 面板内的分组标题：比正文略大一号，只靠字号和字重区分层级，不加眉标 */
 @utility section-title {
-  font-family: var(--font-serif);
   font-size: 15px;
   line-height: 1.4;
   font-weight: 600;

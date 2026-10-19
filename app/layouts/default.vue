@@ -36,7 +36,7 @@ const appearanceItems = [
             name="i-lucide-aperture"
             class="size-5 text-muted"
           />
-          <span class="font-serif text-[17px] font-semibold text-highlighted">AI 修图</span>
+          <span class="text-[17px] font-semibold text-highlighted">AI 修图</span>
         </NuxtLink>
       </template>
 

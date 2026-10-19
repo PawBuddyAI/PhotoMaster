@@ -46,11 +46,13 @@ export default defineNuxtConfig({
   fonts: {
     families: [
       {
-        // 标题衬线的中文字形。Google 把 CJK 字体切成 [0]…[n] 编号切片并以 unicode-range 声明，
-        // 默认子集只含拉丁与西里尔，需要显式列出编号切片；浏览器只下载页面实际用到的切片
-        name: 'Noto Serif SC',
+        // 思源黑体（Google Fonts 上名为 Noto Sans SC）。Google 把 CJK 字体切成 [0]…[n] 编号切片并以 unicode-range 声明，
+        // 默认子集只含拉丁与西里尔，需要显式列出编号切片；浏览器只下载页面实际用到的切片。
+        // 界面只用 400/500/600 三档字重，按可变字重区间请求：每个切片一个文件覆盖三档，
+        // 而 Google 对多个离散字重返回的也是同一批可变字体文件
+        name: 'Noto Sans SC',
         provider: 'google',
-        weights: [600],
+        weights: ['400 600'],
         styles: ['normal'],
         subsets: ['latin', ...Array.from({ length: 128 }, (_, i) => `[${i}]`)]
       }
