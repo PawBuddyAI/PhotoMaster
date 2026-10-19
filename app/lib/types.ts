@@ -159,11 +159,11 @@ export interface ProjectDoc {
   adopted: string[]
 }
 
+/** 工程元数据（projects 表），创建后只有名称会变 */
 export interface ProjectRecord {
   id: string
   name: string
   createdAt: number
-  updatedAt: number
   /** 已按 EXIF 方向校正后的原图尺寸 */
   width: number
   height: number
@@ -171,7 +171,16 @@ export interface ProjectRecord {
   /** 原图 MIME 类型，导出时决定能否写回 EXIF */
   originalType: string
   thumbnail: Blob
+}
+
+/**
+ * 工程文档（docs 表，主键即工程 id）。与元数据分表存放，自动保存只需写这一行。
+ * updatedAt 是工程最近一次修改（文档或名称）的时间，工程列表按它排序。
+ */
+export interface ProjectDocRecord {
+  id: string
   doc: ProjectDoc
+  updatedAt: number
 }
 
 export interface BlobRecord {
