@@ -30,7 +30,7 @@ import type {
 
 export type EditorTool = 'move' | 'brush' | 'erase' | 'crop'
 
-export type ProjectMeta = Pick<ProjectRecord, 'id' | 'name' | 'width' | 'height' | 'originalBlobId' | 'originalType'>
+export type ProjectMeta = Pick<ProjectRecord, 'id' | 'name' | 'width' | 'height' | 'originalBlobId' | 'originalType' | 'thumbnail'>
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'error'
 
@@ -74,7 +74,8 @@ export const useEditorStore = defineStore('editor', () => {
       width: record.width,
       height: record.height,
       originalBlobId: record.originalBlobId,
-      originalType: record.originalType
+      originalType: record.originalType,
+      thumbnail: record.thumbnail
     }
     doc.value = normalizeDoc(record.doc)
     history.clear()

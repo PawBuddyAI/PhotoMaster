@@ -72,7 +72,7 @@ onBeforeUnmount(() => hover(null))
       icon="i-lucide-key-round"
       title="尚未配置读图模型"
       description="配置后可以让 AI 分析照片并给出修图方案"
-      :actions="[{ label: '前往设置', to: '/settings', color: 'warning', variant: 'link', size: 'lg' }]"
+      :actions="[{ label: '前往设置', to: '/settings', color: 'neutral', variant: 'outline', size: 'lg' }]"
     />
 
     <UTextarea
@@ -104,7 +104,7 @@ onBeforeUnmount(() => hover(null))
     />
 
     <template v-if="result">
-      <p class="rounded-md bg-elevated/60 p-3 text-sm leading-relaxed">
+      <p class="rounded-xl border border-default bg-default p-3 text-sm/relaxed text-default">
         {{ result.overall }}
       </p>
 
@@ -113,38 +113,36 @@ onBeforeUnmount(() => hover(null))
         class="space-y-2"
       >
         <div class="flex items-center justify-between">
-          <p class="text-xs font-semibold tracking-wide text-muted">
+          <h3 class="section-title">
             调色建议
-          </p>
+          </h3>
           <UButton
             v-if="pendingAdjustments.length > 1"
             label="全部采纳"
-            variant="link"
+            color="neutral"
+            variant="ghost"
             @click="adoptAllAdjustments"
           />
         </div>
         <div
           v-for="item in result.adjustments"
           :key="item.id"
-          class="space-y-1.5 rounded-md border border-default p-3"
+          class="space-y-2 rounded-xl border border-default bg-default p-3 transition-colors duration-200 ease-out hover:border-accented hover:bg-(--mac-mid-hover)"
           @mouseenter="hover(item.mask.shape === 'full' ? null : item.mask)"
           @mouseleave="hover(null)"
         >
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-              <p class="text-sm font-medium">
+              <p class="text-sm font-medium text-highlighted">
                 {{ item.title }}
               </p>
-              <p class="text-xs text-muted">
+              <p class="mt-0.5 text-xs text-muted">
                 {{ item.reason }}
               </p>
             </div>
-            <UButton
-              :label="adopted.has(item.id) ? '已采纳' : '采纳'"
-              :icon="adopted.has(item.id) ? 'i-lucide-check' : undefined"
-              :disabled="adopted.has(item.id)"
-              :variant="adopted.has(item.id) ? 'ghost' : 'soft'"
-              @click="editor.adoptSuggestion(item.id)"
+            <EditorAdoptAction
+              :adopted="adopted.has(item.id)"
+              @adopt="editor.adoptSuggestion(item.id)"
             />
           </div>
           <div class="flex flex-wrap gap-1">
@@ -161,6 +159,7 @@ onBeforeUnmount(() => hover(null))
               size="sm"
               color="neutral"
               variant="soft"
+              class="tabular-nums"
             />
           </div>
         </div>
@@ -170,38 +169,35 @@ onBeforeUnmount(() => hover(null))
         v-if="result.generativeEdits.length"
         class="space-y-2"
       >
-        <p class="text-xs font-semibold tracking-wide text-muted">
+        <h3 class="section-title">
           重绘建议
-        </p>
+        </h3>
         <div
           v-for="item in result.generativeEdits"
           :key="item.id"
-          class="space-y-1.5 rounded-md border border-default p-3"
+          class="space-y-2 rounded-xl border border-default bg-default p-3 transition-colors duration-200 ease-out hover:border-accented hover:bg-(--mac-mid-hover)"
           @mouseenter="hover(item.mask)"
           @mouseleave="hover(null)"
         >
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-              <p class="text-sm font-medium">
+              <p class="text-sm font-medium text-highlighted">
                 {{ item.title }}
               </p>
-              <p class="text-xs text-muted">
+              <p class="mt-0.5 text-xs text-muted">
                 {{ item.reason }}
               </p>
             </div>
-            <UButton
-              :label="adopted.has(item.id) ? '已采纳' : '采纳'"
-              :icon="adopted.has(item.id) ? 'i-lucide-check' : undefined"
-              :disabled="adopted.has(item.id)"
-              :variant="adopted.has(item.id) ? 'ghost' : 'soft'"
-              @click="editor.adoptSuggestion(item.id)"
+            <EditorAdoptAction
+              :adopted="adopted.has(item.id)"
+              @adopt="editor.adoptSuggestion(item.id)"
             />
           </div>
-          <p class="line-clamp-3 font-mono text-[11px] text-dimmed">
+          <p class="line-clamp-3 rounded-lg bg-deep px-2 py-1.5 font-mono text-[11px]/relaxed text-muted">
             {{ item.prompt }}
           </p>
         </div>
-        <p class="text-xs text-dimmed">
+        <p class="text-xs text-muted">
           采纳后会新建重绘图层，可先微调区域再点击「生成」。
         </p>
       </section>
@@ -210,28 +206,26 @@ onBeforeUnmount(() => hover(null))
         v-if="result.crop"
         class="space-y-2"
       >
-        <p class="text-xs font-semibold tracking-wide text-muted">
+        <h3 class="section-title">
           构图建议
-        </p>
-        <div class="flex items-start justify-between gap-2 rounded-md border border-default p-3">
+        </h3>
+        <div class="flex items-start justify-between gap-2 rounded-xl border border-default bg-default p-3">
           <div class="min-w-0">
-            <p class="text-sm">
+            <p class="text-sm text-highlighted">
               {{ result.crop.reason }}
             </p>
-            <p class="text-xs text-muted">
+            <p class="mt-0.5 text-xs text-muted tabular-nums">
               水平校正 {{ result.crop.crop.angle.toFixed(1) }}°
             </p>
           </div>
-          <UButton
-            :label="adopted.has(result.crop.id) ? '已采纳' : '采纳'"
-            :disabled="adopted.has(result.crop.id)"
-            :variant="adopted.has(result.crop.id) ? 'ghost' : 'soft'"
-            @click="editor.adoptSuggestion(result.crop.id)"
+          <EditorAdoptAction
+            :adopted="adopted.has(result.crop.id)"
+            @adopt="editor.adoptSuggestion(result.crop.id)"
           />
         </div>
       </section>
 
-      <p class="text-xs text-dimmed">
+      <p class="text-xs text-muted">
         模型：{{ result.model }}
         <template v-if="analysis.lastUsage">
           · {{ analysis.lastUsage.total_tokens.toLocaleString() }} tokens

@@ -1,0 +1,375 @@
+---
+name: AI 修图
+description: macOS 毛玻璃（Vibrancy）风格的桌面修图工作台，照片的色调透过侧栏，界面其余部分退到照片后面
+colors:
+  system-blue: "#0a84ff"
+  system-blue-light: "#007aff"
+  graphite-deep: "#1c1c1e"
+  graphite-mid: "#2c2c2e"
+  graphite-raised: "#3a3a3c"
+  mist-deep: "#e5e5ea"
+  mist-mid: "#f2f2f7"
+  mist-raised: "#ffffff"
+  ink-dark: "rgb(255 255 255 / 0.85)"
+  ink-dark-highlighted: "rgb(255 255 255 / 0.95)"
+  ink-dark-muted: "rgb(255 255 255 / 0.7)"
+  ink-dark-dimmed: "rgb(255 255 255 / 0.55)"
+  hairline-dark: "rgb(255 255 255 / 0.1)"
+  hover-dark: "rgb(255 255 255 / 0.08)"
+  selected-dark: "rgb(255 255 255 / 0.1)"
+  track-dark: "rgb(255 255 255 / 0.12)"
+  ink-light: "rgb(0 0 0 / 0.85)"
+  ink-light-highlighted: "rgb(0 0 0 / 0.9)"
+  ink-light-muted: "rgb(0 0 0 / 0.65)"
+  ink-light-dimmed: "rgb(0 0 0 / 0.58)"
+  hairline-light: "rgb(0 0 0 / 0.1)"
+  hover-light: "rgb(0 0 0 / 0.05)"
+  selected-light: "rgb(0 0 0 / 0.08)"
+  track-light: "rgb(0 0 0 / 0.1)"
+  success-green: "#30d158"
+  success-green-light: "#1e7b34"
+  warning-orange: "#ff9f0a"
+  warning-orange-light: "#b25000"
+  error-red: "#ff453a"
+  error-red-light: "#d70015"
+  info-blue: "#409cff"
+  info-blue-light: "#0066cc"
+  region-hover-yellow: "#ffd60a"
+typography:
+  headline:
+    fontFamily: "Georgia, 'Noto Serif SC', 'Songti SC', STSong, serif"
+    fontSize: "17px"
+    fontWeight: 600
+    lineHeight: 1.35
+  title:
+    fontFamily: "Georgia, 'Noto Serif SC', 'Songti SC', STSong, serif"
+    fontSize: "15px"
+    fontWeight: 600
+    lineHeight: 1.4
+  body:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: "20px"
+  body-strong:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif"
+    fontSize: "14px"
+    fontWeight: 500
+    lineHeight: "20px"
+  label:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: "16px"
+  mono:
+    fontFamily: "'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace"
+    fontSize: "11px"
+    fontWeight: 400
+    lineHeight: 1.625
+rounded:
+  sm: "4px"
+  md: "6px"
+  lg: "8px"
+  xl: "12px"
+spacing:
+  "0.5": "2px"
+  "1": "4px"
+  "1.5": "6px"
+  "2": "8px"
+  "3": "12px"
+  "4": "16px"
+  "5": "20px"
+  "8": "32px"
+  "10": "40px"
+components:
+  button-raised:
+    backgroundColor: "{colors.graphite-raised}"
+    textColor: "{colors.ink-dark-highlighted}"
+    typography: "{typography.body-strong}"
+    rounded: "{rounded.lg}"
+    padding: "8px 12px"
+    height: "36px"
+  button-raised-hover:
+    backgroundColor: "color-mix(in srgb, #3a3a3c, white 8%)"
+  button-raised-light:
+    backgroundColor: "{colors.mist-raised}"
+    textColor: "{colors.ink-light-highlighted}"
+  button-raised-light-hover:
+    backgroundColor: "color-mix(in srgb, #ffffff, black 4%)"
+  button-outline:
+    backgroundColor: "transparent"
+    textColor: "{colors.ink-dark-muted}"
+    typography: "{typography.body-strong}"
+    rounded: "{rounded.lg}"
+    padding: "8px 12px"
+    height: "36px"
+  button-outline-hover:
+    backgroundColor: "{colors.hover-dark}"
+    textColor: "{colors.ink-dark-highlighted}"
+  button-tool:
+    backgroundColor: "transparent"
+    textColor: "{colors.ink-dark-muted}"
+    rounded: "{rounded.lg}"
+    size: "36px"
+  button-tool-selected:
+    backgroundColor: "{colors.selected-dark}"
+    textColor: "{colors.system-blue}"
+  input-field:
+    backgroundColor: "{colors.graphite-deep}"
+    textColor: "{colors.ink-dark}"
+    rounded: "{rounded.lg}"
+    padding: "6px 10px"
+    height: "32px"
+  input-field-light:
+    backgroundColor: "{colors.mist-raised}"
+    textColor: "{colors.ink-light}"
+  segmented-control:
+    backgroundColor: "transparent"
+    rounded: "{rounded.lg}"
+    padding: "2px"
+  segmented-control-selected:
+    backgroundColor: "{colors.graphite-raised}"
+    textColor: "{colors.ink-dark-highlighted}"
+    rounded: "{rounded.md}"
+  vibrancy-sidebar:
+    backgroundColor: "color-mix(in oklab, #1c1c1e 80%, transparent)"
+    textColor: "{colors.ink-dark-muted}"
+    width: "21rem"
+  vibrancy-sidebar-light:
+    backgroundColor: "color-mix(in oklab, #e5e5ea 80%, transparent)"
+    textColor: "{colors.ink-light-muted}"
+  nav-item-active:
+    backgroundColor: "{colors.selected-dark}"
+    textColor: "{colors.ink-dark-highlighted}"
+    rounded: "{rounded.lg}"
+    padding: "6px 10px"
+  group-card:
+    backgroundColor: "{colors.graphite-mid}"
+    textColor: "{colors.ink-dark}"
+    rounded: "{rounded.xl}"
+    padding: "12px"
+  group-card-hover:
+    backgroundColor: "color-mix(in srgb, #2c2c2e, white 5%)"
+  group-card-light:
+    backgroundColor: "{colors.mist-mid}"
+    textColor: "{colors.ink-light}"
+  settings-row:
+    typography: "{typography.body}"
+    padding: "12px 16px"
+  status-tag-adopted:
+    textColor: "{colors.ink-dark-muted}"
+    typography: "{typography.body}"
+    height: "36px"
+  prompt-block:
+    backgroundColor: "{colors.graphite-deep}"
+    textColor: "{colors.ink-dark-muted}"
+    typography: "{typography.mono}"
+    rounded: "{rounded.lg}"
+    padding: "6px 8px"
+  canvas-well:
+    backgroundColor: "{colors.graphite-deep}"
+  inspector-panel:
+    backgroundColor: "{colors.graphite-mid}"
+    width: "19rem"
+  switch-track:
+    backgroundColor: "{colors.track-dark}"
+    rounded: "{rounded.xl}"
+    width: "36px"
+    height: "20px"
+  switch-track-on:
+    backgroundColor: "{colors.system-blue}"
+  slider-fill:
+    backgroundColor: "{colors.system-blue}"
+    rounded: "{rounded.xl}"
+    height: "7px"
+  tooltip:
+    backgroundColor: "{colors.graphite-mid}"
+    textColor: "{colors.ink-dark-highlighted}"
+    typography: "{typography.label}"
+    rounded: "{rounded.md}"
+  overlay-menu:
+    backgroundColor: "color-mix(in oklab, #2c2c2e 85%, transparent)"
+    rounded: "{rounded.lg}"
+---
+
+# Design System: AI 修图
+
+## Overview
+
+**Creative North Star: "照片即壁纸"**
+
+这扇窗口的壁纸就是用户正在修的那张照片。macOS 的侧栏会透出桌面，这里的毛玻璃侧栏透出当前照片放大模糊后的色调：每个工程的侧栏颜色都不一样，用户进入编辑器的第一眼就知道这是「这张照片的工作台」。除了这一处透色，界面的其余部分只用三档深灰（亮色为三档浅灰）和 1px 发丝线分层，安静地退到照片后面。产品原则「照片优先」在视觉上的含义是：界面颜色不得干扰用户对照片色彩的判断。
+
+整体密度属于专业桌面工具：编辑器是三栏工作台，长时间停留；控件紧凑、对齐严格，信息靠字重、字体和三档背景区分层级，不靠色块和装饰。标题用衬线（Georgia 搭配 Noto Serif SC），给工程名、图层名、分组名一种「编辑过的」气质；正文、标签和控件全部用系统无衬线；提示词和模型名用等宽字体。动效语法只有两种：200ms ease-out 的颜色过渡，以及等待时功能性的旋转指示。
+
+明确拒绝的方向：AI 工具的品类默认，即紫色主色、渐变按钮、发光效果和营销式的卡片堆叠。强调色系统蓝只标记交互状态，从不铺成按钮或面板的底色。亮色与暗色是同一套语法的两种外观，必须同时提供并保留切换。
+
+**Key Characteristics:**
+- 照片着色的毛玻璃侧栏是唯一的大面积透明材质，也是招牌交互。
+- 深度只来自三档背景（deep → mid → surface）和 1px 发丝线，静止的表面没有阴影。
+- 系统蓝只出现在焦点环、选中工具、滑块填充、开关开启和选中候选框上。
+- 衬线只给「名字」用：品牌、工程、图层、分组、弹窗标题。
+- 只有颜色过渡和等待旋转两种动效，用户要求减少动态效果时旋转也停下。
+
+## Colors
+
+一套近乎无彩的系统灰阶，加上一个只用来标记状态的系统蓝；所有颜色都有亮、暗两个值，由 `.dark` 类切换。
+
+### Primary
+- **系统蓝**（system-blue / system-blue-light）：唯一的强调色。用于焦点环（2px、60% 不透明度；输入类为 3px、25% 的光圈）、选中工具的图标、侧栏导航激活项的图标、滑块的填充段、开关开启时的轨道、选中候选图的 1px 外框和勾号、文本选区（35% 混合）与输入光标。暗色用 #0a84ff，亮色用 #007aff。
+
+### Neutral
+- **石墨凹槽**（graphite-deep，亮色对应 mist-deep）：最深的一档。用于画布凹槽、首页与设置页的内容区底、毛玻璃侧栏的基色、暗色下的输入框底、提示词代码块的底。
+- **石墨面板**（graphite-mid，亮色对应 mist-mid）：中间一档。用于右侧属性检查器、编辑器的导航栏与工具条、建议卡片、设置分组、工程缩略图卡片、提示气泡、下拉菜单和弹窗。
+- **石墨凸起**（graphite-raised，亮色对应 mist-raised）：最浅的一档。用于主按钮的凸起填充和分段控件的选中段；亮色下也是输入框的底。
+- **墨色正文 / 高亮 / 弱化 / 次弱化**（ink-dark* 与 ink-light* 四档）：正文 85%，标题与选中项高亮（暗色 95%、亮色 90%），说明文字弱化（暗色 70%、亮色 65%），最弱一档（暗色 55%、亮色 58%）只用在不透明底上的保存状态、未改动的参数数值等次要信息。
+- **发丝线**（hairline-dark / hairline-light）：所有分隔线、卡片外框、描边按钮的 1px 线，强度在 8%–12% 之间浮动（默认 10%，弱化 8%，强调 12%）。
+- **悬停与选中**（hover-* / selected-*）：悬停时叠一层 8%（亮色 5%）的白（黑），选中项叠 10%（亮色 8%）。卡片悬停改用把面板色混入 5% 白（亮色 3% 黑）的实色，保持不透明。
+- **轨道**（track-dark / track-light）：开关关闭时和滑块未填充部分的底色。
+
+### 语义色
+- **成功绿、警示橙、错误红、信息蓝**（success / warning / error / info，各有亮暗两值）：只落在文字和图标上，例如「已应用重绘结果」前的对勾、保存失败的文字、提示条左侧的图标。提示条、徽章和危险按钮的底色仍是中性灰。暗色下信息蓝取 #409cff 这一高对比版本，因为它会以小字出现在面板色上。
+
+### 画布叠加色
+- **区域悬停黄**（region-hover-yellow）：仅在画布上使用。鼠标悬停在建议卡片上时，用它勾出建议对应的区域；区域控制点用系统蓝描边、白色填充，画笔涂抹用 55% 不透明度的红（添加）和蓝（擦除）。这些颜色画在照片上，不随界面明暗切换。
+
+### Named Rules
+**「强调色只标状态」规则。** 系统蓝只回答「哪个被选中、哪里有焦点、哪个值被改过」。它从不做按钮、面板、徽章或提示条的底色；主按钮是凸起灰，不是蓝色。
+
+**「三档灰」规则。** 层级只能来自 deep、mid、surface 三档背景加 1px 发丝线。不新增第四档灰，不用渐变或彩色块制造层次。
+
+**「玻璃上不放最弱文字」规则。** 毛玻璃侧栏的实际底色随照片变化。直接压在侧栏玻璃上的说明文字至少用弱化档（ink-*-muted），在纯白或纯黑照片下最低也有 5.18:1；最弱档在最坏情况下只有约 4:1，只能放在不透明底上。
+
+## Typography
+
+**Display Font:** Georgia（中文字形 Noto Serif SC，回退到 Songti SC、STSong、serif）
+**Body Font:** 系统无衬线（-apple-system、Segoe UI、PingFang SC、Microsoft YaHei 等）
+**Label/Mono Font:** SF Mono（回退到 Menlo、Consolas、Liberation Mono）
+
+**Character:** 衬线标题像 macOS 原生应用里少见的一点人文气，让工程名和图层名读起来是「作品的名字」；系统无衬线负责所有操作性文字，保证和操作系统控件一样清晰；等宽字体把提示词和模型名标成「机器读的文字」。
+
+中文衬线由 `@nuxt/fonts` 从 Google Fonts 下载后自托管，只取 600 一个字重，按编号切片声明 unicode-range，浏览器只下载页面实际用到的字。由于 `@nuxt/fonts` 只解析字体栈的第一个家族，中文衬线单独放在 `--font-cjk-serif` 变量里，再拼进 `--font-serif`。
+
+### Hierarchy
+- **Headline**（600，17px，行高 1.35，衬线）：品牌名「AI 修图」、导航栏里的工程名与页面标题、检查器中当前对象的名字（图层名、「裁剪与校正」）、弹窗标题。同屏只出现一到两处。
+- **Title**（600，15px，行高 1.4，衬线）：面板里的分组标题，如「调色建议」「区域」「画笔」「光线」「读图模型」。不加小号大写眉标，只靠字体和字重与正文区分。
+- **Body**（400，14px，行高 20px）：正文、导航项、设置行标签、AI 的整体分析段落（行高放宽到 relaxed）。
+- **Body Strong**（500，14px）：按钮文字、建议卡片标题、工程卡片名称。
+- **Label**（400，12px，行高 16px）：说明文字、参数名与数值、保存状态、元信息（尺寸、时间、tokens）。面板标签「属性」用 14px 500 的弱化色，比分组标题更轻。
+- **Mono**（400，11px，行高 1.625）：重绘建议里的英文提示词；模型名输入框也用等宽，但沿用输入框自身的字号。
+
+### Named Rules
+**「衬线只给名字」规则。** 衬线只用于命名性的标题：品牌、工程、图层、分组、弹窗。按钮、标签、正文、数值一律不用衬线。
+
+**「数字对齐」规则。** 所有会变化的数字（参数值、尺寸、耗时、tokens、候选编号）都加 `tabular-nums`，拖动滑块时数字不跳动。
+
+## Layout
+
+**应用外壳**（首页与设置页）：左侧 14rem 的毛玻璃导航侧栏（顶部品牌名，中间「工程」「设置」，底部外观三段切换），右侧是 deep 底的内容区。内容区顶栏高 3.25rem，衬线标题居左、主操作居右。首页内容最宽 72rem，设置页最宽 48rem，均水平居中。
+
+**编辑器**是三栏工作台，三栏都可拖动调宽并记住尺寸：
+- 左栏：毛玻璃侧栏，默认 21rem（16–32rem）。顶部只有一个「‹ 工程」返回按钮，下面第一眼就是「AI 建议 / 图层」分段控件，再往下是建议分组或图层列表。
+- 中栏：统一工具栏（衬线工程名、保存状态、撤销、重做、对比原图、凸起的「导出」），下面是工具条（选择、画笔、擦除、裁剪；缩放控制在右侧），再下面是 deep 底的画布凹槽，照片居中。
+- 右栏：mid 底的属性检查器，默认 19rem（15–28rem），按「区域 → 画笔 → 光线 → 颜色 → 细节」纵向分组。区域、画笔和参数三大块之间用 1px 分隔线，光线、颜色、细节这些参数分组之间只留 20px 间距。
+
+**间距节奏**以 4px 为基数。控件内部和相邻控件之间用 2–8px，卡片内边距 12px，设置行内边距 12px × 16px，面板内分组之间 16–20px，页面级区块之间 32–40px。工程缩略图网格窄屏 2 列、≥640px 3 列、≥1024px 4 列，间距 16px，缩略图比例 4:3。
+
+**响应式**：低于 1024px 时侧栏收进抽屉，由导航栏左侧按钮打开；低于 640px 时设置行从「标签左、控件右」改为上下堆叠（开关行仍保持同一行），工具栏里的保存状态文字隐藏。所有宽度下都不允许横向滚动。
+
+## Elevation & Depth
+
+这是一套以色调分层为主的扁平系统。静止的表面没有阴影，深度完全由三档背景和 1px 发丝线表达：越「靠里」的区域越深（画布凹槽、内容区底），越「靠近手指」的元素越浅（凸起按钮、分段控件选中段）。唯一的透明材质是毛玻璃：侧栏为 80% 不透明的 deep 色加上 24px 背景模糊，底下铺着当前照片缩略图放大 110%、模糊 40px、饱和度提高 50% 的副本，侧栏因此只拾取照片的色调而不显示细节。下拉菜单和通知条也是半透明模糊（85% 的面板色），画布上的浮动标签（「原图」、渲染错误、候选编号）用 80% 的 deep 色加模糊。
+
+### Shadow Vocabulary
+- **浮层阴影**（`box-shadow: 0 2px 8px rgba(0,0,0,0.3)`）：只给真正浮在内容之上的东西：下拉菜单、提示气泡、弹窗、通知条。
+- **旋钮阴影**（`box-shadow: 0 1px 2px rgba(0,0,0,0.35)`）：开关滑块和滑块拇指，让白色旋钮在轨道上可辨认。
+
+### Named Rules
+**「发丝线代替阴影」规则。** 卡片、面板、按钮在静止时都不投影；需要分隔就用 1px 发丝线。任何阴影都不超过 0 2px 8px。
+
+**「一扇窗」规则。** 大面积透明只属于毛玻璃侧栏。不得用实色或渐变盖住侧栏透出的照片色调；修可读性只能提高文字层级，或者微调侧栏材质的不透明度。
+
+## Shapes
+
+形状语言是 macOS 的柔和矩形：圆角克制，同一层级的东西圆角一致。
+
+- **控件**（按钮、输入框、下拉框、分段控件外框、导航项、图层行、候选图）用 8px 圆角。
+- **分组与容器**（建议卡片、设置分组、工程缩略图卡片、拖放区、弹窗、提示条、通知条）用 12px 圆角。
+- **小元素**（徽章、提示气泡、分段控件的选中段、画布浮动标签内的编号牌）用 6px 圆角；参数名这种纯文字按钮的焦点框用 4px。
+- **开关与滑块**：开关轨道是胶囊形，开关滑块和滑块拇指是圆形。这是对风格原文「禁止 rounded-full」的有意偏离，依据是 macOS 原生开关和滑块的形态；除这两种控件外，不得出现胶囊按钮或圆形标签。
+- **边框**一律 1px。拖放区是唯一的虚线框。选中的候选图用 1px 系统蓝外框加左上角勾号，而不是加粗边框。焦点环是 2px 的系统蓝 outline（60% 不透明度），输入类改为内描边加 3px 浅色光圈；两者都不占布局，也不是边框。
+
+## Components
+
+### Buttons
+*像 macOS 的推压按钮：低调、实心、靠一档更浅的灰从面板上「凸」出来。*
+- **Shape:** 柔和矩形（8px）。带文字的按钮统一 36px 高、左右内边距 12px；同排的图标按钮与之等高。更小的尺寸只用于图层行里的图标按钮这类密集场景。
+- **Primary（凸起）：** 凸起灰填充 + 1px 发丝线内描边 + 高亮文字，如「导出」「分析照片」「生成」「应用所选」「完成」。悬停时填充提亮一档（暗色混入 8% 白，亮色混入 4% 黑）。
+- **Secondary（描边）：** 透明底、1px 发丝线描边、弱化文字，如「采纳」「测试连接」「调整图层」「清除裁剪」。悬停时叠一层悬停色并把文字提到高亮。
+- **Ghost（工具按钮）：** 无边框无底色的图标按钮，如撤销、重做、缩放。选中的工具改为选中底 + 系统蓝图标。
+- **危险操作：** 仍是凸起灰底，只把文字改成错误红，例如删除工程弹窗里的「删除」。
+- **Hover / Focus：** 只有颜色在 200ms ease-out 内过渡；键盘焦点显示 2px 系统蓝 outline。禁用时整体 50% 不透明度。
+
+### Chips（徽章）
+- **Style:** 6px 圆角的小号徽章。区域类型用透明底 + 1px 发丝线，参数变化（「曝光 -0.80」）用悬停色的浅底，图层的「AI」来源标记用透明底。
+- **State:** 状态色只落在文字上，外框保持中性发丝线；徽章从不铺强调色底。
+
+### Cards / Containers
+- **Corner Style:** 12px。
+- **Background:** 面板色（mid），压在 deep 底或毛玻璃侧栏上。
+- **Shadow Strategy:** 无阴影，见 Elevation & Depth。
+- **Border:** 1px 发丝线；可交互的卡片悬停时外框加深到强调档，底色换成混色后的实色。
+- **Internal Padding:** 12px；卡片之间 8px。
+- **设置分组：** 同样是 12px 圆角的面板色容器，行与行之间用 1px 分隔线，每行 12px × 16px 内边距，标签与说明在左、控件在右（控件列宽 18rem）。
+
+### Inputs / Fields
+- **Style:** 8px 圆角，1px 强调档发丝线内描边，32px 高。暗色下输入框底是最深的石墨色（比所在面板更「凹」），亮色下是纯白。文字在 ≥768px 时为 14px，更窄时为 16px（避免移动浏览器聚焦时自动放大）。多行输入框随内容自动增高。
+- **Focus:** 内描边换成 60% 的系统蓝，外侧再加一圈 3px、25% 不透明度的系统蓝焦点光圈（沿用 Nuxt UI 默认，接近 macOS 的焦点光圈）；输入光标和文本选区也是系统蓝。
+- **Disabled:** 禁用时 75% 不透明度。本应用的字段没有行内校验错误态，接口错误通过通知条反馈。
+
+### Navigation
+- **侧栏导航：** 14px 文字的导航项，8px 圆角，6px × 10px 内边距。默认弱化色，悬停叠悬停色并提亮文字；当前页为选中底 + 高亮文字 + 系统蓝图标。
+- **分段控件（切换视图）：** 外框是透明底 + 1px 发丝线 + 2px 内边距，选中段是凸起灰（6px 圆角），切换不做滑动动画。用于编辑器左栏的「AI 建议 / 图层」。
+- **分段选择（选取一个值）：** 外框相同，选中段改为选中底 + 系统蓝图标，与工具选中的语义一致。用于检查器里的区域形状和侧栏底部的外观切换（跟随系统、浅色、深色）。
+- **移动端：** 低于 1024px 时侧栏变成抽屉，由导航栏左侧的按钮打开。
+
+### 毛玻璃侧栏（招牌组件）
+窗口最底层铺着当前照片的缩略图（放大、强模糊、提高饱和度），只从半透明侧栏处透出。工程列表透出最近修过的那张照片，编辑器透出当前工程的照片，因此每个工程的侧栏色调都不同。侧栏上的文字至少用弱化档，见「玻璃上不放最弱文字」规则。
+
+### 参数滑块（零点双向填充）
+参数名在左、数值在右（12px，等宽数字），下面是 7px 高的轨道。跨零的双极参数（曝光、对比度、高光、色温、水平校正等）从 0 点向两侧填充，未改动时没有填充，数值显示为最弱档；改动后数值变为高亮加粗，填充段用系统蓝标出改了多少。单极参数（强度、羽化、笔刷大小、硬度、导出质量）从最小值开始填充。双击参数名或滑块恢复默认值。
+
+### 采纳操作与「已采纳」标签
+建议卡片右上角未采纳时是描边按钮「采纳」；采纳后换成不可交互的状态标签：对勾图标加「已采纳」文字，弱化色、同样 36px 高，卡片不跳动。不得用半透明的禁用按钮表达「已完成」。
+
+### 检查器层级
+检查器顶部的「属性」是面板标签（14px 500 弱化色），当前对象名用 Headline（17px 衬线），下面的「区域 / 画笔 / 光线 / 颜色」用 Title（15px 衬线），三级一眼可分。
+
+### 浮层
+弹窗、下拉菜单、提示气泡、通知条只做颜色和透明度变化，不做缩放或滑入动画。弹窗遮罩是 20%（暗色 45%）的黑。下拉菜单的高亮项用 6px 圆角的选中底。
+
+### 等待指示
+分析中、生成中、加载图像时显示旋转的加载图标，这是唯一保留的循环动画；系统开启「减少动态效果」时旋转停止，文字说明仍然可见。
+
+## Do's and Don'ts
+
+### Do:
+- **Do** 只用 deep / mid / surface 三档背景和 1px 发丝线（8%–12%）表达层级。
+- **Do** 把系统蓝限定在焦点环、选中工具图标、导航激活图标、滑块填充、开关开启和选中候选框上。
+- **Do** 主按钮用凸起灰填充，次按钮用透明底加 1px 描边，工具按钮无边框。
+- **Do** 带文字的按钮保持 36px 高，同排图标按钮与之等高。
+- **Do** 标题用衬线（Headline 17px / Title 15px，600），其余文字用系统无衬线，提示词和模型名用等宽。
+- **Do** 毛玻璃侧栏上的说明文字至少用弱化档；最弱档只放在不透明底上。
+- **Do** 让按钮、导航项、图层行等可聚焦元素显示 2px 系统蓝 outline（60%），输入类显示系统蓝内描边加 3px 浅色光圈；给会变化的数字加等宽数字。
+- **Do** 同时验证亮色和暗色两套外观，以及纯白、纯黑照片作为侧栏底图的最坏情况。
+
+### Don't:
+- **Don't** 使用紫色主色、渐变按钮、发光或彩色描边光晕。
+- **Don't** 用系统蓝或任何语义色铺按钮、面板、徽章或提示条的底色。
+- **Don't** 给静止的卡片、面板、按钮加阴影；浮层阴影不超过 0 2px 8px。
+- **Don't** 使用 2px 或更粗的边框，也不要用加粗边框表示选中。
+- **Don't** 做胶囊形按钮或圆形标签；胶囊轨道和圆形旋钮只属于开关和滑块。
+- **Don't** 用实色或渐变盖住毛玻璃侧栏透出的照片色调。
+- **Don't** 在分组标题上加小号大写眉标，或让分组标题与对象名使用同一字号。
+- **Don't** 加装饰性动画、缩放或滑入的浮层过渡；颜色过渡之外只允许等待时的旋转指示。
+- **Don't** 用半透明的禁用按钮表达「已完成」之类的状态，改用不可交互的状态标签。

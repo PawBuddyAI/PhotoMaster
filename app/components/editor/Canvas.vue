@@ -12,8 +12,9 @@ const props = defineProps<{ view: EditorView }>()
 const editor = useEditorStore()
 const inpaint = useInpaintStore()
 
-const ACCENT = '#a78bfa'
-const HOVER = '#fbbf24'
+/** 画布叠加层画在照片上，不随明暗主题变化：手柄用系统蓝，建议区域预览用系统黄 */
+const ACCENT = '#0a84ff'
+const HOVER = '#ffd60a'
 const MIN_SCALE = 0.02
 const MAX_SCALE = 32
 
@@ -527,7 +528,7 @@ function onCropChange(e: KonvaEventObject<Event>) {
 <template>
   <div
     ref="container"
-    class="relative bg-[#1b1b1f] size-full overflow-hidden select-none"
+    class="relative size-full overflow-hidden bg-deep select-none"
     :style="{ cursor }"
     @contextmenu.prevent
     @pointerleave="pointer = null"
@@ -650,14 +651,19 @@ function onCropChange(e: KonvaEventObject<Event>) {
     </div>
     <div
       v-if="comparing"
-      class="pointer-events-none absolute left-3 top-3 rounded bg-black/60 px-2 py-1 text-xs text-white"
+      class="pointer-events-none absolute top-3 left-3 rounded-lg bg-deep/80 px-2.5 py-1 text-xs font-medium text-highlighted ring ring-default backdrop-blur-xl"
     >
       原图
     </div>
     <div
       v-if="view.error.value"
-      class="absolute inset-x-3 bottom-3 rounded bg-error/90 px-3 py-2 text-xs text-white"
+      role="alert"
+      class="absolute inset-x-3 bottom-3 flex items-start gap-2 rounded-lg bg-deep/80 px-3 py-2 text-xs text-highlighted ring ring-default backdrop-blur-xl"
     >
+      <UIcon
+        name="i-lucide-circle-alert"
+        class="size-4 shrink-0 text-error"
+      />
       渲染出错：{{ view.error.value }}
     </div>
   </div>

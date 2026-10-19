@@ -49,10 +49,10 @@ const brushPercent = computed({
 <template>
   <div class="space-y-4">
     <div class="space-y-2">
-      <p class="text-xs font-semibold tracking-wide text-muted">
+      <h3 class="section-title">
         区域
-      </p>
-      <div class="grid grid-cols-5 gap-1">
+      </h3>
+      <div class="grid grid-cols-5 gap-0.5 rounded-lg p-0.5 ring ring-default ring-inset">
         <UTooltip
           v-for="option in shapeOptions"
           :key="option.value"
@@ -64,6 +64,7 @@ const brushPercent = computed({
             :variant="mask.shape === option.value ? 'soft' : 'ghost'"
             :disabled="locked"
             :aria-label="option.label"
+            :aria-pressed="mask.shape === option.value"
             block
             @click="setShape(option.value)"
           />
@@ -71,7 +72,7 @@ const brushPercent = computed({
       </div>
       <p
         v-if="mask.shape === 'linear'"
-        class="text-xs text-dimmed"
+        class="text-xs text-muted"
       >
         拖动画布上的两个端点：起点效果最强，终点效果为零
       </p>
@@ -113,15 +114,15 @@ const brushPercent = computed({
 
     <div class="space-y-3">
       <div class="flex items-center justify-between">
-        <p class="text-xs font-semibold tracking-wide text-muted">
+        <h3 class="section-title">
           画笔
-        </p>
+        </h3>
         <UButton
           v-if="mask.strokes.length"
           :label="`清除 ${mask.strokes.length} 笔`"
           icon="i-lucide-eraser"
           color="neutral"
-          variant="link"
+          variant="ghost"
           :disabled="locked"
           @click="editor.clearStrokes(layer.id)"
         />
@@ -132,6 +133,7 @@ const brushPercent = computed({
           label="添加"
           :color="editor.tool === 'brush' ? 'primary' : 'neutral'"
           :variant="editor.tool === 'brush' ? 'soft' : 'outline'"
+          :aria-pressed="editor.tool === 'brush'"
           :disabled="locked"
           block
           @click="editor.tool = editor.tool === 'brush' ? 'move' : 'brush'"
@@ -141,6 +143,7 @@ const brushPercent = computed({
           label="擦除"
           :color="editor.tool === 'erase' ? 'primary' : 'neutral'"
           :variant="editor.tool === 'erase' ? 'soft' : 'outline'"
+          :aria-pressed="editor.tool === 'erase'"
           :disabled="locked"
           block
           @click="editor.tool = editor.tool === 'erase' ? 'move' : 'erase'"

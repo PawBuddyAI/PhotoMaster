@@ -69,7 +69,7 @@ async function start() {
         />
         <p
           v-if="outputSize"
-          class="text-sm text-muted"
+          class="text-sm text-muted tabular-nums"
         >
           输出尺寸 {{ outputSize.w }}×{{ outputSize.h }}
         </p>

@@ -54,7 +54,7 @@ function setAngle(angle: number) {
         class="w-full"
       />
     </UFormField>
-    <p class="text-xs text-muted">
+    <p class="text-xs text-muted tabular-nums">
       输出尺寸 {{ outputSize.w }}×{{ outputSize.h }}
     </p>
     <div class="flex gap-2">

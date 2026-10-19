@@ -1,0 +1,724 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-19T07:24:51+00:00",
+  "title": "Design System: AI 修图",
+  "extensions": {
+    "colorMeta": {
+      "system-blue": {
+        "role": "primary",
+        "displayName": "系统蓝（暗色）",
+        "canonical": "oklch(62.4% 0.206 255.5)",
+        "tonalRamp": [
+          "#000a20",
+          "#00234d",
+          "#003e7f",
+          "#005eba",
+          "#007df4",
+          "#61a6ff",
+          "#a8cdff",
+          "#e4f0ff"
+        ]
+      },
+      "system-blue-light": {
+        "role": "primary",
+        "displayName": "系统蓝（亮色）",
+        "canonical": "oklch(60.3% 0.218 257.4)",
+        "tonalRamp": [
+          "#000a22",
+          "#002150",
+          "#003c84",
+          "#005bc2",
+          "#0079fe",
+          "#67a5ff",
+          "#aacdff",
+          "#e5efff"
+        ]
+      },
+      "graphite-deep": {
+        "role": "neutral",
+        "displayName": "石墨凹槽",
+        "canonical": "oklch(22.7% 0.004 286.1)",
+        "tonalRamp": [
+          "#0b0b0d",
+          "#242426",
+          "#3f3f42",
+          "#606062",
+          "#808082",
+          "#a4a4a7",
+          "#cacacd",
+          "#eeeef1"
+        ]
+      },
+      "graphite-mid": {
+        "role": "neutral",
+        "displayName": "石墨面板",
+        "canonical": "oklch(29.4% 0.004 286.2)",
+        "tonalRamp": [
+          "#0b0b0d",
+          "#242426",
+          "#3f3f42",
+          "#606062",
+          "#808082",
+          "#a4a4a7",
+          "#cacacd",
+          "#eeeef1"
+        ]
+      },
+      "graphite-raised": {
+        "role": "neutral",
+        "displayName": "石墨凸起",
+        "canonical": "oklch(34.9% 0.003 286.2)",
+        "tonalRamp": [
+          "#0b0b0d",
+          "#242426",
+          "#3f3f41",
+          "#606062",
+          "#808082",
+          "#a4a4a7",
+          "#cacacd",
+          "#eeeef1"
+        ]
+      },
+      "mist-deep": {
+        "role": "neutral",
+        "displayName": "雾灰凹槽",
+        "canonical": "oklch(92.3% 0.007 286.3)",
+        "tonalRamp": [
+          "#0b0b0e",
+          "#242427",
+          "#3f3f43",
+          "#606064",
+          "#808084",
+          "#a4a4a9",
+          "#cacacf",
+          "#eeeef3"
+        ]
+      },
+      "mist-mid": {
+        "role": "neutral",
+        "displayName": "雾灰面板",
+        "canonical": "oklch(96.3% 0.007 286.3)",
+        "tonalRamp": [
+          "#0b0b0e",
+          "#242427",
+          "#3f3f43",
+          "#606064",
+          "#808084",
+          "#a4a4a9",
+          "#cacacf",
+          "#eeeef3"
+        ]
+      },
+      "mist-raised": {
+        "role": "neutral",
+        "displayName": "雾灰凸起",
+        "canonical": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#606060",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "暗色正文",
+        "canonical": "rgb(255 255 255 / 0.85)",
+        "tonalRamp": [
+          "rgb(255 255 255 / 0.05)",
+          "rgb(255 255 255 / 0.08)",
+          "rgb(255 255 255 / 0.1)",
+          "rgb(255 255 255 / 0.2)",
+          "rgb(255 255 255 / 0.4)",
+          "rgb(255 255 255 / 0.58)",
+          "rgb(255 255 255 / 0.7)",
+          "rgb(255 255 255 / 0.85)"
+        ]
+      },
+      "ink-dark-highlighted": {
+        "role": "neutral",
+        "displayName": "暗色高亮文字",
+        "canonical": "rgb(255 255 255 / 0.95)",
+        "tonalRamp": [
+          "rgb(255 255 255 / 0.05)",
+          "rgb(255 255 255 / 0.08)",
+          "rgb(255 255 255 / 0.1)",
+          "rgb(255 255 255 / 0.2)",
+          "rgb(255 255 255 / 0.4)",
+          "rgb(255 255 255 / 0.58)",
+          "rgb(255 255 255 / 0.7)",
+          "rgb(255 255 255 / 0.85)"
+        ]
+      },
+      "ink-dark-muted": {
+        "role": "neutral",
+        "displayName": "暗色弱化文字",
+        "canonical": "rgb(255 255 255 / 0.7)",
+        "tonalRamp": [
+          "rgb(255 255 255 / 0.05)",
+          "rgb(255 255 255 / 0.08)",
+          "rgb(255 255 255 / 0.1)",
+          "rgb(255 255 255 / 0.2)",
+          "rgb(255 255 255 / 0.4)",
+          "rgb(255 255 255 / 0.58)",
+          "rgb(255 255 255 / 0.7)",
+          "rgb(255 255 255 / 0.85)"
+        ]
+      },
+      "ink-dark-dimmed": {
+        "role": "neutral",
+        "displayName": "暗色次弱化文字",
+        "canonical": "rgb(255 255 255 / 0.55)",
+        "tonalRamp": [
+          "rgb(255 255 255 / 0.05)",
+          "rgb(255 255 255 / 0.08)",
+          "rgb(255 255 255 / 0.1)",
+          "rgb(255 255 255 / 0.2)",
+          "rgb(255 255 255 / 0.4)",
+          "rgb(255 255 255 / 0.58)",
+          "rgb(255 255 255 / 0.7)",
+          "rgb(255 255 255 / 0.85)"
+        ]
+      },
+      "hairline-dark": {
+        "role": "neutral",
+        "displayName": "暗色发丝线",
+        "canonical": "rgb(255 255 255 / 0.1)",
+        "tonalRamp": [
+          "rgb(255 255 255 / 0.05)",
+          "rgb(255 255 255 / 0.08)",
+          "rgb(255 255 255 / 0.1)",
+          "rgb(255 255 255 / 0.2)",
+          "rgb(255 255 255 / 0.4)",
+          "rgb(255 255 255 / 0.58)",
+          "rgb(255 255 255 / 0.7)",
+          "rgb(255 255 255 / 0.85)"
+        ]
+      },
+      "hover-dark": {
+        "role": "neutral",
+        "displayName": "暗色悬停叠层",
+        "canonical": "rgb(255 255 255 / 0.08)",
+        "tonalRamp": [
+          "rgb(255 255 255 / 0.05)",
+          "rgb(255 255 255 / 0.08)",
+          "rgb(255 255 255 / 0.1)",
+          "rgb(255 255 255 / 0.2)",
+          "rgb(255 255 255 / 0.4)",
+          "rgb(255 255 255 / 0.58)",
+          "rgb(255 255 255 / 0.7)",
+          "rgb(255 255 255 / 0.85)"
+        ]
+      },
+      "selected-dark": {
+        "role": "neutral",
+        "displayName": "暗色选中叠层",
+        "canonical": "rgb(255 255 255 / 0.1)",
+        "tonalRamp": [
+          "rgb(255 255 255 / 0.05)",
+          "rgb(255 255 255 / 0.08)",
+          "rgb(255 255 255 / 0.1)",
+          "rgb(255 255 255 / 0.2)",
+          "rgb(255 255 255 / 0.4)",
+          "rgb(255 255 255 / 0.58)",
+          "rgb(255 255 255 / 0.7)",
+          "rgb(255 255 255 / 0.85)"
+        ]
+      },
+      "track-dark": {
+        "role": "neutral",
+        "displayName": "暗色轨道",
+        "canonical": "rgb(255 255 255 / 0.12)",
+        "tonalRamp": [
+          "rgb(255 255 255 / 0.05)",
+          "rgb(255 255 255 / 0.08)",
+          "rgb(255 255 255 / 0.1)",
+          "rgb(255 255 255 / 0.2)",
+          "rgb(255 255 255 / 0.4)",
+          "rgb(255 255 255 / 0.58)",
+          "rgb(255 255 255 / 0.7)",
+          "rgb(255 255 255 / 0.85)"
+        ]
+      },
+      "ink-light": {
+        "role": "neutral",
+        "displayName": "亮色正文",
+        "canonical": "rgb(0 0 0 / 0.85)",
+        "tonalRamp": [
+          "rgb(0 0 0 / 0.05)",
+          "rgb(0 0 0 / 0.08)",
+          "rgb(0 0 0 / 0.1)",
+          "rgb(0 0 0 / 0.2)",
+          "rgb(0 0 0 / 0.4)",
+          "rgb(0 0 0 / 0.58)",
+          "rgb(0 0 0 / 0.7)",
+          "rgb(0 0 0 / 0.85)"
+        ]
+      },
+      "ink-light-highlighted": {
+        "role": "neutral",
+        "displayName": "亮色高亮文字",
+        "canonical": "rgb(0 0 0 / 0.9)",
+        "tonalRamp": [
+          "rgb(0 0 0 / 0.05)",
+          "rgb(0 0 0 / 0.08)",
+          "rgb(0 0 0 / 0.1)",
+          "rgb(0 0 0 / 0.2)",
+          "rgb(0 0 0 / 0.4)",
+          "rgb(0 0 0 / 0.58)",
+          "rgb(0 0 0 / 0.7)",
+          "rgb(0 0 0 / 0.85)"
+        ]
+      },
+      "ink-light-muted": {
+        "role": "neutral",
+        "displayName": "亮色弱化文字",
+        "canonical": "rgb(0 0 0 / 0.65)",
+        "tonalRamp": [
+          "rgb(0 0 0 / 0.05)",
+          "rgb(0 0 0 / 0.08)",
+          "rgb(0 0 0 / 0.1)",
+          "rgb(0 0 0 / 0.2)",
+          "rgb(0 0 0 / 0.4)",
+          "rgb(0 0 0 / 0.58)",
+          "rgb(0 0 0 / 0.7)",
+          "rgb(0 0 0 / 0.85)"
+        ]
+      },
+      "ink-light-dimmed": {
+        "role": "neutral",
+        "displayName": "亮色次弱化文字",
+        "canonical": "rgb(0 0 0 / 0.58)",
+        "tonalRamp": [
+          "rgb(0 0 0 / 0.05)",
+          "rgb(0 0 0 / 0.08)",
+          "rgb(0 0 0 / 0.1)",
+          "rgb(0 0 0 / 0.2)",
+          "rgb(0 0 0 / 0.4)",
+          "rgb(0 0 0 / 0.58)",
+          "rgb(0 0 0 / 0.7)",
+          "rgb(0 0 0 / 0.85)"
+        ]
+      },
+      "hairline-light": {
+        "role": "neutral",
+        "displayName": "亮色发丝线",
+        "canonical": "rgb(0 0 0 / 0.1)",
+        "tonalRamp": [
+          "rgb(0 0 0 / 0.05)",
+          "rgb(0 0 0 / 0.08)",
+          "rgb(0 0 0 / 0.1)",
+          "rgb(0 0 0 / 0.2)",
+          "rgb(0 0 0 / 0.4)",
+          "rgb(0 0 0 / 0.58)",
+          "rgb(0 0 0 / 0.7)",
+          "rgb(0 0 0 / 0.85)"
+        ]
+      },
+      "hover-light": {
+        "role": "neutral",
+        "displayName": "亮色悬停叠层",
+        "canonical": "rgb(0 0 0 / 0.05)",
+        "tonalRamp": [
+          "rgb(0 0 0 / 0.05)",
+          "rgb(0 0 0 / 0.08)",
+          "rgb(0 0 0 / 0.1)",
+          "rgb(0 0 0 / 0.2)",
+          "rgb(0 0 0 / 0.4)",
+          "rgb(0 0 0 / 0.58)",
+          "rgb(0 0 0 / 0.7)",
+          "rgb(0 0 0 / 0.85)"
+        ]
+      },
+      "selected-light": {
+        "role": "neutral",
+        "displayName": "亮色选中叠层",
+        "canonical": "rgb(0 0 0 / 0.08)",
+        "tonalRamp": [
+          "rgb(0 0 0 / 0.05)",
+          "rgb(0 0 0 / 0.08)",
+          "rgb(0 0 0 / 0.1)",
+          "rgb(0 0 0 / 0.2)",
+          "rgb(0 0 0 / 0.4)",
+          "rgb(0 0 0 / 0.58)",
+          "rgb(0 0 0 / 0.7)",
+          "rgb(0 0 0 / 0.85)"
+        ]
+      },
+      "track-light": {
+        "role": "neutral",
+        "displayName": "亮色轨道",
+        "canonical": "rgb(0 0 0 / 0.1)",
+        "tonalRamp": [
+          "rgb(0 0 0 / 0.05)",
+          "rgb(0 0 0 / 0.08)",
+          "rgb(0 0 0 / 0.1)",
+          "rgb(0 0 0 / 0.2)",
+          "rgb(0 0 0 / 0.4)",
+          "rgb(0 0 0 / 0.58)",
+          "rgb(0 0 0 / 0.7)",
+          "rgb(0 0 0 / 0.85)"
+        ]
+      },
+      "success-green": {
+        "role": "status",
+        "displayName": "成功绿（暗色）",
+        "canonical": "oklch(75.6% 0.208 147.0)",
+        "tonalRamp": [
+          "#001002",
+          "#002d0a",
+          "#004e18",
+          "#007527",
+          "#009b37",
+          "#19c54c",
+          "#56ed73",
+          "#c9ffcd"
+        ]
+      },
+      "success-green-light": {
+        "role": "status",
+        "displayName": "成功绿（亮色）",
+        "canonical": "oklch(51.3% 0.136 147.2)",
+        "tonalRamp": [
+          "#001002",
+          "#002d0a",
+          "#004e18",
+          "#13742d",
+          "#3e954d",
+          "#64bb71",
+          "#8be396",
+          "#c9ffce"
+        ]
+      },
+      "warning-orange": {
+        "role": "status",
+        "displayName": "警示橙（暗色）",
+        "canonical": "oklch(78.2% 0.171 67.2)",
+        "tonalRamp": [
+          "#150800",
+          "#361d00",
+          "#5c3600",
+          "#885200",
+          "#b46e00",
+          "#e58e00",
+          "#ffbb71",
+          "#ffebd6"
+        ]
+      },
+      "warning-orange-light": {
+        "role": "status",
+        "displayName": "警示橙（亮色）",
+        "canonical": "oklch(54.7% 0.147 48.9)",
+        "tonalRamp": [
+          "#190500",
+          "#3e1700",
+          "#682c00",
+          "#994400",
+          "#c4601f",
+          "#ed8549",
+          "#ffb892",
+          "#ffeadf"
+        ]
+      },
+      "error-red": {
+        "role": "status",
+        "displayName": "错误红（暗色）",
+        "canonical": "oklch(66.3% 0.224 28.3)",
+        "tonalRamp": [
+          "#1f0000",
+          "#4b0001",
+          "#7d0003",
+          "#b70008",
+          "#e82924",
+          "#ff7263",
+          "#ffb5aa",
+          "#ffe9e5"
+        ]
+      },
+      "error-red-light": {
+        "role": "status",
+        "displayName": "错误红（亮色）",
+        "canonical": "oklch(55.3% 0.225 27.3)",
+        "tonalRamp": [
+          "#1f0000",
+          "#4b0002",
+          "#7d0007",
+          "#b70010",
+          "#e82728",
+          "#ff7266",
+          "#ffb5ab",
+          "#ffe9e5"
+        ]
+      },
+      "info-blue": {
+        "role": "status",
+        "displayName": "信息蓝（暗色）",
+        "canonical": "oklch(68.5% 0.170 253.0)",
+        "tonalRamp": [
+          "#000b1f",
+          "#002449",
+          "#003f7a",
+          "#0060b3",
+          "#1f81e2",
+          "#5aa8ff",
+          "#a5ceff",
+          "#e3f0ff"
+        ]
+      },
+      "info-blue-light": {
+        "role": "status",
+        "displayName": "信息蓝（亮色）",
+        "canonical": "oklch(52.2% 0.177 255.8)",
+        "tonalRamp": [
+          "#000a21",
+          "#00224e",
+          "#003d80",
+          "#005dbc",
+          "#287ee7",
+          "#62a6ff",
+          "#a8cdff",
+          "#e4f0ff"
+        ]
+      },
+      "region-hover-yellow": {
+        "role": "canvas",
+        "displayName": "区域悬停黄（仅画布）",
+        "canonical": "oklch(88.5% 0.181 94.8)",
+        "tonalRamp": [
+          "#0f0b00",
+          "#2c2300",
+          "#4d3f00",
+          "#735f00",
+          "#987e00",
+          "#c2a200",
+          "#eec800",
+          "#ffefb2"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "标题",
+        "purpose": "品牌名、工程名、检查器中的当前对象名、弹窗标题；衬线，同屏一到两处。"
+      },
+      "title": {
+        "displayName": "分组标题",
+        "purpose": "面板内的分组标题（调色建议、区域、光线、读图模型等）；衬线，不加眉标。"
+      },
+      "body": {
+        "displayName": "正文",
+        "purpose": "正文、导航项、设置行标签、AI 整体分析段落。"
+      },
+      "body-strong": {
+        "displayName": "强调正文",
+        "purpose": "按钮文字、建议卡片标题、工程卡片名称。"
+      },
+      "label": {
+        "displayName": "标签",
+        "purpose": "说明文字、参数名与数值、保存状态、尺寸和 tokens 等元信息。"
+      },
+      "mono": {
+        "displayName": "等宽",
+        "purpose": "重绘建议中的英文提示词；模型名输入框同样用等宽字体。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "overlay",
+        "value": "0 2px 8px rgba(0,0,0,0.3)",
+        "purpose": "仅用于浮在内容之上的下拉菜单、提示气泡、弹窗和通知条。"
+      },
+      {
+        "name": "knob",
+        "value": "0 1px 2px rgba(0,0,0,0.35)",
+        "purpose": "开关旋钮与滑块拇指，让白色旋钮在轨道上可辨认。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "color-transition",
+        "value": "200ms ease-out",
+        "purpose": "唯一的状态过渡：只作用于背景色、文字色和边框色。"
+      },
+      {
+        "name": "spinner",
+        "value": "spin 1s linear infinite",
+        "purpose": "等待中的功能性旋转指示；prefers-reduced-motion: reduce 时停止。"
+      },
+      {
+        "name": "overlay-enter",
+        "value": "none",
+        "purpose": "弹窗、菜单、提示气泡不做缩放或滑入动画，直接出现。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "凸起按钮",
+      "kind": "button",
+      "refersTo": "button-raised",
+      "description": "主操作（导出、分析照片、生成、应用所选）：凸起灰填充，不用强调色做底。",
+      "html": "<button type=\"button\" class=\"ds-btn-raised\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 15V3\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/></svg>导出</button>",
+      "css": ".ds-btn-raised { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 8px 12px; border: 0; border-radius: 8px; background: var(--mac-surface, #3a3a3c); box-shadow: inset 0 0 0 1px var(--ui-border, rgb(255 255 255 / 0.1)); color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); font: 500 14px/20px var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif); cursor: pointer; transition: background-color 200ms ease-out, color 200ms ease-out; } .ds-btn-raised:hover { background: var(--mac-surface-hover, color-mix(in srgb, #3a3a3c, white 8%)); } .ds-btn-raised:focus-visible { outline: 2px solid color-mix(in srgb, var(--ui-primary, #0a84ff) 60%, transparent); outline-offset: 0; } .ds-btn-raised:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "描边按钮",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "次操作（采纳、测试连接、调整图层）：透明底加 1px 发丝线描边。",
+      "html": "<button type=\"button\" class=\"ds-btn-outline\">采纳</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 8px 12px; border: 0; border-radius: 8px; background: transparent; box-shadow: inset 0 0 0 1px var(--ui-border-accented, rgb(255 255 255 / 0.12)); color: var(--ui-text-muted, rgb(255 255 255 / 0.7)); font: 500 14px/20px var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif); cursor: pointer; transition: background-color 200ms ease-out, color 200ms ease-out; } .ds-btn-outline:hover { background: var(--ui-bg-elevated, rgb(255 255 255 / 0.08)); color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); } .ds-btn-outline:focus-visible { outline: 2px solid color-mix(in srgb, var(--ui-primary, #0a84ff) 60%, transparent); outline-offset: 0; }"
+    },
+    {
+      "name": "工具按钮组",
+      "kind": "button",
+      "refersTo": "button-tool",
+      "description": "编辑器工具条：无边框图标按钮，选中的工具为选中底加系统蓝图标。",
+      "html": "<div class=\"ds-tools\" role=\"group\" aria-label=\"工具\"><button type=\"button\" class=\"ds-tool\" aria-pressed=\"true\" aria-label=\"选择 / 平移\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z\"/></svg></button><button type=\"button\" class=\"ds-tool\" aria-pressed=\"false\" aria-label=\"画笔添加区域\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m11 10 3 3\"/><path d=\"M6.5 21A3.5 3.5 0 1 0 3 17.5a2.62 2.62 0 0 1-.708 1.792A1 1 0 0 0 3 21z\"/><path d=\"M9.969 17.031 21.378 5.624a1 1 0 0 0-3.002-3.002L6.967 14.031\"/></svg></button><button type=\"button\" class=\"ds-tool\" aria-pressed=\"false\" aria-label=\"裁剪与校正\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 2v14a2 2 0 0 0 2 2h14\"/><path d=\"M18 22V8a2 2 0 0 0-2-2H2\"/></svg></button></div>",
+      "css": ".ds-tools { display: inline-flex; gap: 0; } .ds-tool { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--ui-text-muted, rgb(255 255 255 / 0.7)); cursor: pointer; transition: background-color 200ms ease-out, color 200ms ease-out; } .ds-tool:hover { background: var(--ui-bg-elevated, rgb(255 255 255 / 0.08)); color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); } .ds-tool[aria-pressed=\"true\"], .ds-tool[aria-pressed=\"true\"]:hover { background: var(--mac-selected, rgb(255 255 255 / 0.1)); color: var(--ui-primary, #0a84ff); } .ds-tool:focus-visible { outline: 2px solid color-mix(in srgb, var(--ui-primary, #0a84ff) 60%, transparent); outline-offset: 0; }"
+    },
+    {
+      "name": "文本输入框",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "输入框比所在面板更「凹」：暗色用最深的石墨底，聚焦时系统蓝内描边加 3px 浅色光圈。",
+      "html": "<input class=\"ds-input\" type=\"text\" aria-label=\"模型\" placeholder=\"例如 gpt-6.1-sol\">",
+      "css": ".ds-input { width: 240px; height: 32px; padding: 6px 10px; border: 0; border-radius: 8px; background: var(--mac-field, #1c1c1e); box-shadow: inset 0 0 0 1px var(--ui-border-accented, rgb(255 255 255 / 0.12)); color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); font: 400 14px/20px var(--font-mono, 'SF Mono', Menlo, Consolas, monospace); caret-color: var(--ui-primary, #0a84ff); outline: 0 solid color-mix(in srgb, var(--ui-primary, #0a84ff) 25%, transparent); transition: box-shadow 200ms ease-out; } .ds-input::placeholder { color: var(--ui-text-dimmed, rgb(255 255 255 / 0.55)); } .ds-input:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-primary, #0a84ff) 60%, transparent); outline-width: 3px; }"
+    },
+    {
+      "name": "分段控件",
+      "kind": "nav",
+      "refersTo": "segmented-control",
+      "description": "切换视图（编辑器左栏「AI 建议 / 图层」）：发丝线外框，选中段为凸起灰，切换不做滑动动画。",
+      "html": "<div class=\"ds-seg\" role=\"tablist\" aria-label=\"左栏视图\"><button type=\"button\" class=\"ds-seg-item\" role=\"tab\" aria-selected=\"true\">AI 建议</button><button type=\"button\" class=\"ds-seg-item\" role=\"tab\" aria-selected=\"false\">图层</button></div>",
+      "css": ".ds-seg { display: grid; grid-template-columns: 1fr 1fr; width: 280px; padding: 2px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--ui-border, rgb(255 255 255 / 0.1)); } .ds-seg-item { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ui-text-muted, rgb(255 255 255 / 0.7)); font: 500 12px/16px var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif); cursor: pointer; transition: color 200ms ease-out; } .ds-seg-item:hover { color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); } .ds-seg-item[aria-selected=\"true\"] { background: var(--mac-surface, #3a3a3c); box-shadow: 0 0 0 1px var(--ui-border, rgb(255 255 255 / 0.1)); color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); } .ds-seg-item:focus-visible { outline: 2px solid color-mix(in srgb, var(--ui-primary, #0a84ff) 60%, transparent); outline-offset: 0; }"
+    },
+    {
+      "name": "毛玻璃侧栏",
+      "kind": "custom",
+      "refersTo": "vibrancy-sidebar",
+      "description": "招牌组件：窗口底层铺着放大、模糊、增饱和的照片，只从 80% 不透明、24px 模糊的侧栏透出色调。",
+      "html": "<div class=\"ds-vib\"><div class=\"ds-vib-photo\" aria-hidden=\"true\"></div><nav class=\"ds-vib-side\" aria-label=\"主导航\"><p class=\"ds-vib-brand\">AI 修图</p><a class=\"ds-vib-item\" href=\"#\" aria-current=\"page\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M18 22H4a2 2 0 0 1-2-2V6\"/><path d=\"m22 13-1.296-1.296a2.41 2.41 0 0 0-3.408 0L11 18\"/><circle cx=\"12\" cy=\"8\" r=\"2\"/><rect width=\"16\" height=\"16\" x=\"6\" y=\"2\" rx=\"2\"/></svg>工程</a><a class=\"ds-vib-item\" href=\"#\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M14 17H5\"/><path d=\"M19 7h-9\"/><circle cx=\"17\" cy=\"17\" r=\"3\"/><circle cx=\"7\" cy=\"7\" r=\"3\"/></svg>设置</a></nav></div>",
+      "css": ".ds-vib { position: relative; width: 420px; height: 200px; overflow: hidden; border-radius: 12px; background: var(--mac-deep, #1c1c1e); } .ds-vib-photo { position: absolute; inset: 0; background: #3c5a3a; transform: scale(1.1); filter: blur(40px) saturate(1.5); } .ds-vib-photo::before { content: \"\"; position: absolute; inset: 0 0 50% 0; background: #b0607a; } .ds-vib-side { position: relative; display: flex; flex-direction: column; gap: 2px; width: 224px; height: 100%; padding: 12px; box-sizing: border-box; background: color-mix(in oklab, var(--mac-deep, #1c1c1e) 80%, transparent); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-right: 1px solid var(--ui-border, rgb(255 255 255 / 0.1)); } .ds-vib-brand { margin: 0 0 10px; font: 600 17px/1.35 var(--font-serif, Georgia, 'Noto Serif SC', 'Songti SC', serif); color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); } .ds-vib-item { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 8px; color: var(--ui-text-muted, rgb(255 255 255 / 0.7)); font: 400 14px/20px var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif); text-decoration: none; transition: background-color 200ms ease-out, color 200ms ease-out; } .ds-vib-item:hover { background: var(--ui-bg-elevated, rgb(255 255 255 / 0.08)); color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); } .ds-vib-item[aria-current=\"page\"] { background: var(--mac-selected, rgb(255 255 255 / 0.1)); color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); } .ds-vib-item[aria-current=\"page\"] svg { color: var(--ui-primary, #0a84ff); } .ds-vib-item:focus-visible { outline: 2px solid color-mix(in srgb, var(--ui-primary, #0a84ff) 60%, transparent); outline-offset: 0; }"
+    },
+    {
+      "name": "建议卡片",
+      "kind": "card",
+      "refersTo": "group-card",
+      "description": "读图建议：面板色卡片，右上角采纳后变为不可交互的「已采纳」状态标签，参数变化用中性徽章列出。",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><div><p class=\"ds-card-title\">压暗天空</p><p class=\"ds-card-reason\">天空高光接近溢出，层次丢失</p></div><span class=\"ds-adopted\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg>已采纳</span></div><div class=\"ds-chips\"><span class=\"ds-chip ds-chip-outline\">渐变区域</span><span class=\"ds-chip ds-chip-soft\">曝光 -0.80</span><span class=\"ds-chip ds-chip-soft\">高光 -30</span></div></div>",
+      "css": ".ds-card { width: 300px; padding: 12px; border: 1px solid var(--ui-border, rgb(255 255 255 / 0.1)); border-radius: 12px; background: var(--mac-mid, #2c2c2e); transition: background-color 200ms ease-out, border-color 200ms ease-out; } .ds-card:hover { border-color: var(--ui-border-accented, rgb(255 255 255 / 0.12)); background: var(--mac-mid-hover, color-mix(in srgb, #2c2c2e, white 5%)); } .ds-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; } .ds-card-title { margin: 0; font: 500 14px/20px var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif); color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); } .ds-card-reason { margin: 2px 0 0; font: 400 12px/16px var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif); color: var(--ui-text-muted, rgb(255 255 255 / 0.7)); } .ds-adopted { display: inline-flex; flex-shrink: 0; align-items: center; gap: 4px; height: 36px; padding: 0 4px; font: 400 14px/20px var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif); color: var(--ui-text-muted, rgb(255 255 255 / 0.7)); } .ds-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; } .ds-chip { padding: 2px 6px; border-radius: 6px; font: 500 11px/14px var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif); font-variant-numeric: tabular-nums; } .ds-chip-outline { box-shadow: inset 0 0 0 1px var(--ui-border-accented, rgb(255 255 255 / 0.12)); color: var(--ui-text-muted, rgb(255 255 255 / 0.7)); } .ds-chip-soft { background: var(--ui-bg-elevated, rgb(255 255 255 / 0.08)); color: var(--ui-text, rgb(255 255 255 / 0.85)); }"
+    },
+    {
+      "name": "参数滑块",
+      "kind": "custom",
+      "refersTo": "slider-fill",
+      "description": "跨零的双极参数从 0 点向两侧填充，改动后数值变为高亮加粗；单极参数从最小值填充。",
+      "html": "<div class=\"ds-param\" style=\"--fill-start: 42%; --fill-end: 50%;\"><div class=\"ds-param-head\"><span class=\"ds-param-label\">曝光</span><span class=\"ds-param-value\">-0.80 EV</span></div><div class=\"ds-param-track\"><div class=\"ds-param-range\"></div><div class=\"ds-param-thumb\" role=\"slider\" tabindex=\"0\" aria-label=\"曝光\" aria-valuemin=\"-5\" aria-valuemax=\"5\" aria-valuenow=\"-0.8\" aria-valuetext=\"-0.80 EV\"></div></div></div>",
+      "css": ".ds-param { width: 260px; } .ds-param-head { display: flex; justify-content: space-between; margin-bottom: 6px; font: 400 12px/16px var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif); } .ds-param-label { color: var(--ui-text-muted, rgb(255 255 255 / 0.7)); } .ds-param-value { color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); font-weight: 500; font-variant-numeric: tabular-nums; } .ds-param-track { position: relative; height: 7px; border-radius: 12px; background: var(--ui-bg-accented, rgb(255 255 255 / 0.12)); } .ds-param-range { position: absolute; top: 0; bottom: 0; left: var(--fill-start); right: var(--fill-end); border-radius: 12px; background: var(--ui-primary, #0a84ff); } .ds-param-thumb { position: absolute; top: 50%; left: var(--fill-start); width: 14px; height: 14px; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.35); transform: translate(-50%, -50%); cursor: grab; } .ds-param-thumb:focus-visible { outline: 2px solid color-mix(in srgb, var(--ui-primary, #0a84ff) 60%, transparent); outline-offset: 0; }"
+    },
+    {
+      "name": "开关",
+      "kind": "custom",
+      "refersTo": "switch-track",
+      "description": "胶囊轨道加圆形旋钮（对 rounded-full 禁令的有意偏离，依据 macOS 原生开关）；开启时轨道为系统蓝，旋钮不做位移动画。",
+      "html": "<button type=\"button\" class=\"ds-switch\" role=\"switch\" aria-checked=\"true\" aria-label=\"流式返回中间结果\"><span class=\"ds-switch-knob\"></span></button>",
+      "css": ".ds-switch { display: inline-flex; align-items: center; width: 36px; height: 20px; padding: 2px; border: 0; border-radius: 12px; background: var(--ui-bg-accented, rgb(255 255 255 / 0.12)); cursor: pointer; transition: background-color 200ms ease-out; } .ds-switch[aria-checked=\"true\"] { background: var(--ui-primary, #0a84ff); } .ds-switch-knob { width: 16px; height: 16px; border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.35); } .ds-switch[aria-checked=\"true\"] .ds-switch-knob { transform: translateX(16px); } .ds-switch:focus-visible { outline: 2px solid color-mix(in srgb, var(--ui-primary, #0a84ff) 60%, transparent); outline-offset: 0; }"
+    },
+    {
+      "name": "设置分组",
+      "kind": "card",
+      "refersTo": "settings-row",
+      "description": "系统设置式分组：面板色圆角容器，行间 1px 分隔线，标签与说明在左、控件在右。",
+      "html": "<div class=\"ds-group\"><div class=\"ds-row\"><div class=\"ds-row-text\"><p class=\"ds-row-label\">模型</p><p class=\"ds-row-desc\">例如 gpt-6.1-sol；想节省成本可用 gpt-6-luna</p></div><input class=\"ds-row-input\" type=\"text\" aria-label=\"模型\" value=\"gpt-6.1-sol\"></div><div class=\"ds-row\"><div class=\"ds-row-text\"><p class=\"ds-row-label\">图像细节</p></div><button type=\"button\" class=\"ds-row-select\">自动<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></button></div></div>",
+      "css": ".ds-group { width: 520px; border: 1px solid var(--ui-border, rgb(255 255 255 / 0.1)); border-radius: 12px; background: var(--mac-mid, #2c2c2e); } .ds-row { display: flex; align-items: center; gap: 24px; padding: 12px 16px; } .ds-row + .ds-row { border-top: 1px solid var(--ui-border, rgb(255 255 255 / 0.1)); } .ds-row-text { flex: 1; min-width: 0; } .ds-row-label { margin: 0; font: 400 14px/20px var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif); color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); } .ds-row-desc { margin: 2px 0 0; font: 400 12px/16px var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif); color: var(--ui-text-muted, rgb(255 255 255 / 0.7)); text-wrap: pretty; } .ds-row-input, .ds-row-select { width: 200px; height: 32px; padding: 6px 10px; border: 0; border-radius: 8px; background: var(--mac-field, #1c1c1e); box-shadow: inset 0 0 0 1px var(--ui-border-accented, rgb(255 255 255 / 0.12)); color: var(--ui-text-highlighted, rgb(255 255 255 / 0.95)); font: 400 14px/20px var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif); box-sizing: border-box; } .ds-row-input { font-family: var(--font-mono, 'SF Mono', Menlo, Consolas, monospace); caret-color: var(--ui-primary, #0a84ff); } .ds-row-select { display: inline-flex; align-items: center; justify-content: space-between; cursor: pointer; } .ds-row-select svg { color: var(--ui-text-dimmed, rgb(255 255 255 / 0.55)); } .ds-row-input:focus-visible, .ds-row-select:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-primary, #0a84ff) 60%, transparent); outline: 3px solid color-mix(in srgb, var(--ui-primary, #0a84ff) 25%, transparent); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "照片即壁纸",
+    "overview": "这扇窗口的壁纸就是用户正在修的那张照片。macOS 的侧栏会透出桌面，这里的毛玻璃侧栏透出当前照片放大模糊后的色调：每个工程的侧栏颜色都不一样，用户进入编辑器的第一眼就知道这是「这张照片的工作台」。除了这一处透色，界面的其余部分只用三档深灰（亮色为三档浅灰）和 1px 发丝线分层，安静地退到照片后面。产品原则「照片优先」在视觉上的含义是：界面颜色不得干扰用户对照片色彩的判断。\n\n整体密度属于专业桌面工具：编辑器是三栏工作台，长时间停留；控件紧凑、对齐严格，信息靠字重、字体和三档背景区分层级，不靠色块和装饰。标题用衬线（Georgia 搭配 Noto Serif SC），给工程名、图层名、分组名一种「编辑过的」气质；正文、标签和控件全部用系统无衬线；提示词和模型名用等宽字体。动效语法只有两种：200ms ease-out 的颜色过渡，以及等待时功能性的旋转指示。\n\n明确拒绝的方向：AI 工具的品类默认，即紫色主色、渐变按钮、发光效果和营销式的卡片堆叠。强调色系统蓝只标记交互状态，从不铺成按钮或面板的底色。亮色与暗色是同一套语法的两种外观，必须同时提供并保留切换。",
+    "keyCharacteristics": [
+      "照片着色的毛玻璃侧栏是唯一的大面积透明材质，也是招牌交互。",
+      "深度只来自三档背景（deep → mid → surface）和 1px 发丝线，静止的表面没有阴影。",
+      "系统蓝只出现在焦点环、选中工具、滑块填充、开关开启和选中候选框上。",
+      "衬线只给「名字」用：品牌、工程、图层、分组、弹窗标题。",
+      "只有颜色过渡和等待旋转两种动效，用户要求减少动态效果时旋转也停下。"
+    ],
+    "rules": [
+      {
+        "name": "「强调色只标状态」规则",
+        "body": "系统蓝只回答「哪个被选中、哪里有焦点、哪个值被改过」。它从不做按钮、面板、徽章或提示条的底色；主按钮是凸起灰，不是蓝色。",
+        "section": "colors"
+      },
+      {
+        "name": "「三档灰」规则",
+        "body": "层级只能来自 deep、mid、surface 三档背景加 1px 发丝线。不新增第四档灰，不用渐变或彩色块制造层次。",
+        "section": "colors"
+      },
+      {
+        "name": "「玻璃上不放最弱文字」规则",
+        "body": "毛玻璃侧栏的实际底色随照片变化。直接压在侧栏玻璃上的说明文字至少用弱化档（ink-*-muted），在纯白或纯黑照片下最低也有 5.18:1；最弱档在最坏情况下只有约 4:1，只能放在不透明底上。",
+        "section": "colors"
+      },
+      {
+        "name": "「衬线只给名字」规则",
+        "body": "衬线只用于命名性的标题：品牌、工程、图层、分组、弹窗。按钮、标签、正文、数值一律不用衬线。",
+        "section": "typography"
+      },
+      {
+        "name": "「数字对齐」规则",
+        "body": "所有会变化的数字（参数值、尺寸、耗时、tokens、候选编号）都加 `tabular-nums`，拖动滑块时数字不跳动。",
+        "section": "typography"
+      },
+      {
+        "name": "「发丝线代替阴影」规则",
+        "body": "卡片、面板、按钮在静止时都不投影；需要分隔就用 1px 发丝线。任何阴影都不超过 0 2px 8px。",
+        "section": "elevation"
+      },
+      {
+        "name": "「一扇窗」规则",
+        "body": "大面积透明只属于毛玻璃侧栏。不得用实色或渐变盖住侧栏透出的照片色调；修可读性只能提高文字层级，或者微调侧栏材质的不透明度。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** 只用 deep / mid / surface 三档背景和 1px 发丝线（8%–12%）表达层级。",
+      "**Do** 把系统蓝限定在焦点环、选中工具图标、导航激活图标、滑块填充、开关开启和选中候选框上。",
+      "**Do** 主按钮用凸起灰填充，次按钮用透明底加 1px 描边，工具按钮无边框。",
+      "**Do** 带文字的按钮保持 36px 高，同排图标按钮与之等高。",
+      "**Do** 标题用衬线（Headline 17px / Title 15px，600），其余文字用系统无衬线，提示词和模型名用等宽。",
+      "**Do** 毛玻璃侧栏上的说明文字至少用弱化档；最弱档只放在不透明底上。",
+      "**Do** 让按钮、导航项、图层行等可聚焦元素显示 2px 系统蓝 outline（60%），输入类显示系统蓝内描边加 3px 浅色光圈；给会变化的数字加等宽数字。",
+      "**Do** 同时验证亮色和暗色两套外观，以及纯白、纯黑照片作为侧栏底图的最坏情况。"
+    ],
+    "donts": [
+      "**Don't** 使用紫色主色、渐变按钮、发光或彩色描边光晕。",
+      "**Don't** 用系统蓝或任何语义色铺按钮、面板、徽章或提示条的底色。",
+      "**Don't** 给静止的卡片、面板、按钮加阴影；浮层阴影不超过 0 2px 8px。",
+      "**Don't** 使用 2px 或更粗的边框，也不要用加粗边框表示选中。",
+      "**Don't** 做胶囊形按钮或圆形标签；胶囊轨道和圆形旋钮只属于开关和滑块。",
+      "**Don't** 用实色或渐变盖住毛玻璃侧栏透出的照片色调。",
+      "**Don't** 在分组标题上加小号大写眉标，或让分组标题与对象名使用同一字号。",
+      "**Don't** 加装饰性动画、缩放或滑入的浮层过渡；颜色过渡之外只允许等待时的旋转指示。",
+      "**Don't** 用半透明的禁用按钮表达「已完成」之类的状态，改用不可交互的状态标签。"
+    ]
+  }
+}

@@ -125,7 +125,7 @@ test('导入 → 分析 → 采纳 → 重绘 → 导出，蒙版外像素保持
   // 采纳两条建议
   await page.getByRole('button', { name: '采纳', exact: true }).first().click()
   await page.getByRole('button', { name: '采纳', exact: true }).first().click()
-  await expect(page.getByRole('button', { name: '已采纳' })).toHaveCount(2)
+  await expect(page.getByText('已采纳', { exact: true })).toHaveCount(2)
 
   // 重绘（采纳后选中的是重绘图层）
   await expect(page.getByPlaceholder('例如：移除画面中的行人')).toHaveValue('Remove the person and fill with grass')

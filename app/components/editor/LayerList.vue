@@ -73,14 +73,18 @@ function statusOf(layer: Layer): { label: string, color: 'neutral' | 'success' |
       <li
         v-for="layer in displayLayers"
         :key="layer.id"
-        class="group flex items-center gap-1.5 rounded-md border px-2 py-1.5 transition"
-        :class="layer.id === editor.selectedLayerId ? 'border-primary/60 bg-primary/10' : 'border-transparent hover:bg-elevated'"
+        tabindex="0"
+        :aria-current="layer.id === editor.selectedLayerId ? 'true' : undefined"
+        class="group flex items-center gap-2 rounded-lg px-2 py-1.5 outline-primary/60 transition-colors duration-200 ease-out focus-visible:outline-2"
+        :class="layer.id === editor.selectedLayerId ? 'bg-(--mac-selected)' : 'hover:bg-elevated'"
         @click="editor.selectedLayerId = layer.id"
+        @keydown.enter.self.prevent="editor.selectedLayerId = layer.id"
+        @keydown.space.self.prevent="editor.selectedLayerId = layer.id"
       >
         <UIcon
           :name="layer.kind === 'adjust' ? 'i-lucide-sliders-horizontal' : 'i-lucide-wand-sparkles'"
           class="size-4 shrink-0"
-          :class="layer.enabled ? 'text-muted' : 'text-dimmed'"
+          :class="!layer.enabled ? 'text-dimmed' : layer.id === editor.selectedLayerId ? 'text-primary' : 'text-muted'"
         />
         <div class="min-w-0 flex-1">
           <UInput
@@ -97,7 +101,7 @@ function statusOf(layer: Layer): { label: string, color: 'neutral' | 'success' |
           <p
             v-else
             class="truncate text-sm"
-            :class="layer.enabled ? '' : 'text-dimmed line-through'"
+            :class="layer.enabled ? 'text-highlighted' : 'text-muted line-through'"
             @dblclick.stop="startRename(layer)"
           >
             {{ layer.name }}
@@ -106,8 +110,9 @@ function statusOf(layer: Layer): { label: string, color: 'neutral' | 'success' |
             <UBadge
               v-if="layer.source === 'llm'"
               label="AI"
+              icon="i-lucide-sparkles"
               size="sm"
-              color="primary"
+              color="neutral"
               variant="subtle"
             />
             <UBadge
@@ -119,11 +124,11 @@ function statusOf(layer: Layer): { label: string, color: 'neutral' | 'success' |
             />
             <span
               v-if="layer.mask.shape !== 'full' || layer.mask.strokes.length"
-              class="text-[11px] text-dimmed"
+              class="text-[11px] text-muted"
             >局部</span>
           </div>
         </div>
-        <div class="flex shrink-0 items-center opacity-70 group-hover:opacity-100">
+        <div class="flex shrink-0 items-center">
           <UButton
             :icon="layer.enabled ? 'i-lucide-eye' : 'i-lucide-eye-off'"
             color="neutral"
@@ -161,7 +166,7 @@ function statusOf(layer: Layer): { label: string, color: 'neutral' | 'success' |
     </ul>
     <p
       v-if="displayLayers.length"
-      class="text-xs text-dimmed"
+      class="text-xs text-muted"
     >
       双击图层名可重命名；重绘图层先于调整图层合成，调色可随时修改而不必重新生成。
     </p>

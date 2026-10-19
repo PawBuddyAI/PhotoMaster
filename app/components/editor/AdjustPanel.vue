@@ -25,9 +25,9 @@ function formatValue(def: AdjustParamDef, value: number): string {
       :key="group.key"
       class="space-y-3"
     >
-      <p class="text-xs font-semibold tracking-wide text-muted">
+      <h3 class="section-title">
         {{ group.label }}
-      </p>
+      </h3>
       <EditorParamSlider
         v-for="def in group.defs"
         :key="def.key"

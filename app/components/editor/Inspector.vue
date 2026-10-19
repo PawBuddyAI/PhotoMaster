@@ -22,20 +22,20 @@ function unlockRegion() {
 <template>
   <div class="space-y-5">
     <template v-if="editor.tool === 'crop'">
-      <p class="text-sm font-semibold">
+      <h3 class="panel-title">
         裁剪与校正
-      </p>
+      </h3>
       <EditorCropPanel />
     </template>
 
     <template v-else-if="layer">
       <div class="space-y-1">
-        <p class="truncate text-sm font-semibold">
+        <h3 class="panel-title truncate">
           {{ layer.name }}
-        </p>
+        </h3>
         <p
           v-if="layer.reason"
-          class="text-xs text-muted"
+          class="text-xs/relaxed text-muted"
         >
           {{ layer.reason }}
         </p>
@@ -48,7 +48,7 @@ function unlockRegion() {
         icon="i-lucide-lock"
         title="区域已锁定"
         description="区域与已生成的结果绑定。如需修改区域，请先移除结果。"
-        :actions="[{ label: '移除结果并编辑区域', color: 'neutral', variant: 'link', onClick: unlockRegion, size: 'lg' }]"
+        :actions="[{ label: '移除结果并编辑区域', color: 'neutral', variant: 'outline', onClick: unlockRegion, size: 'lg' }]"
       />
 
       <EditorRegionTools

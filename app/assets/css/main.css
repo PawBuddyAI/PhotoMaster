@@ -2,5 +2,142 @@
 @import "@nuxt/ui";
 
 @theme static {
-  --font-sans: 'Public Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  /* 正文用系统无衬线，标题用衬线（拉丁字形 Georgia，中文字形 Noto Serif SC），代码与数值用等宽 */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-serif: Georgia, var(--font-cjk-serif);
+  --font-mono: 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+:root {
+  /* @nuxt/fonts 只解析字体栈的第一个家族，中文衬线单独成栈才会被下载并注入 @font-face */
+  --font-cjk-serif: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
+}
+
+/*
+ * 三级深度：deep 最深（侧栏、画布凹槽），mid 中间（面板、卡片、菜单），surface 最浅（按钮、选中分段）。
+ * 层级只靠这三档背景与 1px 发丝线区分，不用渐变和大阴影。
+ */
+@theme inline {
+  --color-deep: var(--mac-deep);
+  --color-mid: var(--mac-mid);
+  --color-surface: var(--mac-surface);
+  --color-field: var(--mac-field);
+}
+
+:root {
+  --mac-deep: #e5e5ea;
+  --mac-mid: #f2f2f7;
+  --mac-surface: #fff;
+  --mac-field: #fff;
+  /* 悬停提亮、选中态与浮层遮罩随明暗反向：暗色叠白，亮色叠黑 */
+  --mac-hover: rgb(0 0 0 / 0.05);
+  --mac-selected: rgb(0 0 0 / 0.08);
+  --mac-mid-hover: color-mix(in srgb, var(--mac-mid), black 3%);
+  --mac-surface-hover: color-mix(in srgb, var(--mac-surface), black 4%);
+  --mac-scrim: rgb(0 0 0 / 0.2);
+  --mac-scrollbar: rgb(0 0 0 / 0.22);
+
+  --ui-header-height: 3.25rem;
+  --ui-primary: #007aff;
+  --ui-info: #0066cc;
+  --ui-success: #1e7b34;
+  --ui-warning: #b25000;
+  --ui-error: #d70015;
+
+  /* 弱化文字取 58% 而非风格原文的 40%，保证在三档背景上都满足 WCAG AA 4.5:1 */
+  --ui-text-dimmed: rgb(0 0 0 / 0.58);
+  --ui-text-muted: rgb(0 0 0 / 0.65);
+  --ui-text-toned: rgb(0 0 0 / 0.75);
+  --ui-text: rgb(0 0 0 / 0.85);
+  --ui-text-highlighted: rgb(0 0 0 / 0.9);
+  --ui-text-inverted: #fff;
+
+  --ui-bg: var(--mac-mid);
+  --ui-bg-muted: var(--mac-deep);
+  --ui-bg-elevated: var(--mac-hover);
+  --ui-bg-accented: rgb(0 0 0 / 0.1);
+  --ui-bg-inverted: #1d1d1f;
+
+  --ui-border: rgb(0 0 0 / 0.1);
+  --ui-border-muted: rgb(0 0 0 / 0.08);
+  --ui-border-accented: rgb(0 0 0 / 0.12);
+  --ui-border-inverted: #1d1d1f;
+}
+
+.dark {
+  --mac-deep: #1c1c1e;
+  --mac-mid: #2c2c2e;
+  --mac-surface: #3a3a3c;
+  --mac-field: #1c1c1e;
+  --mac-hover: rgb(255 255 255 / 0.08);
+  --mac-selected: rgb(255 255 255 / 0.1);
+  --mac-mid-hover: color-mix(in srgb, var(--mac-mid), white 5%);
+  --mac-surface-hover: color-mix(in srgb, var(--mac-surface), white 8%);
+  --mac-scrim: rgb(0 0 0 / 0.45);
+  --mac-scrollbar: rgb(255 255 255 / 0.2);
+
+  --ui-primary: #0a84ff;
+  /* 信息色会以小字出现在 #2c2c2e 上，取系统蓝的高对比版本 */
+  --ui-info: #409cff;
+  --ui-success: #30d158;
+  --ui-warning: #ff9f0a;
+  --ui-error: #ff453a;
+
+  --ui-text-dimmed: rgb(255 255 255 / 0.55);
+  --ui-text-muted: rgb(255 255 255 / 0.7);
+  --ui-text-toned: rgb(255 255 255 / 0.8);
+  --ui-text: rgb(255 255 255 / 0.85);
+  --ui-text-highlighted: rgb(255 255 255 / 0.95);
+  --ui-text-inverted: #1c1c1e;
+
+  --ui-bg-accented: rgb(255 255 255 / 0.12);
+  --ui-bg-inverted: rgb(255 255 255 / 0.95);
+
+  --ui-border: rgb(255 255 255 / 0.1);
+  --ui-border-muted: rgb(255 255 255 / 0.08);
+  --ui-border-accented: rgb(255 255 255 / 0.12);
+  --ui-border-inverted: #fff;
+}
+
+/* 检查器中当前对象（图层名、裁剪）的标题，与工具栏标题同级 */
+@utility panel-title {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--ui-text-highlighted);
+}
+
+/* 面板内的分组标题：衬线、比正文略大，只靠字重和字体区分层级，不加眉标 */
+@utility section-title {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ui-text-highlighted);
+}
+
+body {
+  background-color: var(--mac-deep);
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--ui-primary) 35%, transparent);
+}
+
+input,
+textarea {
+  caret-color: var(--ui-primary);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--mac-scrollbar) transparent;
+}
+
+/* 等待中的旋转指示是功能性的；用户要求减少动态效果时也停下 */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin {
+    animation: none;
+  }
 }

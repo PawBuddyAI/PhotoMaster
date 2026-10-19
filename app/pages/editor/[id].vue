@@ -2,6 +2,8 @@
 import { useEditorStore, type EditorTool } from '~/stores/editor'
 import { useInpaintStore } from '~/stores/inpaint'
 
+definePageMeta({ layout: false })
+
 const route = useRoute()
 const editor = useEditorStore()
 const inpaint = useInpaintStore()
@@ -105,7 +107,7 @@ function onShortcutUp(e: KeyboardEvent) {
 <template>
   <div
     v-if="loadError"
-    class="flex min-h-screen flex-col items-center justify-center gap-4 p-6"
+    class="flex min-h-screen flex-col items-center justify-center gap-4 bg-deep p-6"
   >
     <UEmpty
       icon="i-lucide-image-off"
@@ -127,6 +129,8 @@ function onShortcutUp(e: KeyboardEvent) {
     storage="local"
     storage-key="apm-editor"
   >
+    <AppBackdrop :image="editor.project?.thumbnail" />
+
     <UDashboardSidebar
       id="editor-left"
       :default-size="21"
@@ -136,35 +140,39 @@ function onShortcutUp(e: KeyboardEvent) {
       :ui="{ body: 'gap-0' }"
     >
       <template #header>
-        <div class="flex min-w-0 items-center gap-1">
-          <UButton
-            to="/"
-            icon="i-lucide-arrow-left"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            aria-label="返回工程列表"
-          />
-          <span class="truncate text-sm font-semibold">{{ editor.project?.name }}</span>
-        </div>
+        <UButton
+          to="/"
+          icon="i-lucide-chevron-left"
+          label="工程"
+          color="neutral"
+          variant="ghost"
+          aria-label="返回工程列表"
+          class="-ms-2"
+        />
       </template>
       <UTabs
         v-model="leftTab"
         :items="[
           { label: 'AI 建议', value: 'suggest', icon: 'i-lucide-sparkles', slot: 'suggest' as const },
-          { label: '图层', value: 'layers', icon: 'i-lucide-layers', slot: 'layers' as const, badge: editor.layers.length || undefined }
+          { label: '图层', value: 'layers', icon: 'i-lucide-layers', slot: 'layers' as const, badge: editor.layers.length ? { label: String(editor.layers.length), color: 'neutral' as const, variant: 'soft' as const } : undefined }
         ]"
-        variant="link"
+        variant="pill"
+        color="neutral"
         size="sm"
         class="w-full"
+        :ui="{
+          list: 'rounded-lg bg-transparent p-0.5 ring ring-default ring-inset',
+          indicator: 'rounded-md bg-surface shadow-none ring ring-default transition-none',
+          trigger: 'data-[state=active]:text-highlighted'
+        }"
       >
         <template #suggest>
-          <div class="pt-2">
+          <div class="pt-3">
             <EditorSuggestionPanel :source="view.displayCanvas.value" />
           </div>
         </template>
         <template #layers>
-          <div class="pt-2">
+          <div class="pt-3">
             <EditorLayerList />
           </div>
         </template>
@@ -322,7 +330,9 @@ function onShortcutUp(e: KeyboardEvent) {
       resizable
     >
       <template #header>
-        <span class="text-sm font-semibold">属性</span>
+        <h2 class="text-sm font-medium text-muted">
+          属性
+        </h2>
       </template>
       <EditorInspector />
     </UDashboardSidebar>

@@ -41,5 +41,19 @@ export default defineNuxtConfig({
         braceStyle: '1tbs'
       }
     }
+  },
+
+  fonts: {
+    families: [
+      {
+        // 标题衬线的中文字形。Google 把 CJK 字体切成 [0]…[n] 编号切片并以 unicode-range 声明，
+        // 默认子集只含拉丁与西里尔，需要显式列出编号切片；浏览器只下载页面实际用到的切片
+        name: 'Noto Serif SC',
+        provider: 'google',
+        weights: [600],
+        styles: ['normal'],
+        subsets: ['latin', ...Array.from({ length: 128 }, (_, i) => `[${i}]`)]
+      }
+    ]
   }
 })

@@ -71,7 +71,7 @@ async function apply() {
       variant="subtle"
       icon="i-lucide-key-round"
       title="尚未配置修图模型"
-      :actions="[{ label: '前往设置', to: '/settings', color: 'warning', variant: 'link', size: 'lg' }]"
+      :actions="[{ label: '前往设置', to: '/settings', color: 'neutral', variant: 'outline', size: 'lg' }]"
     />
 
     <UFormField
@@ -112,12 +112,12 @@ async function apply() {
 
     <div
       v-if="job"
-      class="space-y-3 rounded-md border border-default p-3"
+      class="space-y-3 rounded-xl border border-default p-3"
     >
       <div class="flex items-center justify-between gap-2 text-xs">
         <span
           class="flex items-center gap-1.5"
-          :class="job.stage === 'error' ? 'text-error' : 'text-default'"
+          :class="job.stage === 'error' ? 'text-error' : 'text-highlighted'"
         >
           <UIcon
             v-if="running"
@@ -131,7 +131,7 @@ async function apply() {
           class="tabular-nums text-muted"
         >{{ elapsed }} 秒</span>
       </div>
-      <p class="text-xs text-dimmed">
+      <p class="text-xs text-muted tabular-nums">
         编辑分辨率 {{ job.plan.outW }}×{{ job.plan.outH }}，对应原图区域 {{ job.plan.crop.w }}×{{ job.plan.crop.h }}
       </p>
       <p
@@ -140,11 +140,6 @@ async function apply() {
       >
         区域过于狭长，超出模型支持的 3:1 比例，结果会有轻微拉伸；建议缩小区域后分段重绘。
       </p>
-      <UProgress
-        v-if="running"
-        size="xs"
-      />
-
       <div
         v-if="job.partialUrls.length"
         class="grid grid-cols-2 gap-2"
@@ -154,7 +149,7 @@ async function apply() {
           :key="i"
           :src="url"
           alt="生成中间结果"
-          class="aspect-square w-full rounded object-cover opacity-80"
+          class="aspect-square w-full rounded-lg object-cover opacity-80"
         >
       </div>
 
@@ -171,8 +166,9 @@ async function apply() {
             v-for="(candidate, i) in job.candidates"
             :key="candidate.previewUrl"
             type="button"
-            class="relative overflow-hidden rounded border-2 transition"
-            :class="selected === i ? 'border-primary' : 'border-transparent hover:border-accented'"
+            :aria-pressed="selected === i"
+            class="relative overflow-hidden rounded-lg bg-deep ring-1 outline-primary/60 transition-colors duration-200 ease-out focus-visible:outline-2"
+            :class="selected === i ? 'ring-primary' : 'ring-default hover:ring-accented'"
             @click="selected = i"
           >
             <img
@@ -180,12 +176,19 @@ async function apply() {
               :alt="`候选 ${i + 1}`"
               class="w-full object-contain"
             >
-            <span class="absolute left-1 top-1 rounded bg-black/60 px-1.5 text-[10px] text-white">{{ i + 1 }}</span>
+            <span class="absolute top-1 left-1 flex h-5 items-center gap-0.5 rounded-md bg-deep/80 px-1.5 text-[11px] font-medium text-highlighted tabular-nums ring ring-default backdrop-blur-xl">
+              <UIcon
+                v-if="selected === i"
+                name="i-lucide-check"
+                class="size-3 text-primary"
+              />
+              {{ i + 1 }}
+            </span>
           </button>
         </div>
         <p
           v-if="job.usage"
-          class="text-xs text-dimmed"
+          class="text-xs text-muted tabular-nums"
         >
           本次消耗 {{ job.usage.totalTokens.toLocaleString() }} tokens（输入 {{ job.usage.inputTokens.toLocaleString() }} / 输出 {{ job.usage.outputTokens.toLocaleString() }}）
         </p>
@@ -209,12 +212,12 @@ async function apply() {
 
     <div
       v-if="layer.result && !job"
-      class="flex items-center justify-between gap-2 rounded-md bg-elevated/60 p-3 text-xs"
+      class="flex items-center justify-between gap-2 rounded-xl border border-default p-3 text-xs"
     >
-      <span class="flex items-center gap-1.5 text-success">
+      <span class="flex items-center gap-1.5 text-highlighted">
         <UIcon
           name="i-lucide-circle-check"
-          class="size-3.5"
+          class="size-3.5 text-success"
         />
         已应用重绘结果
       </span>

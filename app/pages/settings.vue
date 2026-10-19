@@ -26,6 +26,8 @@ const qualityItems = [
   { label: '超高（xhigh）', value: 'xhigh' },
   { label: '最高（max）', value: 'max' }
 ]
+/** 数字输入的增减按钮用中性色，强调色只留给选中与焦点 */
+const STEPPER = { color: 'neutral' as const }
 const sizeModeItems = [
   { label: '自定义尺寸（gpt-image-2 及以后）', value: 'custom' },
   { label: '固定尺寸（1024² / 1536×1024 / 1024×1536）', value: 'fixed' }
@@ -66,29 +68,29 @@ async function testImage() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-default">
-    <header class="border-b border-default">
-      <div class="mx-auto flex max-w-3xl items-center gap-2 px-4 py-3">
-        <UButton
-          to="/"
-          icon="i-lucide-arrow-left"
-          color="neutral"
-          variant="ghost"
-          aria-label="返回"
-        />
-        <span class="text-lg font-semibold">设置</span>
-      </div>
-    </header>
+  <UDashboardPanel
+    id="settings"
+    :ui="{ root: 'bg-deep' }"
+  >
+    <template #header>
+      <UDashboardNavbar title="设置" />
+    </template>
 
-    <main class="mx-auto max-w-3xl space-y-6 px-4 py-8">
-      <UCard>
-        <template #header>
-          <div class="flex items-center justify-between gap-2">
-            <div>
-              <h2 class="font-semibold">
+    <template #body>
+      <div class="mx-auto flex w-full max-w-3xl flex-col gap-10">
+        <section
+          aria-labelledby="vision-heading"
+          class="flex flex-col gap-3"
+        >
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div class="min-w-0">
+              <h2
+                id="vision-heading"
+                class="section-title"
+              >
                 读图模型
               </h2>
-              <p class="text-sm text-muted">
+              <p class="mt-0.5 text-sm text-pretty text-muted">
                 分析照片并给出调色、重绘与构图建议，需要支持图像输入
               </p>
             </div>
@@ -102,24 +104,23 @@ async function testImage() {
               @click="testVision"
             />
           </div>
-        </template>
-        <div class="space-y-4">
-          <SettingsConnectionFields
-            v-model:base-url="settings.vision.baseURL"
-            v-model:api-key="settings.vision.apiKey"
-            v-model:use-proxy="settings.vision.useProxy"
-          />
-          <UFormField
-            label="模型"
-            description="例如 gpt-6.1-sol；想节省成本可用 gpt-6-luna"
-          >
-            <UInput
-              v-model="settings.vision.model"
-              class="w-full"
+          <div class="divide-y divide-default rounded-xl border border-default bg-default">
+            <SettingsConnectionFields
+              v-model:base-url="settings.vision.baseURL"
+              v-model:api-key="settings.vision.apiKey"
+              v-model:use-proxy="settings.vision.useProxy"
             />
-          </UFormField>
-          <div class="grid gap-4 sm:grid-cols-3">
-            <UFormField
+            <SettingsRow
+              label="模型"
+              description="例如 gpt-6.1-sol；想节省成本可用 gpt-6-luna"
+            >
+              <UInput
+                v-model="settings.vision.model"
+                class="w-full"
+                :ui="{ base: 'font-mono' }"
+              />
+            </SettingsRow>
+            <SettingsRow
               label="结构化输出"
               description="测试连接会自动检测"
             >
@@ -128,35 +129,41 @@ async function testImage() {
                 :items="structuredOutputItems"
                 class="w-full"
               />
-            </UFormField>
-            <UFormField label="图像细节">
+            </SettingsRow>
+            <SettingsRow label="图像细节">
               <USelect
                 v-model="settings.vision.detail"
                 :items="detailItems"
                 class="w-full"
               />
-            </UFormField>
-            <UFormField label="发送长边（像素）">
+            </SettingsRow>
+            <SettingsRow label="发送长边（像素）">
               <UInputNumber
                 v-model="settings.vision.maxLongSide"
+                :increment="STEPPER"
+                :decrement="STEPPER"
                 :min="512"
                 :max="2048"
                 :step="128"
                 class="w-full"
               />
-            </UFormField>
+            </SettingsRow>
           </div>
-        </div>
-      </UCard>
+        </section>
 
-      <UCard>
-        <template #header>
-          <div class="flex items-center justify-between gap-2">
-            <div>
-              <h2 class="font-semibold">
+        <section
+          aria-labelledby="image-heading"
+          class="flex flex-col gap-3"
+        >
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div class="min-w-0">
+              <h2
+                id="image-heading"
+                class="section-title"
+              >
                 修图模型
               </h2>
-              <p class="text-sm text-muted">
+              <p class="mt-0.5 text-sm text-pretty text-muted">
                 通过 /v1/images/edits 对蒙版区域做局部重绘
               </p>
             </div>
@@ -170,47 +177,50 @@ async function testImage() {
               @click="testImage"
             />
           </div>
-        </template>
-        <div class="space-y-4">
-          <USwitch
-            v-model="settings.image.sameAsVision"
-            label="沿用读图模型的连接配置"
-          />
-          <SettingsConnectionFields
-            v-if="!settings.image.sameAsVision"
-            v-model:base-url="settings.image.baseURL"
-            v-model:api-key="settings.image.apiKey"
-            v-model:use-proxy="settings.image.useProxy"
-          />
-          <UFormField
-            label="模型"
-            description="gpt-image-2.5-sunburst 编辑精度更高；gpt-image-2.5-flare 更快"
-          >
-            <UInput
-              v-model="settings.image.model"
-              class="w-full"
+          <div class="divide-y divide-default rounded-xl border border-default bg-default">
+            <SettingsRow
+              label="沿用读图模型的连接配置"
+              toggle
+            >
+              <USwitch v-model="settings.image.sameAsVision" />
+            </SettingsRow>
+            <SettingsConnectionFields
+              v-if="!settings.image.sameAsVision"
+              v-model:base-url="settings.image.baseURL"
+              v-model:api-key="settings.image.apiKey"
+              v-model:use-proxy="settings.image.useProxy"
             />
-          </UFormField>
-          <div class="grid gap-4 sm:grid-cols-2">
-            <UFormField label="质量">
+            <SettingsRow
+              label="模型"
+              description="gpt-image-2.5-sunburst 编辑精度更高；gpt-image-2.5-flare 更快"
+            >
+              <UInput
+                v-model="settings.image.model"
+                class="w-full"
+                :ui="{ base: 'font-mono' }"
+              />
+            </SettingsRow>
+            <SettingsRow label="质量">
               <USelect
                 v-model="settings.image.quality"
                 :items="qualityItems"
                 class="w-full"
               />
-            </UFormField>
-            <UFormField
+            </SettingsRow>
+            <SettingsRow
               label="候选数量"
               description="每次生成几张供挑选"
             >
               <UInputNumber
                 v-model="settings.image.n"
+                :increment="STEPPER"
+                :decrement="STEPPER"
                 :min="1"
                 :max="4"
                 class="w-full"
               />
-            </UFormField>
-            <UFormField
+            </SettingsRow>
+            <SettingsRow
               label="尺寸模式"
               description="旧模型或兼容服务不支持任意尺寸时选择固定尺寸"
             >
@@ -219,49 +229,55 @@ async function testImage() {
                 :items="sizeModeItems"
                 class="w-full"
               />
-            </UFormField>
-            <UFormField
+            </SettingsRow>
+            <SettingsRow
               v-if="settings.image.sizeMode === 'custom'"
               label="编辑分辨率长边上限"
               description="越大细节越好、成本越高"
             >
               <UInputNumber
                 v-model="settings.image.maxLongSide"
+                :increment="STEPPER"
+                :decrement="STEPPER"
                 :min="settings.maxLongSideRange.min"
                 :max="settings.maxLongSideRange.max"
                 :step="128"
                 class="w-full"
               />
-            </UFormField>
+            </SettingsRow>
+            <SettingsRow
+              label="流式返回中间结果"
+              description="生成过程中实时显示预览；服务需支持 stream 参数"
+              toggle
+            >
+              <USwitch v-model="settings.image.stream" />
+            </SettingsRow>
+            <SettingsRow
+              v-if="settings.image.stream"
+              label="中间图数量"
+            >
+              <UInputNumber
+                v-model="settings.image.partialImages"
+                :increment="STEPPER"
+                :decrement="STEPPER"
+                :min="0"
+                :max="3"
+                class="w-full"
+              />
+            </SettingsRow>
           </div>
-          <USwitch
-            v-model="settings.image.stream"
-            label="流式返回中间结果"
-            description="生成过程中实时显示预览；服务需支持 stream 参数"
-          />
-          <UFormField
-            v-if="settings.image.stream"
-            label="中间图数量"
-          >
-            <UInputNumber
-              v-model="settings.image.partialImages"
-              :min="0"
-              :max="3"
-              class="w-40"
-            />
-          </UFormField>
-        </div>
-      </UCard>
+        </section>
 
-      <div class="flex justify-end">
-        <UButton
-          icon="i-lucide-rotate-ccw"
-          label="恢复默认设置"
-          color="neutral"
-          variant="ghost"
-          @click="settings.reset()"
-        />
+        <div class="flex justify-end">
+          <UButton
+            icon="i-lucide-rotate-ccw"
+            label="恢复默认设置"
+            color="neutral"
+            variant="ghost"
+            @click="settings.reset()"
+          />
+        </div>
       </div>
-    </main>
-  </div>
+    </template>
+  </UDashboardPanel>
 </template>
