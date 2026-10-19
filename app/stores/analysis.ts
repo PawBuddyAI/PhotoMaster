@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { type AnyCanvas, blobToDataUrl, canvasToBlob, scaleToFit } from '~/lib/image/canvas'
-import { analyzeImage, type AnalyzeOutcome } from '~/lib/llm/analyze'
+import { analyzeImage, type AnalyzeOutcome, VISION_MAX_SIDE } from '~/lib/llm/analyze'
 import { createOpenAIClient } from '~/lib/llm/client'
 import { useEditorStore } from './editor'
 import { useSettingsStore } from './settings'
@@ -34,7 +34,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     downgradedTo.value = null
     try {
       const client = createOpenAIClient(settings.visionConnection)
-      const scaled = scaleToFit(source, source.width, source.height, settings.vision.maxLongSide)
+      const scaled = scaleToFit(source, source.width, source.height, VISION_MAX_SIDE)
       const imageDataUrl = await blobToDataUrl(await canvasToBlob(scaled, 'image/jpeg', 0.9))
       const outcome = await analyzeImage(client, {
         model: settings.vision.model,
@@ -43,6 +43,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
         imageH: meta.height,
         mode: settings.vision.structuredOutput,
         detail: settings.vision.detail,
+        reasoningEffort: settings.vision.reasoningEffort,
         hint,
         signal: controller.signal
       })

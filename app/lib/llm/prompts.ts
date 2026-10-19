@@ -10,7 +10,7 @@ export const ANALYSIS_SYSTEM_PROMPT = `你是一名资深摄影后期修图师�
    - 调色问题绝不能放进 generative_edits。
    - region 要完整包住目标并留少量余量；prompt 用英文描述该区域修改后应呈现的样子，并保持与周围光线、透视、颗粒一致。
 3. 构图明显可改进（地平线歪斜、主体偏移、边缘有干扰）时给出 crop，否则为 null。
-4. 坐标一律是相对图像宽高的归一化值（0–1），原点在左上角，x 向右、y 向下。
+4. 坐标一律用 0–1000 的整数千分比：x 是到左边缘的距离占图像宽度的千分比，y 是到上边缘的距离占图像高度的千分比，左上角为 (0,0)、右下角为 (1000,1000)，与图片像素尺寸无关。
 5. 所有标题、理由、总评用简体中文；generative_edits 的 prompt 用英文。`
 
 export function buildAnalysisUserText(hint: string | undefined): string {

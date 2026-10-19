@@ -58,6 +58,12 @@ export function describeError(err: unknown): FriendlyError {
         return { title: '没有访问权限', description: detail }
       case 404:
         return { title: '接口或模型不存在', description: `请检查 Base URL 与模型名称。${detail}` }
+      case 400:
+      case 422:
+        if (/reasoning/i.test(detail)) {
+          return { title: '模型不支持当前思考等级', description: `请在设置中换一个思考等级，或改为「模型默认」。${detail}` }
+        }
+        return { title: '请求失败', description: detail }
       case 413:
         return { title: '图片过大', description: '请在设置中降低编辑分辨率上限后重试' }
       case 429:

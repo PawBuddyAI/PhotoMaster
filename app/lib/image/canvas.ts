@@ -46,11 +46,18 @@ export function decodeImage(blob: Blob): Promise<ImageBitmap> {
   return createImageBitmap(blob, { imageOrientation: 'from-image' })
 }
 
+/** 长边不超过 maxLongSide 的等比尺寸（不放大，每边至少 1 像素） */
+export function fitSize(width: number, height: number, maxLongSide: number): { w: number, h: number } {
+  const scale = Math.min(1, maxLongSide / Math.max(width, height))
+  return {
+    w: Math.max(1, Math.round(width * scale)),
+    h: Math.max(1, Math.round(height * scale))
+  }
+}
+
 /** 把图像缩放到长边不超过 maxLongSide（不放大） */
 export function scaleToFit(source: CanvasImageSource, width: number, height: number, maxLongSide: number): AnyCanvas {
-  const scale = Math.min(1, maxLongSide / Math.max(width, height))
-  const w = Math.max(1, Math.round(width * scale))
-  const h = Math.max(1, Math.round(height * scale))
+  const { w, h } = fitSize(width, height, maxLongSide)
   const canvas = createCanvas(w, h)
   const ctx = get2d(canvas)
   ctx.imageSmoothingEnabled = true

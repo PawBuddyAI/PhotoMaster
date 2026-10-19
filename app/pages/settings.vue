@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { VISION_MAX_SIDE } from '~/lib/llm/analyze'
 import { createOpenAIClient } from '~/lib/llm/client'
 import { probeModelListed, probeStructuredOutput } from '~/lib/llm/probe'
 import { useSettingsStore } from '~/stores/settings'
@@ -13,6 +14,16 @@ const structuredOutputItems = [
   { label: '仅提示词约束', value: 'none' }
 ]
 const STRUCTURED_LABELS: Record<string, string> = Object.fromEntries(structuredOutputItems.map(i => [i.value, i.label]))
+const reasoningEffortItems = [
+  { label: '模型默认', value: 'default' },
+  { label: '关闭（none）', value: 'none' },
+  { label: '最少（minimal）', value: 'minimal' },
+  { label: '低', value: 'low' },
+  { label: '中', value: 'medium' },
+  { label: '高', value: 'high' },
+  { label: '超高（xhigh）', value: 'xhigh' },
+  { label: '最高（max）', value: 'max' }
+]
 const detailItems = [
   { label: '高（推荐）', value: 'high' },
   { label: '自动', value: 'auto' },
@@ -37,7 +48,7 @@ async function testVision() {
   testing.vision = true
   try {
     const client = createOpenAIClient(settings.visionConnection, { timeout: 60_000 })
-    const mode = await probeStructuredOutput(client, settings.vision.model)
+    const mode = await probeStructuredOutput(client, settings.vision.model, settings.vision.reasoningEffort)
     settings.vision.structuredOutput = mode
     notify.success('读图模型连接正常', `结构化输出方式：${STRUCTURED_LABELS[mode]}`)
   } catch (err) {
@@ -121,6 +132,16 @@ async function testImage() {
               />
             </SettingsRow>
             <SettingsRow
+              label="思考等级"
+              description="仅推理模型有效，越高越细致、越慢越贵；「模型默认」不发送该参数"
+            >
+              <USelect
+                v-model="settings.vision.reasoningEffort"
+                :items="reasoningEffortItems"
+                class="w-full"
+              />
+            </SettingsRow>
+            <SettingsRow
               label="结构化输出"
               description="测试连接会自动检测"
             >
@@ -130,21 +151,13 @@ async function testImage() {
                 class="w-full"
               />
             </SettingsRow>
-            <SettingsRow label="图像细节">
+            <SettingsRow
+              label="图像细节"
+              :description="`图片发送前统一缩放到 ${VISION_MAX_SIDE}×${VISION_MAX_SIDE} 以内`"
+            >
               <USelect
                 v-model="settings.vision.detail"
                 :items="detailItems"
-                class="w-full"
-              />
-            </SettingsRow>
-            <SettingsRow label="发送长边（像素）">
-              <UInputNumber
-                v-model="settings.vision.maxLongSide"
-                :increment="STEPPER"
-                :decrement="STEPPER"
-                :min="512"
-                :max="2048"
-                :step="128"
                 class="w-full"
               />
             </SettingsRow>

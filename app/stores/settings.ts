@@ -1,16 +1,16 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { MIN_CUSTOM_LONG_SIDE } from '~/lib/inpaint/sizing'
-import type { StructuredOutputMode } from '~/lib/llm/analyze'
+import type { ReasoningEffortSetting, StructuredOutputMode } from '~/lib/llm/analyze'
 import { type ConnectionConfig, DEFAULT_BASE_URL } from '~/lib/llm/client'
 import type { ImageQuality } from '~/lib/llm/imageEdit'
 
 export interface VisionSettings extends ConnectionConfig {
   model: string
+  /** 推理模型的思考等级（reasoning_effort） */
+  reasoningEffort: ReasoningEffortSetting
   structuredOutput: StructuredOutputMode
   detail: 'auto' | 'low' | 'high'
-  /** 发送给读图模型的图片长边 */
-  maxLongSide: number
 }
 
 export interface ImageSettings extends ConnectionConfig {
@@ -42,9 +42,9 @@ export function defaultSettings(): AppSettings {
       apiKey: '',
       useProxy: false,
       model: 'gpt-6.1-sol',
+      reasoningEffort: 'default',
       structuredOutput: 'json_schema',
-      detail: 'high',
-      maxLongSide: 1536
+      detail: 'high'
     },
     image: {
       baseURL: DEFAULT_BASE_URL,

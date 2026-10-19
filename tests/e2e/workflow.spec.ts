@@ -8,9 +8,11 @@ import { expect, type Page, type Route, test } from '@playwright/test'
 const API = 'https://api.mock.test/v1'
 const IMAGE_W = 1600
 const IMAGE_H = 1000
+/** 与 app/lib/llm/analyze.ts 的 VISION_MAX_SIDE 一致 */
+const VISION_MAX_SIDE = 1300
 
 const SETTINGS = {
-  vision: { baseURL: API, apiKey: 'test-key', useProxy: false, model: 'mock-vision', structuredOutput: 'json_schema', detail: 'high', maxLongSide: 1536 },
+  vision: { baseURL: API, apiKey: 'test-key', useProxy: false, model: 'mock-vision', reasoningEffort: 'high', structuredOutput: 'json_schema', detail: 'high' },
   image: { baseURL: API, apiKey: 'test-key', useProxy: false, sameAsVision: true, model: 'mock-image', quality: 'high', n: 2, sizeMode: 'custom', maxLongSide: 2048, stream: false, partialImages: 0 }
 }
 
@@ -21,14 +23,21 @@ const zeroParams = {
 
 /** 重绘区域（归一化）：右下角的“路人” */
 const GEN_REGION = { x0: 0.6, y0: 0.55, x1: 0.8, y1: 0.95 }
+/** 模型按约定输出 0–1000 的千分比坐标 */
+const perMille = (r: typeof GEN_REGION) => ({
+  x0: Math.round(r.x0 * 1000),
+  y0: Math.round(r.y0 * 1000),
+  x1: Math.round(r.x1 * 1000),
+  y1: Math.round(r.y1 * 1000)
+})
 
 const ANALYSIS = {
   overall: '天空偏亮，右下角有干扰物。',
   adjustments: [
-    { title: '压暗天空', reason: '天空过曝', region: { shape: 'linear', x0: 0.5, y0: 0, x1: 0.5, y1: 0.45 }, params: { ...zeroParams, exposure: -0.8, highlights: -30 } }
+    { title: '压暗天空', reason: '天空过曝', region: { shape: 'linear', x0: 500, y0: 0, x1: 500, y1: 450 }, params: { ...zeroParams, exposure: -0.8, highlights: -30 } }
   ],
   generative_edits: [
-    { title: '移除路人', reason: '干扰主体', prompt: 'Remove the person and fill with grass', region: { shape: 'rect', ...GEN_REGION } }
+    { title: '移除路人', reason: '干扰主体', prompt: 'Remove the person and fill with grass', region: { shape: 'rect', ...perMille(GEN_REGION) } }
   ],
   crop: null
 }
@@ -120,7 +129,16 @@ test('导入 → 分析 → 采纳 → 重绘 → 导出，蒙版外像素保持
   await expect(page.getByText('天空偏亮，右下角有干扰物。')).toBeVisible()
   expect(chatBodies).toHaveLength(1)
   expect((chatBodies[0]!.response_format as { type: string }).type).toBe('json_schema')
+  expect(chatBodies[0]!.reasoning_effort).toBe('high')
   expect(JSON.stringify(chatBodies[0]!.messages)).toContain('data:image/jpeg;base64,')
+  // 发送的图片统一缩放到 1300×1300 以内（测试图为 1600×1000）
+  const userContent = (chatBodies[0]!.messages as Array<{ content: unknown }>)[1]!.content as Array<{ type: string, image_url?: { url: string } }>
+  const sentUrl = userContent.find(part => part.type === 'image_url')!.image_url!.url
+  const sentSize = await page.evaluate(async (url) => {
+    const bitmap = await createImageBitmap(await (await fetch(url)).blob())
+    return { w: bitmap.width, h: bitmap.height }
+  }, sentUrl)
+  expect(sentSize).toEqual({ w: VISION_MAX_SIDE, h: Math.round(IMAGE_H * VISION_MAX_SIDE / IMAGE_W) })
 
   // 采纳两条建议
   await page.getByRole('button', { name: '采纳', exact: true }).first().click()

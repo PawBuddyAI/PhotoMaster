@@ -3,6 +3,7 @@ import { APIError } from 'openai'
 import { zodResponseFormat } from 'openai/helpers/zod'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
+import type { ReasoningEffort } from 'openai/resources/shared'
 import { z } from 'zod'
 import type { AnalysisResult } from '../types'
 import { AnalysisFormatError } from './errors'
@@ -12,14 +13,30 @@ import { AnalysisSchema, normalizeAnalysis } from './schema'
 /** 结构化输出能力：json_schema（strict）→ json_object → none（纯提示词约束） */
 export type StructuredOutputMode = 'json_schema' | 'json_object' | 'none'
 
+/** 思考等级：default 表示不发送 reasoning_effort，由模型或服务自行决定 */
+export type ReasoningEffortSetting = NonNullable<ReasoningEffort> | 'default'
+
+/** 非推理模型和部分兼容服务不认识 reasoning_effort，选「模型默认」时整个参数都不发送 */
+export function reasoningParams(effort: ReasoningEffortSetting = 'default'): { reasoning_effort?: ReasoningEffort } {
+  return effort === 'default' ? {} : { reasoning_effort: effort }
+}
+
+/**
+ * 读图图片统一缩放到 1300×1300 以内。部分模型会在服务端按各自规则再缩小，
+ * 超出部分只增加上传体积和 token；客户端统一缩放后，不同模型看到的画面一致。
+ * 区域与裁剪坐标是相对宽高的千分比，缩放不影响换算。
+ */
+export const VISION_MAX_SIDE = 1300
+
 export interface AnalyzeOptions {
   model: string
-  /** 读图用的 JPEG data URL */
+  /** 读图用的 JPEG data URL，长边不超过 VISION_MAX_SIDE */
   imageDataUrl: string
   imageW: number
   imageH: number
   mode: StructuredOutputMode
   detail: 'auto' | 'low' | 'high'
+  reasoningEffort?: ReasoningEffortSetting
   hint?: string
   signal?: AbortSignal
 }
@@ -65,7 +82,7 @@ function buildMessages(opts: AnalyzeOptions, systemSuffix?: string): ChatComplet
     {
       role: 'user',
       content: [
-        { type: 'text', text: `${buildAnalysisUserText(opts.hint)}\n图片尺寸：${opts.imageW}×${opts.imageH}` },
+        { type: 'text', text: buildAnalysisUserText(opts.hint) },
         { type: 'image_url', image_url: { url: opts.imageDataUrl, detail: opts.detail } }
       ]
     }
@@ -75,6 +92,7 @@ function buildMessages(opts: AnalyzeOptions, systemSuffix?: string): ChatComplet
 async function analyzeWithSchema(client: OpenAI, opts: AnalyzeOptions): Promise<AnalyzeOutcome> {
   const completion = await client.chat.completions.parse({
     model: opts.model,
+    ...reasoningParams(opts.reasoningEffort),
     messages: buildMessages(opts),
     response_format: zodResponseFormat(AnalysisSchema, 'photo_analysis')
   }, { signal: opts.signal })
@@ -99,6 +117,7 @@ async function analyzeWithJsonPrompt(client: OpenAI, opts: AnalyzeOptions, jsonO
   for (let attempt = 0; attempt < 2; attempt++) {
     const completion = await client.chat.completions.create({
       model: opts.model,
+      ...reasoningParams(opts.reasoningEffort),
       messages,
       ...(jsonObject ? { response_format: { type: 'json_object' as const } } : {})
     }, { signal: opts.signal })

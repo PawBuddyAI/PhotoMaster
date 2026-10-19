@@ -3,7 +3,8 @@ import { analyzeImage, parseAnalysisJson } from '~/lib/llm/analyze'
 import { createOpenAIClient } from '~/lib/llm/client'
 import { AnalysisFormatError, describeError } from '~/lib/llm/errors'
 import { requestImageEdit } from '~/lib/llm/imageEdit'
-import { normalizeAnalysis } from '~/lib/llm/schema'
+import { probeStructuredOutput } from '~/lib/llm/probe'
+import { detectCoordDivisor, normalizeAnalysis } from '~/lib/llm/schema'
 
 interface Call {
   url: string
@@ -48,10 +49,10 @@ const SAMPLE = {
   overall: '主体偏暗，天空过曝。',
   adjustments: [
     { title: '提亮主体', reason: '主体偏暗', region: null, params: { ...zeroParams, exposure: 0.4, shadows: 20 } },
-    { title: '压暗天空', reason: '天空过曝', region: { shape: 'linear', x0: 0.5, y0: 0, x1: 0.5, y1: 0.45 }, params: { ...zeroParams, exposure: -0.8, highlights: -40 } }
+    { title: '压暗天空', reason: '天空过曝', region: { shape: 'linear', x0: 500, y0: 0, x1: 500, y1: 450 }, params: { ...zeroParams, exposure: -0.8, highlights: -40 } }
   ],
   generative_edits: [
-    { title: '移除路人', reason: '干扰主体', prompt: 'Remove the pedestrian', region: { shape: 'rect', x0: 0.85, y0: 0.95, x1: 0.7, y1: 0.5 } }
+    { title: '移除路人', reason: '干扰主体', prompt: 'Remove the pedestrian', region: { shape: 'rect', x0: 850, y0: 950, x1: 700, y1: 500 } }
   ],
   crop: null
 }
@@ -92,6 +93,12 @@ describe('analyzeImage', () => {
     const body = bodyOf(calls[0]!)
     expect((body.response_format as { type: string }).type).toBe('json_schema')
     expect(JSON.stringify(body.messages)).toContain('data:image/jpeg;base64,AAAA')
+    // 坐标约定为千分比，不向模型提供像素尺寸，避免模型改用像素坐标
+    expect(JSON.stringify(body.response_format)).toContain('千分比')
+    expect(JSON.stringify(body.messages)).toContain('0–1000')
+    expect(JSON.stringify(body.messages)).not.toContain('4000')
+    // 未设置思考等级时不发送该参数，兼容不认识它的服务
+    expect(body).not.toHaveProperty('reasoning_effort')
     expect(outcome.modeUsed).toBe('json_schema')
     expect(outcome.result.adjustments).toHaveLength(2)
     expect(outcome.result.adjustments[1]!.mask.shape).toBe('linear')
@@ -105,6 +112,21 @@ describe('analyzeImage', () => {
     const outcome = await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema' })
     expect(outcome.modeUsed).toBe('json_object')
     expect((bodyOf(calls[1]!).response_format as { type: string }).type).toBe('json_object')
+  })
+
+  it('思考等级随每次请求发送，降级后仍保留', async () => {
+    const { calls, fetchImpl } = mockFetch((_, i) => i === 0
+      ? json({ error: { message: 'response_format json_schema is not supported', type: 'invalid_request_error', code: null } }, 400)
+      : completion(JSON.stringify(SAMPLE)))
+    await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema', reasoningEffort: 'high' })
+    expect(calls).toHaveLength(2)
+    expect(calls.map(c => bodyOf(c).reasoning_effort)).toEqual(['high', 'high'])
+  })
+
+  it('思考等级为模型默认时不发送该参数', async () => {
+    const { calls, fetchImpl } = mockFetch(() => completion(JSON.stringify(SAMPLE)))
+    await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'none', reasoningEffort: 'default' })
+    expect(bodyOf(calls[0]!)).not.toHaveProperty('reasoning_effort')
   })
 
   it('json_object 也不支持时降级为纯提示词约束', async () => {
@@ -146,8 +168,8 @@ describe('parseAnalysisJson / normalizeAnalysis', () => {
     const raw = {
       ...SAMPLE,
       adjustments: [{ ...SAMPLE.adjustments[0]!, params: { ...zeroParams, exposure: 9, contrast: -300 } }],
-      generative_edits: [{ ...SAMPLE.generative_edits[0]!, region: { shape: 'linear' as const, x0: 0.2, y0: 0.2, x1: 0.4, y1: 0.6 } }],
-      crop: { x0: 0, y0: 0, x1: 1, y1: 1, angle: 60, reason: '地平线倾斜' }
+      generative_edits: [{ ...SAMPLE.generative_edits[0]!, region: { shape: 'linear' as const, x0: 200, y0: 200, x1: 400, y1: 600 } }],
+      crop: { x0: 0, y0: 0, x1: 1000, y1: 1000, angle: 60, reason: '地平线倾斜' }
     } as Parameters<typeof normalizeAnalysis>[0]
     const result = normalizeAnalysis(raw, 4000, 3000, 'm')
     expect(result.adjustments[0]!.params.exposure).toBe(5)
@@ -166,6 +188,40 @@ describe('parseAnalysisJson / normalizeAnalysis', () => {
     expect(rect.y).toBeCloseTo(0.5)
     expect(rect.w).toBeCloseTo(0.15)
     expect(rect.h).toBeCloseTo(0.45)
+  })
+
+  it('0–1000 千分比坐标换算为 0–1', () => {
+    const raw = SAMPLE as Parameters<typeof normalizeAnalysis>[0]
+    expect(detectCoordDivisor(raw)).toBe(1000)
+    const result = normalizeAnalysis(raw, 4000, 3000, 'm')
+    expect(result.adjustments[1]!.mask.line).toEqual({ x0: 0.5, y0: 0, x1: 0.5, y1: 0.45 })
+  })
+
+  it('模型没有遵守约定、输出 0–1 小数时按原值使用，结果与千分比一致', () => {
+    const perMille = SAMPLE as Parameters<typeof normalizeAnalysis>[0]
+    const unit = {
+      ...perMille,
+      adjustments: [perMille.adjustments[0]!, { ...perMille.adjustments[1]!, region: { shape: 'linear' as const, x0: 0.5, y0: 0, x1: 0.5, y1: 0.45 } }],
+      generative_edits: [{ ...perMille.generative_edits[0]!, region: { shape: 'rect' as const, x0: 0.85, y0: 0.95, x1: 0.7, y1: 0.5 } }],
+      crop: { x0: 0.1, y0: 0.05, x1: 0.9, y1: 0.95, angle: 0, reason: '收紧构图' }
+    }
+    expect(detectCoordDivisor(unit)).toBe(1)
+    const fromUnit = normalizeAnalysis(unit, 4000, 3000, 'm')
+    const fromPerMille = normalizeAnalysis({ ...perMille, crop: { x0: 100, y0: 50, x1: 900, y1: 950, angle: 0, reason: '收紧构图' } }, 4000, 3000, 'm')
+    expect(fromUnit.adjustments[1]!.mask.line).toEqual(fromPerMille.adjustments[1]!.mask.line)
+    expect(fromUnit.generativeEdits[0]!.mask.rect.x).toBeCloseTo(fromPerMille.generativeEdits[0]!.mask.rect.x)
+    expect(fromUnit.generativeEdits[0]!.mask.rect.h).toBeCloseTo(fromPerMille.generativeEdits[0]!.mask.rect.h)
+    expect(fromUnit.crop!.crop.rect.x).toBeCloseTo(fromPerMille.crop!.crop.rect.x)
+    expect(fromUnit.crop!.crop.rect.w).toBeCloseTo(fromPerMille.crop!.crop.rect.w)
+  })
+
+  it('坐标单位按整次回答判断：贴近左上角的小区域不会被误当成 0–1 小数', () => {
+    const raw = {
+      ...SAMPLE,
+      adjustments: [{ ...SAMPLE.adjustments[0]!, region: { shape: 'rect' as const, x0: 0, y0: 0, x1: 1, y1: 1 } }]
+    } as Parameters<typeof normalizeAnalysis>[0]
+    expect(detectCoordDivisor(raw)).toBe(1000)
+    expect(normalizeAnalysis(raw, 4000, 3000, 'm').adjustments[0]!.mask.rect.w).toBeCloseTo(0.001)
   })
 })
 
@@ -258,5 +314,30 @@ describe('describeError', () => {
     const err = await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'none' }).catch(e => e)
     expect(describeError(err).title).toBe('API Key 无效')
     expect(describeError(new Error('boom')).description).toBe('boom')
+  })
+
+  it('模型不支持所选思考等级时提示更换档位', async () => {
+    const { fetchImpl } = mockFetch(() => json({
+      error: { message: 'Unsupported value: \'reasoning_effort\' does not support \'max\' with this model.', type: 'invalid_request_error', param: 'reasoning_effort', code: 'unsupported_value' }
+    }, 400))
+    const err = await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema', reasoningEffort: 'max' }).catch(e => e)
+    const friendly = describeError(err)
+    expect(friendly.title).toBe('模型不支持当前思考等级')
+    expect(friendly.description).toContain('模型默认')
+  })
+})
+
+describe('probeStructuredOutput', () => {
+  it('测试连接带上思考等级，结构化输出可用时返回 json_schema', async () => {
+    const { calls, fetchImpl } = mockFetch(() => completion('{"ok":true}'))
+    const mode = await probeStructuredOutput(client(fetchImpl), 'test-model', 'low')
+    expect(mode).toBe('json_schema')
+    expect(bodyOf(calls[0]!).reasoning_effort).toBe('low')
+  })
+
+  it('思考等级为模型默认时不发送该参数', async () => {
+    const { calls, fetchImpl } = mockFetch(() => completion('{"ok":true}'))
+    await probeStructuredOutput(client(fetchImpl), 'test-model')
+    expect(bodyOf(calls[0]!)).not.toHaveProperty('reasoning_effort')
   })
 })
