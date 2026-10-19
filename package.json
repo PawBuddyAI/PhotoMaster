@@ -41,6 +41,7 @@
     "@types/piexifjs": "^1.0.0",
     "eslint": "^10.13.0",
     "eslint-plugin-better-tailwindcss": "^4.9.1",
+    "fake-indexeddb": "6.2.5",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5",
     "vue-tsc": "^3.3.13"

@@ -2,17 +2,31 @@ import Dexie, { type EntityTable } from 'dexie'
 import { canvasToBlob, decodeImage, scaleToFit } from '../image/canvas'
 import { newId } from '../id'
 import { cloneDoc, emptyDoc, referencedBlobIds } from '../project/doc'
-import type { BlobRecord, ProjectDoc, ProjectRecord } from '../types'
+import type { BlobRecord, ProjectDoc, ProjectDocRecord, ProjectRecord } from '../types'
+
+/** 第 1 版的工程记录：文档与 updatedAt 都存在 projects 表里 */
+type LegacyProjectRecord = ProjectRecord & { doc?: ProjectDoc, updatedAt?: number }
 
 class PhotoDatabase extends Dexie {
   projects!: EntityTable<ProjectRecord, 'id'>
+  docs!: EntityTable<ProjectDocRecord, 'id'>
   blobs!: EntityTable<BlobRecord, 'id'>
 
   constructor() {
     super('ai-photo-master')
-    this.version(1).stores({
-      projects: 'id, updatedAt',
+    // 第 1 版为 projects: 'id, updatedAt'、blobs: 'id, projectId'。Dexie 升级时按数据库现有结构比对，不需要保留旧版本声明
+    this.version(2).stores({
+      projects: 'id',
+      docs: 'id, updatedAt',
       blobs: 'id, projectId'
+    }).upgrade(async (tx) => {
+      const docs: ProjectDocRecord[] = []
+      await tx.table<LegacyProjectRecord, string>('projects').toCollection().modify((record) => {
+        docs.push({ id: record.id, doc: record.doc ?? emptyDoc(), updatedAt: record.updatedAt ?? record.createdAt })
+        delete record.doc
+        delete record.updatedAt
+      })
+      await tx.table<ProjectDocRecord, string>('docs').bulkAdd(docs)
     })
   }
 }
@@ -25,7 +39,10 @@ function db(): PhotoDatabase {
   return instance
 }
 
-export type ProjectSummary = Pick<ProjectRecord, 'id' | 'name' | 'createdAt' | 'updatedAt' | 'width' | 'height' | 'thumbnail'>
+/** 打开编辑器所需的完整工程：元数据 + 文档 */
+export type Project = ProjectRecord & Pick<ProjectDocRecord, 'doc' | 'updatedAt'>
+
+export type ProjectSummary = Pick<Project, 'id' | 'name' | 'createdAt' | 'updatedAt' | 'width' | 'height' | 'thumbnail'>
 
 export const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
@@ -39,20 +56,19 @@ export async function createProject(file: File): Promise<string> {
     const id = newId()
     const originalBlobId = newId()
     const now = Date.now()
-    await db().transaction('rw', db().projects, db().blobs, async () => {
+    await db().transaction('rw', db().projects, db().docs, db().blobs, async () => {
       await db().blobs.add({ id: originalBlobId, projectId: id, blob: file })
       await db().projects.add({
         id,
         name: file.name.replace(/\.[^.]+$/, '') || '未命名',
         createdAt: now,
-        updatedAt: now,
         width: bitmap.width,
         height: bitmap.height,
         originalBlobId,
         originalType: file.type,
-        thumbnail,
-        doc: emptyDoc()
+        thumbnail
       })
+      await db().docs.add({ id, doc: emptyDoc(), updatedAt: now })
     })
     return id
   } finally {
@@ -60,27 +76,58 @@ export async function createProject(file: File): Promise<string> {
   }
 }
 
+/** 按最近修改时间倒序列出工程；只遍历 docs 表 updatedAt 索引的键，不读取文档内容 */
 export async function listProjects(): Promise<ProjectSummary[]> {
-  const records = await db().projects.orderBy('updatedAt').reverse().toArray()
-  return records.map(({ id, name, createdAt, updatedAt, width, height, thumbnail }) =>
-    ({ id, name, createdAt, updatedAt, width, height, thumbnail }))
+  return db().transaction('r', db().projects, db().docs, async () => {
+    const order: Array<{ id: string, updatedAt: number }> = []
+    await db().docs.orderBy('updatedAt').reverse().eachKey((updatedAt, cursor) => {
+      order.push({ id: cursor.primaryKey, updatedAt: updatedAt as number })
+    })
+    const records = await db().projects.bulkGet(order.map(item => item.id))
+    return order.flatMap(({ updatedAt }, i) => {
+      const record = records[i]
+      if (!record) {
+        return []
+      }
+      const { id, name, createdAt, width, height, thumbnail } = record
+      return [{ id, name, createdAt, updatedAt, width, height, thumbnail }]
+    })
+  })
 }
 
-export async function getProject(id: string): Promise<ProjectRecord | undefined> {
-  return db().projects.get(id)
+export async function getProject(id: string): Promise<Project | undefined> {
+  return db().transaction('r', db().projects, db().docs, async () => {
+    const record = await db().projects.get(id)
+    const docRecord = await db().docs.get(id)
+    return record && docRecord ? { ...record, doc: docRecord.doc, updatedAt: docRecord.updatedAt } : undefined
+  })
 }
 
+/**
+ * 写入工程文档并刷新修改时间。页面卸载时浏览器不等异步回调，因此只发出一个 put 并立即 commit()：
+ * 写入在本轮任务内就完整交给数据库，随后页面被销毁也会提交。先读后写（update）要等读请求的回调
+ * 才能发出写请求，卸载时可能被截断。
+ */
 export async function saveProjectDoc(id: string, doc: ProjectDoc): Promise<void> {
-  await db().projects.update(id, { doc: cloneDoc(doc), updatedAt: Date.now() })
+  const record: ProjectDocRecord = { id, doc: cloneDoc(doc), updatedAt: Date.now() }
+  await db().transaction('rw', db().docs, (tx) => {
+    const written = db().docs.put(record)
+    tx.idbtrans.commit()
+    return written
+  })
 }
 
 export async function renameProject(id: string, name: string): Promise<void> {
-  await db().projects.update(id, { name, updatedAt: Date.now() })
+  await db().transaction('rw', db().projects, db().docs, async () => {
+    await db().projects.update(id, { name })
+    await db().docs.update(id, { updatedAt: Date.now() })
+  })
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  await db().transaction('rw', db().projects, db().blobs, async () => {
+  await db().transaction('rw', db().projects, db().docs, db().blobs, async () => {
     await db().blobs.where('projectId').equals(id).delete()
+    await db().docs.delete(id)
     await db().projects.delete(id)
   })
 }
