@@ -5,7 +5,7 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 import type { CompletionUsage } from 'openai/resources/completions'
 import type { ReasoningEffort } from 'openai/resources/shared'
 import { z } from 'zod'
-import type { AnalysisResult } from '../types'
+import type { AnalysisResult, CropSpec } from '../types'
 import { AnalysisFormatError } from './errors'
 import { ANALYSIS_SYSTEM_PROMPT, buildAnalysisUserText, buildJsonInstruction } from './prompts'
 import { AnalysisSchema, normalizeAnalysis } from './schema'
@@ -34,6 +34,8 @@ export interface AnalyzeOptions {
   imageDataUrl: string
   imageW: number
   imageH: number
+  /** 当前裁剪；有裁剪时图片中框外已压暗，提示词同时说明保留区域 */
+  crop?: CropSpec | null
   mode: StructuredOutputMode
   detail: 'auto' | 'low' | 'high'
   reasoningEffort?: ReasoningEffortSetting
@@ -82,7 +84,7 @@ function buildMessages(opts: AnalyzeOptions, systemSuffix?: string): ChatComplet
     {
       role: 'user',
       content: [
-        { type: 'text', text: buildAnalysisUserText(opts.hint) },
+        { type: 'text', text: buildAnalysisUserText(opts.hint, opts.crop) },
         { type: 'image_url', image_url: { url: opts.imageDataUrl, detail: opts.detail } }
       ]
     }

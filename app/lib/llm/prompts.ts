@@ -1,3 +1,7 @@
+import { isIdentityCrop } from '../geometry/crop'
+import type { CropSpec } from '../types'
+import { COORD_SCALE } from './schema'
+
 /** 读图分析的系统提示词：明确分工（调色走参数，内容修改走生成式）与坐标约定 */
 export const ANALYSIS_SYSTEM_PROMPT = `你是一名资深摄影后期修图师。请仔细观察用户提供的照片，给出专业、克制、可执行的修图方案。
 
@@ -13,9 +17,29 @@ export const ANALYSIS_SYSTEM_PROMPT = `你是一名资深摄影后期修图师�
 4. 坐标一律用 0–1000 的整数千分比：x 是到左边缘的距离占图像宽度的千分比，y 是到上边缘的距离占图像高度的千分比，左上角为 (0,0)、右下角为 (1000,1000)，与图片像素尺寸无关。
 5. 所有标题、理由、总评用简体中文；generative_edits 的 prompt 用英文。`
 
-export function buildAnalysisUserText(hint: string | undefined): string {
-  const base = '请分析这张照片并给出修图方案。'
-  return hint?.trim() ? `${base}\n用户的额外要求：${hint.trim()}` : base
+export function buildAnalysisUserText(hint: string | undefined, crop?: CropSpec | null): string {
+  const lines = ['请分析这张照片并给出修图方案。']
+  if (crop && !isIdentityCrop(crop)) {
+    lines.push(describeCurrentCrop(crop))
+  }
+  if (hint?.trim()) {
+    lines.push(`用户的额外要求：${hint.trim()}`)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * 当前裁剪的说明。读图时发送的仍是整张图（框外已压暗），
+ * 因此区域坐标继续以整张图为基准；裁剪框沿用 crop 字段的约定，模型可在此基础上给出新框。
+ */
+function describeCurrentCrop(crop: CropSpec): string {
+  const pm = (v: number) => Math.round(v * COORD_SCALE)
+  const { rect } = crop
+  const angle = Number(crop.angle.toFixed(1))
+  return `这张照片已经裁剪：保留区域为 x0=${pm(rect.x)}、y0=${pm(rect.y)}、x1=${pm(rect.x + rect.w)}、y1=${pm(rect.y + rect.h)}，`
+    + `水平校正 ${angle}°（与 crop 字段的约定相同）。图中保留区域以外已压暗，只作参考，不会出现在最终画面里。`
+    + '调色与重绘建议只针对保留区域内的画面，区域坐标仍按整张图片计算；'
+    + '构图在当前裁剪的基础上判断，需要调整时 crop 给出完整的新裁剪框和角度，当前构图已经合适时为 null。'
 }
 
 /** 不支持 json_schema 的服务：把 JSON Schema 写进提示词，要求只输出 JSON */

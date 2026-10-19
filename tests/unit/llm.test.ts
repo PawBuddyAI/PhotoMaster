@@ -5,6 +5,7 @@ import { AnalysisFormatError, describeError } from '~/lib/llm/errors'
 import { requestImageEdit } from '~/lib/llm/imageEdit'
 import { filterModels, listModels, partitionModels } from '~/lib/llm/models'
 import { probeStructuredOutput } from '~/lib/llm/probe'
+import { buildAnalysisUserText } from '~/lib/llm/prompts'
 import { detectCoordDivisor, normalizeAnalysis } from '~/lib/llm/schema'
 
 interface Call {
@@ -156,6 +157,43 @@ describe('analyzeImage', () => {
     const { calls, fetchImpl } = mockFetch(() => json({ error: { message: 'Incorrect API key', type: 'invalid_request_error', code: 'invalid_api_key' } }, 401))
     await expect(analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema' })).rejects.toMatchObject({ status: 401 })
     expect(calls).toHaveLength(1)
+  })
+
+  it('有裁剪时提示词说明当前裁剪框，降级路径同样携带', async () => {
+    const crop = { rect: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 }, angle: 3 }
+    const { calls, fetchImpl } = mockFetch((_, i) => i === 0
+      ? json({ error: { message: 'response_format json_schema is not supported' } }, 400)
+      : completion(JSON.stringify(SAMPLE)))
+    await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, crop, mode: 'json_schema' })
+    expect(calls).toHaveLength(2)
+    for (const call of calls) {
+      const messages = JSON.stringify(bodyOf(call).messages)
+      expect(messages).toContain('这张照片已经裁剪')
+      expect(messages).toContain('x0=100、y0=100、x1=900、y1=900')
+      expect(messages).toContain('水平校正 3°')
+      expect(messages).not.toContain('4000')
+    }
+  })
+})
+
+describe('buildAnalysisUserText', () => {
+  it('没有裁剪或裁剪为全图时不提裁剪', () => {
+    const base = buildAnalysisUserText(undefined)
+    expect(buildAnalysisUserText(undefined, null)).toBe(base)
+    expect(buildAnalysisUserText(undefined, { rect: { x: 0, y: 0, w: 1, h: 1 }, angle: 0 })).toBe(base)
+    expect(base).not.toContain('裁剪')
+  })
+
+  it('裁剪框按千分比取整，角度保留一位小数；用户要求排在最后', () => {
+    const text = buildAnalysisUserText(' 保留暖色调 ', { rect: { x: 0.1234, y: 0.05, w: 0.5, h: 0.9 }, angle: -2.46 })
+    const lines = text.split('\n')
+    expect(lines).toHaveLength(3)
+    expect(lines[1]).toContain('x0=123、y0=50、x1=623、y1=950')
+    expect(lines[1]).toContain('水平校正 -2.5°')
+    // 发送的是压暗框外的整张图，区域坐标仍以整张图为基准
+    expect(lines[1]).toContain('已压暗')
+    expect(lines[1]).toContain('区域坐标仍按整张图片计算')
+    expect(lines[2]).toBe('用户的额外要求：保留暖色调')
   })
 })
 

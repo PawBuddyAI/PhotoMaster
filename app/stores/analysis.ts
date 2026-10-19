@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { CompletionUsage } from 'openai/resources/completions'
-import { type AnyCanvas, blobToDataUrl, canvasToBlob, scaleToFit } from '~/lib/image/canvas'
+import type { AnyCanvas } from '~/lib/image/canvas'
+import { encodeVisionImage } from '~/lib/image/vision'
 import { analyzeImage, type AnalyzeOutcome, VISION_MAX_SIDE } from '~/lib/llm/analyze'
 import { createOpenAIClient } from '~/lib/llm/client'
 import { useEditorStore } from './editor'
@@ -17,7 +18,8 @@ export const useAnalysisStore = defineStore('analysis', () => {
 
   /**
    * 分析当前效果（source 为预览渲染结果，包含已应用的调整与重绘），
-   * 这样新的建议是在现有修改基础上的增量。
+   * 这样新的建议是在现有修改基础上的增量。预览结果不含裁剪，
+   * 当前裁剪通过压暗框外区域和提示词告诉模型。
    */
   async function analyze(source: AnyCanvas, hint?: string): Promise<AnalyzeOutcome> {
     if (running.value) {
@@ -34,13 +36,14 @@ export const useAnalysisStore = defineStore('analysis', () => {
     downgradedTo.value = null
     try {
       const client = createOpenAIClient(settings.visionConnection)
-      const scaled = scaleToFit(source, source.width, source.height, VISION_MAX_SIDE)
-      const imageDataUrl = await blobToDataUrl(await canvasToBlob(scaled, 'image/jpeg', 0.9))
+      const crop = editor.doc.crop
+      const imageDataUrl = await encodeVisionImage(source, crop, meta.width, meta.height, VISION_MAX_SIDE)
       const outcome = await analyzeImage(client, {
         model: settings.vision.model,
         imageDataUrl,
         imageW: meta.width,
         imageH: meta.height,
+        crop,
         mode: settings.vision.structuredOutput,
         detail: settings.vision.detail,
         reasoningEffort: settings.vision.reasoningEffort,
