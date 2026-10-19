@@ -158,7 +158,7 @@ function onShortcutUp(e: KeyboardEvent) {
         ]"
         variant="pill"
         color="neutral"
-        size="sm"
+        size="lg"
         class="w-full"
         :ui="{
           list: 'rounded-lg bg-transparent p-0.5 ring ring-default ring-inset',
