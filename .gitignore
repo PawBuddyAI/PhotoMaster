@@ -23,6 +23,9 @@ logs
 .env.*
 !.env.example
 
+# Claude Code 的工作记录与本机配置
+.claude
+
 # 测试输出
 test-results
 playwright-report
