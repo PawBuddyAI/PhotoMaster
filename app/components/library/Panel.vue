@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
+import { isDesktop, pickImagePath, readFileAs } from '~/lib/desktop'
+import { baseName, FORMAT_EXTENSIONS, formatFromPath } from '~/lib/image/export-options'
+import { type DropSide, SORT_MODES } from '~/lib/library/order'
 import { pinLeaving } from '~/lib/motion'
 import { createProject, type ProjectSummary, SUPPORTED_IMAGE_TYPES } from '~/lib/storage/db'
 import { useLibraryStore } from '~/stores/library'
 
 /**
  * 工程网格：图库页列出全部工程，相册页只列出该相册的工程；在相册页导入的照片直接放进这个相册。
- * 页面自定义标题区（相册重命名）和标题栏右侧的额外操作（相册菜单），导入、移动和删除工程在这里统一处理。
+ * 页面自定义标题区（相册重命名）和标题栏右侧的额外操作（相册菜单），导入、排序、移动和删除工程在这里统一处理。
+ * 卡片可以拖：拖到侧栏的相册上移进去（放下目标在外壳里），在网格里拖到另一张卡片的前后则调整顺序。
  */
 const props = defineProps<{
   id: string
@@ -24,6 +28,7 @@ const library = useLibraryStore()
 const notify = useNotify()
 const router = useRouter()
 const backdrop = useBackdrop()
+const drag = useProjectDrag()
 
 /** 已解码完成的缩略图：解码前只露出凹槽底色，完成后再淡入，网格不会逐张闪现 */
 const decoded = ref(new Set<string>())
@@ -34,39 +39,122 @@ const uploadRef = ref<{ inputRef: HTMLInputElement | undefined } | null>(null)
 
 const dateFormat = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' })
 
-const projects = computed(() => library.projectsIn(props.albumId ?? null))
+const projects = computed(() => library.sortedProjectsIn(props.albumId ?? null))
 
-// 侧栏透出这里最近修过的那张照片；空相册沿用图库最近的照片，侧栏不会突然褪成纯灰
+// 侧栏透出这里最近修过的那张照片（与排序方式无关）；空相册沿用图库最近的照片，侧栏不会突然褪成纯灰
 watchEffect(() => {
   if (library.loaded) {
-    backdrop.value = (projects.value[0] ?? library.projects[0])?.thumbnail ?? null
+    backdrop.value = (library.projectsIn(props.albumId ?? null)[0] ?? library.projects[0])?.thumbnail ?? null
   }
 })
 
-watch(file, async (selected) => {
-  if (!selected) {
-    return
+const sortLabel = computed(() => SORT_MODES.find(mode => mode.value === library.sortMode)?.label)
+
+const sortMenu = computed<DropdownMenuItem[]>(() => SORT_MODES.map(mode => ({
+  label: mode.label,
+  type: 'checkbox',
+  checked: library.sortMode === mode.value,
+  onSelect: () => {
+    library.sortMode = mode.value
   }
+})))
+
+/** filePath：桌面版从文件对话框导入时的原图位置，「保存」把结果写回这里；拖入与网页版没有 */
+async function importPhoto(photo: File, filePath?: string) {
   importing.value = true
   try {
-    const id = await createProject(selected, props.albumId)
+    const id = await createProject(photo, props.albumId, filePath)
     await router.push(`/editor/${id}`)
   } catch (err) {
     notify.error(err)
   } finally {
     importing.value = false
+  }
+}
+
+watch(file, async (selected) => {
+  if (selected) {
+    await importPhoto(selected)
     file.value = null
   }
 })
 
-async function move(project: ProjectSummary, albumId: string | null) {
+/**
+ * 桌面版：网页的文件选择框拿不到路径，改用系统「打开」对话框。
+ * 点击拖放区、按键盘和「导入照片」按钮最终都是点这个 input，在它上面统一拦截（拖入的文件仍走上面的 watch，没有路径）。
+ */
+async function importFromDisk() {
   try {
-    await library.moveProject(project.id, albumId)
-    const target = albumId ? library.findAlbum(albumId) : null
-    notify.success(target ? `已移到相册「${target.name}」` : '已移出相册', project.name)
+    const path = await pickImagePath({ name: '照片', extensions: Object.values(FORMAT_EXTENSIONS).flat() })
+    if (path) {
+      await importPhoto(await readFileAs(path, baseName(path), formatFromPath(path) ?? ''), path)
+    }
   } catch (err) {
     notify.error(err)
   }
+}
+
+function interceptPick(event: Event) {
+  event.preventDefault()
+  void importFromDisk()
+}
+
+// input 随拖放区一起渲染：出现（或被重建）时挂上拦截
+watch(() => uploadRef.value?.inputRef, (input, previous) => {
+  previous?.removeEventListener('click', interceptPick)
+  if (isDesktop()) {
+    input?.addEventListener('click', interceptPick)
+  }
+}, { immediate: true, flush: 'post' })
+
+/** 拖动排序时光标停在哪张卡片的哪一侧：放下后被拖的工程排在它之前或之后 */
+const hint = ref<{ id: string, side: DropSide } | null>(null)
+
+function onGridDragOver(event: DragEvent) {
+  if (!drag.dragging.value) {
+    return
+  }
+  event.preventDefault()
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+  // 光标在卡片之间的空隙里时保持上一次的位置，指示线不会来回闪
+  const card = (event.target as Element).closest<HTMLElement>('li[data-project]')
+  if (!card) {
+    return
+  }
+  if (card.dataset.project === drag.dragging.value) {
+    hint.value = null
+    return
+  }
+  const rect = card.getBoundingClientRect()
+  hint.value = { id: card.dataset.project!, side: event.clientX < rect.left + rect.width / 2 ? 'before' : 'after' }
+}
+
+function onGridDragLeave(event: DragEvent) {
+  if (!(event.currentTarget as Node).contains(event.relatedTarget as Node | null)) {
+    hint.value = null
+  }
+}
+
+async function onGridDrop(event: DragEvent) {
+  event.preventDefault()
+  const moved = drag.dragging.value
+  const target = hint.value
+  endDrag()
+  if (!moved || !target) {
+    return
+  }
+  try {
+    await library.reorderProject(moved, target.id, target.side, props.albumId ?? null)
+  } catch (err) {
+    notify.error(err)
+  }
+}
+
+function endDrag() {
+  hint.value = null
+  drag.finish()
 }
 
 function cardMenu(project: ProjectSummary): DropdownMenuItem[][] {
@@ -76,11 +164,11 @@ function cardMenu(project: ProjectSummary): DropdownMenuItem[][] {
     icon: 'i-lucide-folder-input',
     children: targets.length
       // 有 emoji 的相册走 album 插槽，用 emoji 代替文件夹图标
-      ? targets.map(album => ({ label: album.name, icon: 'i-lucide-folder', emoji: album.emoji, slot: album.emoji ? 'album' : undefined, onSelect: () => move(project, album.id) }))
+      ? targets.map(album => ({ label: album.name, icon: 'i-lucide-folder', emoji: album.emoji, slot: album.emoji ? 'album' : undefined, onSelect: () => drag.move(project, album.id) }))
       : [{ label: library.albums.length ? '没有其他相册' : '还没有相册，可在侧栏新建', disabled: true }]
   }]
   if (project.albumId) {
-    organize.push({ label: '移出相册', icon: 'i-lucide-folder-output', onSelect: () => move(project, null) })
+    organize.push({ label: '移出相册', icon: 'i-lucide-folder-output', onSelect: () => drag.move(project, null) })
   }
   const remove: DropdownMenuItem = {
     label: '删除工程',
@@ -122,13 +210,13 @@ async function confirmDelete() {
           <slot name="title" />
         </template>
         <template #right>
-          <slot name="actions" />
           <UButton
             icon="i-lucide-image-plus"
             label="导入照片"
             :loading="importing"
             @click="uploadRef?.inputRef?.click()"
           />
+          <slot name="actions" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -140,6 +228,7 @@ async function confirmDelete() {
           v-model="file"
           :accept="SUPPORTED_IMAGE_TYPES.join(',')"
           :disabled="importing"
+          :dropzone="!drag.dragging.value"
           icon="i-lucide-image-plus"
           label="拖入照片，或点击选择"
           description="支持 JPEG、PNG、WebP。照片只存在这台设备上，用到 AI 时才会上传。"
@@ -159,12 +248,37 @@ async function confirmDelete() {
           aria-labelledby="recent-heading"
           class="flex flex-col gap-4"
         >
-          <h2
-            id="recent-heading"
-            class="section-title"
-          >
-            最近的工程
-          </h2>
+          <div class="flex items-center justify-between gap-3">
+            <h2
+              id="recent-heading"
+              class="section-title"
+            >
+              {{ library.sortMode === 'recent' ? '最近的工程' : '工程' }}
+            </h2>
+            <div
+              v-if="projects.length > 1"
+              class="flex items-center gap-3"
+            >
+              <p
+                v-if="library.sortMode === 'manual'"
+                class="text-sm text-muted"
+              >
+                拖动卡片调整顺序
+              </p>
+              <UDropdownMenu
+                :items="sortMenu"
+                :content="{ align: 'end' }"
+              >
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide-arrow-up-down"
+                  trailing-icon="i-lucide-chevron-down"
+                  :label="`排序：${sortLabel}`"
+                />
+              </UDropdownMenu>
+            </div>
+          </div>
           <div
             v-if="!library.loaded"
             class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
@@ -187,28 +301,48 @@ async function confirmDelete() {
             name="list"
             class="relative grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
             @before-leave="pinLeaving"
+            @dragover="onGridDragOver"
+            @dragleave="onGridDragLeave"
+            @drop="onGridDrop"
           >
             <!-- li 是过渡的直接子元素，右键菜单只能放在里面：卡片外观挂在触发元素上，被右键的卡片才能描上蓝边 -->
             <li
               v-for="project in projects"
               :key="project.id"
-              class="min-w-0"
+              :data-project="project.id"
+              class="relative min-w-0"
             >
+              <!-- 拖动排序的插入位置：落在卡片之间的空隙里，系统蓝竖线 -->
+              <span
+                v-if="hint?.id === project.id"
+                aria-hidden="true"
+                class="pointer-events-none absolute inset-y-0 z-10 w-0.5 rounded-full bg-primary"
+                :class="hint.side === 'before' ? '-left-2.25' : '-right-2.25'"
+              />
               <UContextMenu :items="cardMenu(project)">
                 <!-- 菜单项是运行时拼出来的，slot 名不是字面量，Nuxt UI 推断不出插槽参数的类型 -->
                 <template #album-leading="{ item }">
                   <LibraryAlbumEmoji :emoji="(item as DropdownMenuItem).emoji" />
                 </template>
-                <div class="h-full overflow-hidden rounded-xl border border-default bg-default outline-primary transition-colors duration-200 ease-out hover:border-accented hover:bg-(--mac-mid-hover) data-[state=open]:outline-2">
+                <!-- 链接和图片自己也能被浏览器拖走，关掉它们的拖动，整张卡片才是拖动的对象 -->
+                <div
+                  draggable="true"
+                  class="h-full overflow-hidden rounded-xl border border-default bg-default outline-primary transition-[background-color,border-color,opacity] duration-200 ease-out hover:border-accented hover:bg-(--mac-mid-hover) data-[state=open]:outline-2"
+                  :class="drag.lifted.value && drag.dragging.value === project.id ? 'opacity-50' : ''"
+                  @dragstart="drag.begin($event, project)"
+                  @dragend="endDrag"
+                >
                   <NuxtLink
                     :to="`/editor/${project.id}`"
                     class="block outline-primary/60 focus-visible:outline-2 focus-visible:-outline-offset-2"
                     tabindex="-1"
                     aria-hidden="true"
+                    draggable="false"
                   >
                     <img
                       :src="library.thumbnails[project.id]"
                       alt=""
+                      draggable="false"
                       class="aspect-4/3 w-full border-b border-default bg-deep object-cover transition-opacity duration-300 ease-out"
                       :class="decoded.has(project.id) ? 'opacity-100' : 'opacity-0'"
                       @load="decoded.add(project.id)"
@@ -217,6 +351,7 @@ async function confirmDelete() {
                   <div class="flex items-center justify-between gap-2 py-2 ps-3 pe-1.5">
                     <NuxtLink
                       :to="`/editor/${project.id}`"
+                      draggable="false"
                       class="min-w-0 rounded-md outline-primary/60 focus-visible:outline-2"
                     >
                       <p class="truncate text-sm font-medium text-highlighted">{{ project.name }}</p>

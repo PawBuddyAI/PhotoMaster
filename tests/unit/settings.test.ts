@@ -105,13 +105,13 @@ describe('PawBuddy 账户', () => {
   })
 
   it('连接后读图走账户网关、修图沿用读图连接，模型与思考等级换成账户预设，账户随设置保存', async () => {
-    const data = stubStorage(configured({ baseURL: 'https://own.example.com/v1', apiKey: 'sk-own', useProxy: true, model: 'gpt-6-luna', reasoningEffort: 'low' }))
+    const data = stubStorage(configured({ baseURL: 'https://own.example.com/v1', apiKey: 'sk-own', model: 'gpt-6-luna', reasoningEffort: 'low' }))
     const settings = launch()
     settings.image.sameAsVision = false
     settings.image.model = 'own-image'
     settings.connectPawBuddy(conn)
 
-    expect(settings.visionConnection).toEqual({ baseURL: conn.gateway, apiKey: 'sk-pb', useProxy: false })
+    expect(settings.visionConnection).toEqual({ baseURL: conn.gateway, apiKey: 'sk-pb' })
     expect(settings.imageConnection).toEqual(settings.visionConnection)
     expect(settings.vision).toMatchObject({ model: 'deepseek-v4.1-flash', reasoningEffort: 'max' })
     expect(settings.image.model).toBe('image-2.5-sunburst')

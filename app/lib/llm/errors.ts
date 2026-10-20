@@ -1,4 +1,5 @@
 import { APIConnectionError, APIConnectionTimeoutError, APIError, APIUserAbortError } from 'openai'
+import { isDesktop } from '~/lib/desktop'
 
 export interface FriendlyError {
   title: string
@@ -41,9 +42,12 @@ export function describeError(err: unknown): FriendlyError {
     return { title: '请求超时', description: '服务长时间没有响应，可以稍后重试，或降低编辑分辨率和质量档位' }
   }
   if (err instanceof APIConnectionError) {
+    // 桌面版经 Rust 端请求，不会遇到跨域拦截
     return {
       title: '无法连接到服务',
-      description: '请检查 Base URL 和网络。如果该服务不支持浏览器跨域请求（CORS），可以在设置中开启「本地代理」后重试'
+      description: isDesktop()
+        ? '请检查 Base URL 和网络'
+        : '请检查 Base URL 和网络。有些服务不允许网页直接访问（不支持跨域 CORS），这种服务请改用桌面版'
     }
   }
   if (err instanceof APIError) {

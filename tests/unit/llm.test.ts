@@ -1,5 +1,7 @@
+import { APIConnectionError } from 'openai'
+import { LengthFinishReasonError } from 'openai/error'
 import { describe, expect, it } from 'vitest'
-import { analyzeImage, parseAnalysisJson } from '~/lib/llm/analyze'
+import { type AnalysisProgress, analyzeImage, extractAnalysisDraft, parseAnalysisJson } from '~/lib/llm/analyze'
 import { createOpenAIClient } from '~/lib/llm/client'
 import { AnalysisFormatError, describeError } from '~/lib/llm/errors'
 import { requestImageEdit } from '~/lib/llm/imageEdit'
@@ -7,6 +9,8 @@ import { filterModels, listModels, partitionModels } from '~/lib/llm/models'
 import { probeStructuredOutput } from '~/lib/llm/probe'
 import { buildAnalysisUserText } from '~/lib/llm/prompts'
 import { detectCoordDivisor, normalizeAnalysis } from '~/lib/llm/schema'
+import { splitThinkTag } from '~/lib/llm/stream'
+import { chatChunk, chatStreamBody, type ChatStreamOptions } from '../fixtures/chat-stream'
 
 interface Call {
   url: string
@@ -42,6 +46,9 @@ const completion = (content: string) => json({
   usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
 })
 
+const streamed = (content: string, opts?: ChatStreamOptions) =>
+  new Response(chatStreamBody(content, opts), { headers: { 'content-type': 'text/event-stream' } })
+
 const zeroParams = {
   exposure: 0, contrast: 0, highlights: 0, shadows: 0, whites: 0, blacks: 0,
   temperature: 0, tint: 0, vibrance: 0, saturation: 0, clarity: 0, sharpen: 0
@@ -67,40 +74,28 @@ const BASE_OPTIONS = {
   detail: 'high' as const
 }
 
-function client(fetchImpl: typeof fetch, useProxy = false) {
-  return createOpenAIClient({ baseURL: 'https://api.mock.test/v1/', apiKey: 'test-key', useProxy }, { fetch: fetchImpl, origin: 'http://localhost:3000' })
+function client(fetchImpl: typeof fetch) {
+  return createOpenAIClient({ baseURL: 'https://api.mock.test/v1/', apiKey: 'test-key' }, { fetch: fetchImpl })
 }
 
 const bodyOf = (call: Call) => JSON.parse(String(call.init.body)) as Record<string, unknown>
 
 describe('createOpenAIClient', () => {
   it('未填写 API Key 时报错', () => {
-    expect(() => createOpenAIClient({ baseURL: '', apiKey: ' ', useProxy: false })).toThrow(/API Key/)
+    expect(() => createOpenAIClient({ baseURL: '', apiKey: ' ' })).toThrow(/API Key/)
   })
 
-  it('代理模式把请求发往本站代理，并在请求头中携带目标地址', async () => {
-    const { calls, fetchImpl } = mockFetch(() => completion(JSON.stringify(SAMPLE)))
-    await analyzeImage(client(fetchImpl, true), { ...BASE_OPTIONS, mode: 'json_schema' })
-    expect(calls[0]!.url).toBe('http://localhost:3000/api/proxy/chat/completions')
-    const headers = new Headers(calls[0]!.init.headers)
-    expect(headers.get('x-target-base-url')).toBe('https://api.mock.test/v1')
-  })
-
-  it('桌面版忽略代理设置，直接请求目标服务', async () => {
-    const { calls, fetchImpl } = mockFetch(() => completion(JSON.stringify(SAMPLE)))
-    const desktopClient = createOpenAIClient(
-      { baseURL: 'https://api.mock.test/v1/', apiKey: 'test-key', useProxy: true },
-      { fetch: fetchImpl, origin: 'http://tauri.localhost', desktop: true }
-    )
-    await analyzeImage(desktopClient, { ...BASE_OPTIONS, mode: 'json_schema' })
+  it('直接请求配置的服务：Base URL 末尾的斜杠被去掉，Key 放在 Authorization 头', async () => {
+    const { calls, fetchImpl } = mockFetch(() => streamed(JSON.stringify(SAMPLE)))
+    await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema' })
     expect(calls[0]!.url).toBe('https://api.mock.test/v1/chat/completions')
-    expect(new Headers(calls[0]!.init.headers).has('x-target-base-url')).toBe(false)
+    expect(new Headers(calls[0]!.init.headers).get('authorization')).toBe('Bearer test-key')
   })
 })
 
 describe('analyzeImage', () => {
   it('json_schema 模式：携带图片与严格 schema，返回规范化结果', async () => {
-    const { calls, fetchImpl } = mockFetch(() => completion(JSON.stringify(SAMPLE)))
+    const { calls, fetchImpl } = mockFetch(() => streamed(JSON.stringify(SAMPLE)))
     const outcome = await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema' })
     expect(calls[0]!.url).toBe('https://api.mock.test/v1/chat/completions')
     const body = bodyOf(calls[0]!)
@@ -115,13 +110,13 @@ describe('analyzeImage', () => {
     expect(outcome.modeUsed).toBe('json_schema')
     expect(outcome.result.adjustments).toHaveLength(2)
     expect(outcome.result.adjustments[1]!.mask.shape).toBe('linear')
-    expect(outcome.usage?.total_tokens).toBe(30)
+    expect(outcome.usage?.total_tokens).toBe(150)
   })
 
   it('服务不支持 json_schema 时降级为 json_object', async () => {
     const { calls, fetchImpl } = mockFetch((_, i) => i === 0
       ? json({ error: { message: 'response_format json_schema is not supported', type: 'invalid_request_error', param: 'response_format', code: null } }, 400)
-      : completion(`\`\`\`json\n${JSON.stringify(SAMPLE)}\n\`\`\``))
+      : streamed(`\`\`\`json\n${JSON.stringify(SAMPLE)}\n\`\`\``))
     const outcome = await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema' })
     expect(outcome.modeUsed).toBe('json_object')
     expect((bodyOf(calls[1]!).response_format as { type: string }).type).toBe('json_object')
@@ -130,28 +125,28 @@ describe('analyzeImage', () => {
   it('思考等级随每次请求发送，降级后仍保留', async () => {
     const { calls, fetchImpl } = mockFetch((_, i) => i === 0
       ? json({ error: { message: 'response_format json_schema is not supported', type: 'invalid_request_error', code: null } }, 400)
-      : completion(JSON.stringify(SAMPLE)))
+      : streamed(JSON.stringify(SAMPLE)))
     await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema', reasoningEffort: 'high' })
     expect(calls).toHaveLength(2)
     expect(calls.map(c => bodyOf(c).reasoning_effort)).toEqual(['high', 'high'])
   })
 
   it('思考等级为模型默认时不发送该参数', async () => {
-    const { calls, fetchImpl } = mockFetch(() => completion(JSON.stringify(SAMPLE)))
+    const { calls, fetchImpl } = mockFetch(() => streamed(JSON.stringify(SAMPLE)))
     await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'none', reasoningEffort: 'default' })
     expect(bodyOf(calls[0]!)).not.toHaveProperty('reasoning_effort')
   })
 
   it('json_object 也不支持时降级为纯提示词约束', async () => {
     const unsupported = json({ error: { message: 'Unsupported parameter: response_format', type: 'invalid_request_error', code: null } }, 400)
-    const { calls, fetchImpl } = mockFetch((_, i) => i === 0 ? unsupported : completion(JSON.stringify(SAMPLE)))
+    const { calls, fetchImpl } = mockFetch((_, i) => i === 0 ? unsupported : streamed(JSON.stringify(SAMPLE)))
     const outcome = await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_object' })
     expect(outcome.modeUsed).toBe('none')
     expect(bodyOf(calls[1]!).response_format).toBeUndefined()
   })
 
   it('输出不合法时附带错误信息重试一次', async () => {
-    const { calls, fetchImpl } = mockFetch((_, i) => completion(i === 0 ? '{"overall": 1}' : JSON.stringify(SAMPLE)))
+    const { calls, fetchImpl } = mockFetch((_, i) => streamed(i === 0 ? '{"overall": 1}' : JSON.stringify(SAMPLE)))
     const outcome = await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_object' })
     expect(outcome.result.overall).toBe(SAMPLE.overall)
     const retryMessages = bodyOf(calls[1]!).messages as Array<{ role: string, content: string }>
@@ -160,7 +155,7 @@ describe('analyzeImage', () => {
   })
 
   it('重试后仍不合法时抛出 AnalysisFormatError', async () => {
-    const { fetchImpl } = mockFetch(() => completion('not json'))
+    const { fetchImpl } = mockFetch(() => streamed('not json'))
     await expect(analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'none' })).rejects.toBeInstanceOf(AnalysisFormatError)
   })
 
@@ -174,7 +169,7 @@ describe('analyzeImage', () => {
     const crop = { rect: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 }, angle: 3 }
     const { calls, fetchImpl } = mockFetch((_, i) => i === 0
       ? json({ error: { message: 'response_format json_schema is not supported' } }, 400)
-      : completion(JSON.stringify(SAMPLE)))
+      : streamed(JSON.stringify(SAMPLE)))
     await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, crop, mode: 'json_schema' })
     expect(calls).toHaveLength(2)
     for (const call of calls) {
@@ -184,6 +179,147 @@ describe('analyzeImage', () => {
       expect(messages).toContain('水平校正 3°')
       expect(messages).not.toContain('4000')
     }
+  })
+
+  it('流式输出：请求带上 stream 与用量选项，思考过程和方案草稿逐步回调，界面拿不到 JSON 本身', async () => {
+    const reasoning = '先看曝光：天空过曝，主体偏暗。再看构图……'
+    const { calls, fetchImpl } = mockFetch(() => streamed(JSON.stringify(SAMPLE), { reasoning }))
+    const progress: AnalysisProgress[] = []
+    const outcome = await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema', onProgress: p => progress.push(p) })
+    const body = bodyOf(calls[0]!)
+    expect(body.stream).toBe(true)
+    expect(body.stream_options).toEqual({ include_usage: true })
+    expect(outcome.usage?.total_tokens).toBe(150)
+    expect(outcome.result.overall).toBe(SAMPLE.overall)
+
+    expect(progress[0]).toEqual({ phase: 'waiting', reasoning: '', draft: { overall: '', items: [] }, retrying: false })
+    const phases = [...new Set(progress.map(p => p.phase))]
+    expect(phases).toEqual(['waiting', 'thinking', 'writing'])
+    // 思考过程一段段累积，总评像打字一样逐步写出
+    const thinking = progress.filter(p => p.phase === 'thinking')
+    expect(thinking.length).toBeGreaterThan(1)
+    expect(thinking.at(-1)!.reasoning).toBe(reasoning)
+    expect(progress.some(p => p.draft.overall && p.draft.overall !== SAMPLE.overall && SAMPLE.overall.startsWith(p.draft.overall))).toBe(true)
+    const last = progress.at(-1)!
+    expect(last.reasoning).toBe(reasoning)
+    expect(last.draft).toEqual({
+      overall: SAMPLE.overall,
+      items: [
+        { kind: 'adjustment', text: '提亮主体' },
+        { kind: 'adjustment', text: '压暗天空' },
+        { kind: 'generative', text: '移除路人' }
+      ]
+    })
+    expect(JSON.stringify(progress)).not.toContain('"exposure"')
+  })
+
+  it('reasoning 字段与正文开头的 <think> 标签都归入思考过程，后者不影响解析', async () => {
+    const viaField = mockFetch(() => streamed(JSON.stringify(SAMPLE), { reasoning: '字段里的思考', reasoningField: 'reasoning' }))
+    const fieldProgress: AnalysisProgress[] = []
+    await analyzeImage(client(viaField.fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema', onProgress: p => fieldProgress.push(p) })
+    expect(fieldProgress.at(-1)!.reasoning).toBe('字段里的思考')
+
+    const viaTag = mockFetch(() => streamed(`<think>\n标签里的思考 {不是 JSON}\n</think>\n${JSON.stringify(SAMPLE)}`))
+    const tagProgress: AnalysisProgress[] = []
+    const outcome = await analyzeImage(client(viaTag.fetchImpl), { ...BASE_OPTIONS, mode: 'json_object', onProgress: p => tagProgress.push(p) })
+    expect(viaTag.calls).toHaveLength(1)
+    expect(outcome.result.adjustments).toHaveLength(2)
+    expect(tagProgress.at(-1)!.reasoning.trim()).toBe('标签里的思考 {不是 JSON}')
+    // 标签里的文字只算思考过程：标签闭合之前不会进入「写方案」，也不会被当成方案草稿
+    expect(tagProgress.some(p => p.phase === 'thinking')).toBe(true)
+    expect(tagProgress.filter(p => p.phase === 'writing').every(p => p.reasoning.includes('标签里的思考 {不是 JSON}'))).toBe(true)
+    expect(tagProgress.every(p => !p.draft.overall || SAMPLE.overall.startsWith(p.draft.overall))).toBe(true)
+  })
+
+  it('输出格式不对重新生成时，进度从头开始并标记为重写', async () => {
+    const { fetchImpl } = mockFetch((_, i) => streamed(i === 0 ? '{"overall": "格式不对的输出", "adjustments": 1}' : JSON.stringify(SAMPLE)))
+    const progress: AnalysisProgress[] = []
+    await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_object', onProgress: p => progress.push(p) })
+    const restarts = progress.filter(p => p.phase === 'waiting' && !p.reasoning)
+    expect(restarts.map(p => p.retrying)).toEqual([false, true])
+    expect(progress.at(-1)!.draft.overall).toBe(SAMPLE.overall)
+  })
+
+  it('服务忽略 schema 时降级重写；参数被拒时没有输出过，不算重写', async () => {
+    const ignored = mockFetch((_, i) => streamed(i === 0 ? '这不是 JSON' : JSON.stringify(SAMPLE)))
+    const ignoredProgress: AnalysisProgress[] = []
+    const outcome = await analyzeImage(client(ignored.fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema', onProgress: p => ignoredProgress.push(p) })
+    expect(outcome.modeUsed).toBe('json_object')
+    expect(ignoredProgress.filter(p => p.phase === 'waiting' && !p.reasoning).map(p => p.retrying)).toEqual([false, true])
+
+    const rejected = mockFetch((_, i) => i === 0
+      ? json({ error: { message: 'response_format json_schema is not supported' } }, 400)
+      : streamed(JSON.stringify(SAMPLE)))
+    const rejectedProgress: AnalysisProgress[] = []
+    await analyzeImage(client(rejected.fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema', onProgress: p => rejectedProgress.push(p) })
+    expect(rejectedProgress.filter(p => p.phase === 'waiting' && !p.reasoning).map(p => p.retrying)).toEqual([false, false])
+  })
+
+  it('json_schema 模式下输出被截断时直接报错，不降级重试', async () => {
+    const { calls, fetchImpl } = mockFetch(() => streamed(JSON.stringify(SAMPLE).slice(0, 40), { finishReason: 'length' }))
+    await expect(analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'json_schema' })).rejects.toBeInstanceOf(LengthFinishReasonError)
+    expect(calls).toHaveLength(1)
+  })
+
+  it('输出途中取消：抛出取消错误，不把半截输出当成格式错误去降级重试', async () => {
+    const controller = new AbortController()
+    const encoder = new TextEncoder()
+    // 只写出一个思考分块，之后连接保持不动，直到取消
+    const { calls, fetchImpl } = mockFetch(() => new Response(new ReadableStream({
+      start(c) {
+        c.enqueue(encoder.encode(chatChunk({ reasoning_content: '思考到一半' })))
+      }
+    }), { headers: { 'content-type': 'text/event-stream' } }))
+    const err = await analyzeImage(client(fetchImpl), {
+      ...BASE_OPTIONS,
+      mode: 'json_schema',
+      signal: controller.signal,
+      onProgress: (p) => {
+        if (p.reasoning) {
+          controller.abort()
+        }
+      }
+    }).catch(e => e)
+    expect(describeError(err).aborted).toBe(true)
+    expect(calls).toHaveLength(1)
+  })
+})
+
+describe('extractAnalysisDraft', () => {
+  it('从半截 JSON 里取出总评和写到一半的标题', () => {
+    expect(extractAnalysisDraft('')).toEqual({ overall: '', items: [] })
+    expect(extractAnalysisDraft('```json\n{"overall": "天空偏')).toEqual({ overall: '天空偏', items: [] })
+    expect(extractAnalysisDraft('{"overall": "x", "adjustments": [{"title": "压暗天')).toEqual({
+      overall: 'x',
+      items: [{ kind: 'adjustment', text: '压暗天' }]
+    })
+  })
+
+  it('还没写出内容的建议不列出；构图建议取理由；代码块结尾的多余文字不影响', () => {
+    const content = '{"overall":"o","adjustments":[{"title":"","reason":"r"}],"generative_edits":[{"title":"移除路人"}],'
+      + '"crop":{"x0":1,"y0":2,"x1":3,"y1":4,"angle":0,"reason":"收紧构图"}}\n```'
+    expect(extractAnalysisDraft(content)!.items).toEqual([
+      { kind: 'generative', text: '移除路人' },
+      { kind: 'crop', text: '收紧构图' }
+    ])
+    expect(extractAnalysisDraft('{"overall":"o","crop":{"x0":1')!.items).toEqual([])
+  })
+
+  it('写到一半的转义与数字不影响已写出的文字；字段类型不对时忽略', () => {
+    expect(extractAnalysisDraft('{"overall": "天空\\u4e2d\\u')!.overall).toBe('天空中')
+    expect(extractAnalysisDraft('{"overall": "o", "adjustments": [{"title": "t", "params": {"exposure": -0.')!.items).toEqual([{ kind: 'adjustment', text: 't' }])
+    expect(extractAnalysisDraft('{"overall": 1, "adjustments": {}}')).toEqual({ overall: '', items: [] })
+  })
+})
+
+describe('splitThinkTag', () => {
+  it('拆出开头的 <think> 段；标签没写完时正文记为空', () => {
+    expect(splitThinkTag('{"a":1}')).toEqual({ reasoning: '', content: '{"a":1}' })
+    expect(splitThinkTag('  <thi')).toEqual({ reasoning: '', content: '' })
+    expect(splitThinkTag('<think>想一想')).toEqual({ reasoning: '想一想', content: '' })
+    expect(splitThinkTag('<think>想一想</think>\n{"a":1}')).toEqual({ reasoning: '想一想', content: '\n{"a":1}' })
+    // 不在开头的标签按正文处理
+    expect(splitThinkTag('答：<think>x</think>')).toEqual({ reasoning: '', content: '答：<think>x</think>' })
   })
 })
 
@@ -364,6 +500,17 @@ describe('describeError', () => {
     const err = await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, mode: 'none' }).catch(e => e)
     expect(describeError(err).title).toBe('API Key 无效')
     expect(describeError(new Error('boom')).description).toBe('boom')
+  })
+
+  it('连不上服务：网页版提示跨域时改用桌面版，桌面版不提跨域', () => {
+    const err = new APIConnectionError({ message: 'Connection error.' })
+    expect(describeError(err)).toMatchObject({ title: '无法连接到服务', description: expect.stringContaining('改用桌面版') })
+    ;(globalThis as { isTauri?: boolean }).isTauri = true
+    try {
+      expect(describeError(err).description).toBe('请检查 Base URL 和网络')
+    } finally {
+      delete (globalThis as { isTauri?: boolean }).isTauri
+    }
   })
 
   it('模型不支持所选思考等级时提示更换档位', async () => {

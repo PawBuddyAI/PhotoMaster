@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConnectionConfig } from '~/lib/llm/client'
 import { useModelListStore } from '~/stores/models'
 
-const CONN: ConnectionConfig = { baseURL: 'https://api.mock.test/v1', apiKey: 'test-key', useProxy: false }
+const CONN: ConnectionConfig = { baseURL: 'https://api.mock.test/v1', apiKey: 'test-key' }
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -43,7 +43,7 @@ describe('useModelListStore', () => {
     expect(await store.load(CONN, { force: true })).toEqual(['c'])
     expect(urls).toHaveLength(2)
     // 不同连接各自缓存
-    expect(store.entryFor({ ...CONN, useProxy: true }).status).toBe('idle')
+    expect(store.entryFor({ ...CONN, apiKey: 'other-key' }).status).toBe('idle')
   })
 
   it('同一连接的并发调用共用一次请求', async () => {

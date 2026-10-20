@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { type DropSide, isSortMode, planReorder, type SortMode, sortProjects } from '~/lib/library/order'
 import {
   createAlbum,
   deleteAlbum,
@@ -9,7 +10,8 @@ import {
   moveProjectToAlbum,
   type ProjectSummary,
   renameAlbum as renameAlbumRecord,
-  setAlbumEmoji as setAlbumEmojiRecord
+  setAlbumEmoji as setAlbumEmojiRecord,
+  setProjectOrders
 } from '~/lib/storage/db'
 import type { AlbumRecord } from '~/lib/types'
 
@@ -22,8 +24,21 @@ export interface AlbumEntry extends AlbumRecord {
 /** 删除的工程在列表里淡出期间仍显示缩略图，等过渡结束再释放地址 */
 const RELEASE_DELAY = 1000
 
+const SORT_STORAGE_KEY = 'apm-library-sort'
+
+function loadSortMode(): SortMode {
+  try {
+    const saved = globalThis.localStorage?.getItem(SORT_STORAGE_KEY)
+    return isSortMode(saved) ? saved : 'recent'
+  } catch {
+    return 'recent'
+  }
+}
+
+/** 移动之后工程不再占着原来的手动位置（见 moveProjectToAlbum），列表里同步去掉 order */
 function withAlbum(project: ProjectSummary, albumId: string | null): ProjectSummary {
   const next = { ...project }
+  delete next.order
   if (albumId) {
     next.albumId = albumId
   } else {
@@ -34,7 +49,8 @@ function withAlbum(project: ProjectSummary, albumId: string | null): ProjectSumm
 
 /**
  * 图库：全部工程与相册。侧栏、图库页、相册页和编辑器的返回入口共用这一份数据。
- * 整理操作（删除工程、移动、相册增删改）写库后就地更新列表，不整表重读，卡片可以原地让位。
+ * 整理操作（删除工程、移动、排序、相册增删改）写库后就地更新列表，不整表重读，卡片可以原地让位。
+ * projects 始终按最近修改倒序（封面与侧栏底图都取最近修改的那张），页面上看到的排序由 sortedProjectsIn 给出。
  * 缩略图建档后不再改变，地址按工程 id 缓存，刷新时只为新出现的工程创建。
  */
 export const useLibraryStore = defineStore('library', () => {
@@ -43,6 +59,16 @@ export const useLibraryStore = defineStore('library', () => {
   const thumbnails = ref<Record<string, string>>({})
   /** 首次读取完成前，页面显示骨架而不是「没有工程」 */
   const loaded = ref(false)
+  /** 图库页与相册页共用的排序方式，记在本机 */
+  const sortMode = ref<SortMode>(loadSortMode())
+
+  watch(sortMode, (mode) => {
+    try {
+      globalThis.localStorage?.setItem(SORT_STORAGE_KEY, mode)
+    } catch {
+      // 隐私模式等场景下 localStorage 不可写，排序方式仅在本次会话内生效
+    }
+  })
 
   async function refresh(): Promise<void> {
     const [projectList, albumList] = await Promise.all([listProjects(), listAlbums()])
@@ -83,6 +109,11 @@ export const useLibraryStore = defineStore('library', () => {
     return albumId ? projects.value.filter(project => project.albumId === albumId) : projects.value
   }
 
+  /** 页面上看到的顺序：projectsIn 按当前排序方式重排 */
+  function sortedProjectsIn(albumId: string | null): ProjectSummary[] {
+    return sortProjects(projectsIn(albumId), sortMode.value)
+  }
+
   function findAlbum(id: string): AlbumRecord | undefined {
     return albums.value.find(album => album.id === id)
   }
@@ -104,6 +135,21 @@ export const useLibraryStore = defineStore('library', () => {
   async function moveProject(projectId: string, albumId: string | null): Promise<void> {
     await moveProjectToAlbum(projectId, albumId)
     projects.value = projects.value.map(project => project.id === projectId ? withAlbum(project, albumId) : project)
+  }
+
+  /**
+   * 把工程放到同一页面里另一个工程的前面或后面。无论原来是哪种排序方式，看到的顺序就成了手动顺序，
+   * 排序方式随之切到「手动排序」；放回原位时什么都不做。albumId 为 null 时是整个图库
+   */
+  async function reorderProject(projectId: string, targetId: string, side: DropSide, albumId: string | null): Promise<void> {
+    const shown = sortedProjectsIn(albumId).map(project => project.id)
+    const plan = planReorder(projects.value, shown, projectId, targetId, side)
+    if (!plan.size) {
+      return
+    }
+    await setProjectOrders(plan)
+    projects.value = projects.value.map(project => plan.has(project.id) ? { ...project, order: plan.get(project.id)! } : project)
+    sortMode.value = 'manual'
   }
 
   /** 名称去掉首尾空白；为空时不创建，返回 null。emoji 为 null 时侧栏显示封面 */
@@ -158,12 +204,15 @@ export const useLibraryStore = defineStore('library', () => {
     albums,
     thumbnails,
     loaded,
+    sortMode,
     albumEntries,
     refresh,
     projectsIn,
+    sortedProjectsIn,
     findAlbum,
     removeProject,
     moveProject,
+    reorderProject,
     addAlbum,
     renameAlbum,
     setAlbumEmoji,

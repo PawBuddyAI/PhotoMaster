@@ -3,6 +3,7 @@ import Dexie from 'dexie'
 import { IDBFactory } from 'fake-indexeddb'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 
 /** 解码与缩略图依赖浏览器画布，替换为固定尺寸的桩；每个工程的缩略图内容不同，便于核对封面 */
 vi.mock('~/lib/image/canvas', () => ({
@@ -191,6 +192,105 @@ describe('useLibraryStore', () => {
     expect(library.projects.map(p => p.id)).toEqual([b, a])
     expect(library.projects.every(p => !('albumId' in p))).toBe(true)
     expect(await storage.getProject(a)).not.toHaveProperty('albumId')
+  })
+
+  it('排序方式默认按最近修改，选择后记在本机，下次启动沿用；无效的存档回到默认', async () => {
+    const saved = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => saved.get(key) ?? null,
+      setItem: (key: string, value: string) => void saved.set(key, value)
+    })
+    const [a, b, c] = await seed(['a'], ['b'], ['c'])
+    const library = useLibraryStore()
+    await library.refresh()
+    expect(library.sortMode).toBe('recent')
+    expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([c, b, a])
+
+    library.sortMode = 'name'
+    await nextTick()
+    expect(saved.get('apm-library-sort')).toBe('name')
+    expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([a, b, c])
+    // 侧栏封面与底图取最近修改的，不随排序变化
+    expect(library.projects.map(p => p.id)).toEqual([c, b, a])
+
+    setActivePinia(createPinia())
+    expect(useLibraryStore().sortMode).toBe('name')
+    saved.set('apm-library-sort', '乱写的')
+    setActivePinia(createPinia())
+    expect(useLibraryStore().sortMode).toBe('recent')
+    vi.unstubAllGlobals()
+  })
+
+  it('拖动排序写库后就地更新列表，刷新后顺序不变，排序方式切到手动排序', async () => {
+    const [a, b, c] = await seed(['a'], ['b'], ['c'])
+    const library = useLibraryStore()
+    await library.refresh()
+    expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([c, b, a])
+
+    // 把 a 放到最前：第一次排序给所有工程补上 order
+    await library.reorderProject(a, c, 'before', null)
+
+    expect(library.sortMode).toBe('manual')
+    expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([a, c, b])
+    // 封面、底图用的最近修改顺序不变
+    expect(library.projects.map(p => p.id)).toEqual([c, b, a])
+    await library.refresh()
+    expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([a, c, b])
+    // 排序属于整理，不刷新修改时间
+    expect((await storage.getProject(a))?.updatedAt).toBe(2000)
+  })
+
+  it('放回原位时不写库，排序方式也不变', async () => {
+    const [a, b] = await seed(['a'], ['b'])
+    const library = useLibraryStore()
+    await library.refresh()
+    const put = vi.spyOn(IDBObjectStore.prototype, 'put')
+
+    await library.reorderProject(b, a, 'before', null)
+    await library.reorderProject(b, b, 'after', null)
+
+    expect(put).not.toHaveBeenCalled()
+    expect(library.sortMode).toBe('recent')
+  })
+
+  it('相册里排序只动相册里的位置；移出相册后工程回到手动顺序的最前', async () => {
+    const travel = await storage.createAlbum('旅行')
+    const [a, b, c, d] = await seed(['a', travel.id], ['b'], ['c', travel.id], ['d', travel.id])
+    const library = useLibraryStore()
+    await library.refresh()
+    // 先在图库里排成 a b c d
+    for (const [id, before] of [[c, d], [b, c], [a, b]] as const) {
+      await library.reorderProject(id, before, 'before', null)
+    }
+    expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([a, b, c, d])
+
+    await library.reorderProject(d, a, 'before', travel.id)
+
+    expect(library.sortedProjectsIn(travel.id).map(p => p.id)).toEqual([d, a, c])
+    expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([d, b, a, c])
+
+    // 移出相册：不再占着手动位置，排在最前；列表与数据库一致
+    await library.moveProject(a, null)
+    expect(library.sortedProjectsIn(null)[0]?.id).toBe(a)
+    expect(library.projects.find(p => p.id === a)).not.toHaveProperty('order')
+    await library.refresh()
+    expect(library.sortedProjectsIn(null)[0]?.id).toBe(a)
+  })
+
+  it('删除相册后其中的工程同样排到手动顺序的最前', async () => {
+    const travel = await storage.createAlbum('旅行')
+    const [a, b] = await seed(['a', travel.id], ['b'])
+    const library = useLibraryStore()
+    await library.refresh()
+    await library.reorderProject(a, b, 'before', null)
+    expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([a, b])
+
+    await library.removeAlbum(travel.id)
+
+    expect(library.projects.every(p => !('order' in p) || p.id === b)).toBe(true)
+    expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([a, b])
+    await library.refresh()
+    expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([a, b])
   })
 
   it('删除工程立即从列表移除，缩略图地址在离场过渡结束后释放', async () => {

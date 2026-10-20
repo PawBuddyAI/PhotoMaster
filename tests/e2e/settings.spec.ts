@@ -8,7 +8,7 @@ const API = 'https://api.mock.test/v1'
 const MODELS = ['whisper-1', 'gpt-image-2', 'gpt-6.1-sol', 'dall-e-3', 'gpt-6-luna']
 
 const SETTINGS = {
-  vision: { baseURL: API, apiKey: 'test-key', useProxy: false, model: 'gpt-6.1-sol' },
+  vision: { baseURL: API, apiKey: 'test-key', model: 'gpt-6.1-sol' },
   image: { sameAsVision: true, model: 'gpt-image-2' }
 }
 

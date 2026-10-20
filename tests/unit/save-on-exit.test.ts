@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cloneDoc, emptyDoc } from '~/lib/project/doc'
 import { flushOnPageHide, type PendingSave, saveBeforeClose, type VisibilityTarget } from '~/lib/project/save-on-exit'
-import type { Project } from '~/lib/storage/db'
+import { setProjectFilePath, type Project } from '~/lib/storage/db'
 import type { ProjectDoc } from '~/lib/types'
 import { useEditorStore } from '~/stores/editor'
 
@@ -30,6 +30,7 @@ vi.mock('~/lib/storage/db', () => ({
   })),
   collectGarbage: vi.fn(async () => {}),
   renameProject: vi.fn(async () => {}),
+  setProjectFilePath: vi.fn(async () => {}),
   saveProjectDoc: vi.fn((id: string, doc: ProjectDoc) => {
     // 与真实实现一样在调用时同步拷贝文档，之后的修改不影响这次写入
     db.saves.push({ id, doc: cloneDoc(doc) })
@@ -274,5 +275,20 @@ describe('saveBeforeClose', () => {
     await vi.advanceTimersByTimeAsync(1)
     expect(await result).toBe(true)
     expect(String(confirm.mock.calls[0]![0])).toContain('保存在 3 秒内没有完成')
+  })
+})
+
+describe('记下照片对应的磁盘文件', () => {
+  it('写入存储层并更新当前工程；没有打开工程时什么也不做', async () => {
+    const editor = useEditorStore()
+    const path = 'D:\\照片\\海边.jpg'
+    await editor.setFilePath(path)
+    expect(setProjectFilePath).not.toHaveBeenCalled()
+
+    await editor.open('p1')
+    expect(editor.project?.filePath).toBeUndefined()
+    await editor.setFilePath(path)
+    expect(setProjectFilePath).toHaveBeenCalledWith('p1', path)
+    expect(editor.project?.filePath).toBe(path)
   })
 })

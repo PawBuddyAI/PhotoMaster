@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import type { CompletionUsage } from 'openai/resources/completions'
 import type { AnyCanvas } from '~/lib/image/canvas'
 import { encodeVisionImage } from '~/lib/image/vision'
-import { analyzeImage, type AnalyzeOutcome, VISION_MAX_SIDE } from '~/lib/llm/analyze'
+import { analyzeImage, type AnalysisProgress, type AnalyzeOutcome, VISION_MAX_SIDE, waitingProgress } from '~/lib/llm/analyze'
 import { createOpenAIClient } from '~/lib/llm/client'
 import { useEditorStore } from './editor'
 import { useSettingsStore } from './settings'
@@ -11,6 +11,8 @@ import { useSettingsStore } from './settings'
 /** 读图分析任务状态；失败时抛出异常，由界面负责提示 */
 export const useAnalysisStore = defineStore('analysis', () => {
   const running = ref(false)
+  /** 分析进行中的实时进度（思考过程与方案草稿），结束后清空；每个分块整体替换，用 shallowRef 免去深层代理 */
+  const progress = shallowRef<AnalysisProgress | null>(null)
   const lastUsage = ref<CompletionUsage | null>(null)
   /** 服务不支持当前结构化输出方式、自动降级时记录新方式，供界面提示 */
   const downgradedTo = ref<string | null>(null)
@@ -33,6 +35,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
     controller = new AbortController()
     running.value = true
+    progress.value = waitingProgress()
     downgradedTo.value = null
     try {
       const client = createOpenAIClient(settings.visionConnection)
@@ -48,7 +51,10 @@ export const useAnalysisStore = defineStore('analysis', () => {
         detail: settings.vision.detail,
         reasoningEffort: settings.vision.reasoningEffort,
         hint,
-        signal: controller.signal
+        signal: controller.signal,
+        onProgress: (next) => {
+          progress.value = next
+        }
       })
       if (outcome.modeUsed !== settings.vision.structuredOutput) {
         settings.vision.structuredOutput = outcome.modeUsed
@@ -59,6 +65,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
       return outcome
     } finally {
       running.value = false
+      progress.value = null
       controller = null
     }
   }
@@ -67,5 +74,5 @@ export const useAnalysisStore = defineStore('analysis', () => {
     controller?.abort()
   }
 
-  return { running, lastUsage, downgradedTo, analyze, cancel }
+  return { running, progress, lastUsage, downgradedTo, analyze, cancel }
 })

@@ -15,9 +15,9 @@ export interface ModelListEntry {
 
 const IDLE: ModelListEntry = Object.freeze({ status: 'idle', models: [], error: null })
 
-/** 同一服务地址、Key 与转发方式共用一份列表；修图沿用读图连接时两处共享 */
+/** 同一服务地址与 Key 共用一份列表；修图沿用读图连接时两处共享 */
 function connectionKey(conn: ConnectionConfig): string {
-  return [normalizeBaseURL(conn.baseURL), conn.apiKey.trim(), conn.useProxy].join('\n')
+  return [normalizeBaseURL(conn.baseURL), conn.apiKey.trim()].join('\n')
 }
 
 async function request(conn: ConnectionConfig): Promise<string[] | null> {

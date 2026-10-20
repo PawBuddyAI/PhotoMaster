@@ -1,5 +1,6 @@
 import { createServer, type IncomingHttpHeaders, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { chatStreamEvents } from '../fixtures/chat-stream'
 
 export interface RecordedRequest {
   method: string
@@ -43,9 +44,13 @@ export async function startMockServer(options: MockServerOptions) {
     } else if (req.method === 'GET' && path === '/v1/models') {
       sendJson(res, { object: 'list', data: ['mock-vision', 'mock-image'].map(id => ({ id, object: 'model', created: 0, owned_by: 'mock' })) })
     } else if (req.method === 'POST' && path === '/v1/chat/completions') {
-      const payload = JSON.parse(body.toString('utf8')) as { response_format?: { json_schema?: { name?: string } } }
-      const ping = payload.response_format?.json_schema?.name === 'ping'
-      sendJson(res, completion(ping ? { ok: true } : options.analysis))
+      const payload = JSON.parse(body.toString('utf8')) as { stream?: boolean, response_format?: { json_schema?: { name?: string } } }
+      if (payload.stream) {
+        await answerChatStream(res, JSON.stringify(options.analysis))
+      } else {
+        const ping = payload.response_format?.json_schema?.name === 'ping'
+        sendJson(res, completion(ping ? { ok: true } : options.analysis))
+      }
     } else if (req.method === 'POST' && path === '/v1/images/edits') {
       if (state.holdEdits) {
         res.on('close', () => {
@@ -87,6 +92,17 @@ function completion(content: unknown) {
     choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify(content), refusal: null } }],
     usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 }
   }
+}
+
+/** 读图以流式请求：先写思考过程，停顿后再写正文，确认经 Rust 端转发的响应是边收边读的 */
+async function answerChatStream(res: ServerResponse, content: string) {
+  const [role, ...rest] = chatStreamEvents(content, { reasoning: '先看曝光，再看构图。' })
+  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+  res.write(role)
+  const firstContent = rest.findIndex(item => item.includes('"content"'))
+  rest.slice(0, firstContent).forEach(item => res.write(item))
+  await new Promise(resolve => setTimeout(resolve, 300))
+  res.end(rest.slice(firstContent).join(''))
 }
 
 const USAGE = { input_tokens: 1000, output_tokens: 2000, total_tokens: 3000, input_tokens_details: { image_tokens: 900, text_tokens: 100 } }

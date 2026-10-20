@@ -16,7 +16,7 @@ import {
   type AdjustmentLayerInit,
   type GenerativeLayerInit
 } from '~/lib/project/doc'
-import { collectGarbage, getProject, renameProject, saveProjectDoc } from '~/lib/storage/db'
+import { collectGarbage, getProject, renameProject, saveProjectDoc, setProjectFilePath } from '~/lib/storage/db'
 import type {
   AnalysisResult,
   BrushStroke,
@@ -30,7 +30,7 @@ import type {
 
 export type EditorTool = 'move' | 'brush' | 'erase' | 'crop'
 
-export type ProjectMeta = Pick<ProjectRecord, 'id' | 'name' | 'width' | 'height' | 'originalBlobId' | 'originalType' | 'thumbnail'>
+export type ProjectMeta = Pick<ProjectRecord, 'id' | 'name' | 'width' | 'height' | 'originalBlobId' | 'originalType' | 'thumbnail' | 'filePath'>
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'error'
 
@@ -81,7 +81,8 @@ export const useEditorStore = defineStore('editor', () => {
       height: record.height,
       originalBlobId: record.originalBlobId,
       originalType: record.originalType,
-      thumbnail: record.thumbnail
+      thumbnail: record.thumbnail,
+      filePath: record.filePath
     }
     doc.value = normalizeDoc(record.doc)
     history.clear()
@@ -299,6 +300,16 @@ export const useEditorStore = defineStore('editor', () => {
     project.value = { ...meta, name: trimmed }
   }
 
+  /** 记下这张照片对应的磁盘文件，之后「保存」写回这里 */
+  async function setFilePath(filePath: string): Promise<void> {
+    const meta = project.value
+    if (!meta) {
+      return
+    }
+    await setProjectFilePath(meta.id, filePath)
+    project.value = { ...meta, filePath }
+  }
+
   function scheduleSave(): void {
     revision++
     saveState.value = 'dirty'
@@ -380,6 +391,7 @@ export const useEditorStore = defineStore('editor', () => {
     setAnalysis,
     adoptSuggestion,
     rename,
+    setFilePath,
     flush
   }
 })

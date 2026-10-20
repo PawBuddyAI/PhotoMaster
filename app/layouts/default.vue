@@ -5,6 +5,7 @@ import { useLibraryStore } from '~/stores/library'
  * 图库、相册与设置共用的窗口外壳：毛玻璃导航侧栏 + 内容区；侧栏背后的照片底图由 app.vue 常驻渲染。
  * 侧栏按 macOS「照片」的结构排列：图库在上，相册分组其次，设置与外观收在底部。
  * 工程与相册数据在这里读取一次，侧栏和各页面共用；从编辑器返回时外壳重新挂载，列表随之刷新。
+ * 「图库」与各相册那一行也是工程卡片的放下目标：拖到相册上移进去，拖到「图库」上移出所在相册。
  * 首次启动的配置向导也挂在外壳里，浮在启动时所在的页面（通常是图库）之上。
  */
 const colorMode = useColorMode()
@@ -21,6 +22,7 @@ const appearanceItems = [
 const creatingAlbum = ref(false)
 const albumActions = useAlbumActions()
 const { renaming } = albumActions
+const drag = useProjectDrag()
 
 /**
  * 右键菜单关闭时焦点默认回到右键前的位置。选了「重命名相册」时那一行已换成输入框并自动聚焦，
@@ -79,6 +81,8 @@ onMounted(async () => {
           label="图库"
           icon="i-lucide-images"
           :count="library.loaded ? library.projects.length : undefined"
+          :dropping="drag.isDropping(null)"
+          v-bind="drag.dropTarget(null)"
         />
 
         <section
@@ -133,6 +137,8 @@ onMounted(async () => {
                 :emoji="album.emoji"
                 :cover="album.cover"
                 :count="album.count"
+                :dropping="drag.isDropping(album.id)"
+                v-bind="drag.dropTarget(album.id)"
               />
             </UContextMenu>
           </template>

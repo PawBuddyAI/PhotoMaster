@@ -78,7 +78,6 @@ test('向导里登录 PawBuddy：网站授权后跳回，自动填好接口与�
   expect(saved.vision).toMatchObject({
     baseURL: GATEWAY,
     apiKey: 'sk-pawbuddy',
-    useProxy: false,
     model: PRESET.visionModel,
     reasoningEffort: PRESET.reasoningEffort
   })

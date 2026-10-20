@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { cropOutputSize } from '~/lib/geometry/crop'
 import type { ExportFormat } from '~/lib/image/export'
+import { DEFAULT_EXPORT_QUALITY } from '~/lib/image/export-options'
 import { useEditorStore } from '~/stores/editor'
 
 const open = defineModel<boolean>('open', { required: true })
@@ -9,7 +10,7 @@ const notify = useNotify()
 const { exporting, progress, run } = useExport()
 
 const format = ref<ExportFormat>('image/jpeg')
-const quality = ref(0.92)
+const quality = ref(DEFAULT_EXPORT_QUALITY)
 const keepExif = ref(true)
 
 const formatItems = [
@@ -29,7 +30,7 @@ async function start() {
     if (!result) {
       return
     }
-    const summary = `${result.width}×${result.height}，${(result.blob.size / 1024 / 1024).toFixed(1)} MB`
+    const summary = exportSummary(result)
     notify.success('导出完成', result.savedPath ? `${summary}，已保存到 ${result.savedPath}` : summary)
     open.value = false
   } catch (err) {
@@ -64,7 +65,7 @@ async function start() {
             :min="0.5"
             :max="1"
             :step="0.01"
-            :default-value="0.92"
+            :default-value="DEFAULT_EXPORT_QUALITY"
             :disabled="exporting"
             :format="v => `${Math.round(v * 100)}`"
           />

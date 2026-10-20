@@ -26,3 +26,4 @@ tauri-plugin-deep-link = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 # tauri.conf.json 有 plugins 配置时，generate_context! 展开的代码用 serde_json 读取它
 serde_json = "1"
+tauri-plugin-persisted-scope = "2"

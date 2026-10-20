@@ -185,6 +185,23 @@ describe('工程读写', () => {
     expect(await storage.listProjects()).toEqual([expect.objectContaining({ id, name: '海边', updatedAt: 1000 })])
   })
 
+  it('记下原图的磁盘位置（桌面版）：没有时记录里不带这一项，之后可以改，不刷新修改时间', async () => {
+    const loose = await storage.createProject(photo('a.jpg'))
+    expect(await storage.getProject(loose)).not.toHaveProperty('filePath')
+
+    const id = await storage.createProject(photo('海边.jpg'), undefined, 'D:\\照片\\海边.jpg')
+    expect(await storage.getProject(id)).toMatchObject({ filePath: 'D:\\照片\\海边.jpg', updatedAt: 1000 })
+
+    vi.setSystemTime(5000)
+    await storage.setProjectFilePath(loose, 'E:\\导出\\a.jpg')
+    expect(await storage.getProject(loose)).toMatchObject({ filePath: 'E:\\导出\\a.jpg', updatedAt: 1000 })
+    expect(await storage.getProject(id)).toMatchObject({ filePath: 'D:\\照片\\海边.jpg' })
+  })
+
+  it('给不存在的工程记位置时报错', async () => {
+    await expect(storage.setProjectFilePath('missing', 'D:\\a.jpg')).rejects.toThrow('工程不存在')
+  })
+
   it('不支持的格式不写入任何记录', async () => {
     await expect(storage.createProject(new File(['x'], 'a.gif', { type: 'image/gif' }))).rejects.toThrow('不支持的图片格式')
     expect(await storage.listProjects()).toEqual([])
@@ -397,5 +414,60 @@ describe('相册', () => {
     await storage.deleteProject(id)
 
     expect(await storage.listAlbums()).toEqual([album])
+  })
+})
+
+describe('手动排序', () => {
+  /** 工程在数据库中的原始记录，用来确认 order 确实被删除，而不是存成 undefined */
+  const rawProject = (id: string) => inspect(raw => raw.table('projects').get(id))
+
+  it('新建的工程没有 order；批量写入后列表摘要带上它，不刷新修改时间，已删除的工程跳过', async () => {
+    const a = await storage.createProject(photo('a.jpg'))
+    const b = await storage.createProject(photo('b.jpg'))
+    const gone = await storage.createProject(photo('gone.jpg'))
+    await storage.deleteProject(gone)
+    expect(await rawProject(a)).not.toHaveProperty('order')
+    vi.setSystemTime(5000)
+
+    await storage.setProjectOrders(new Map([[a, 2], [b, -1], [gone, 7]]))
+
+    const byId = Object.fromEntries((await storage.listProjects()).map(p => [p.id, p]))
+    expect(byId[a]).toMatchObject({ order: 2, updatedAt: 1000 })
+    expect(byId[b]).toMatchObject({ order: -1, updatedAt: 1000 })
+    expect(Object.keys(byId)).not.toContain(gone)
+  })
+
+  it('order 为 0 也如实返回，而不是被当成没有', async () => {
+    const a = await storage.createProject(photo('a.jpg'))
+    await storage.setProjectOrders(new Map([[a, 0]]))
+
+    expect((await storage.listProjects())[0]).toHaveProperty('order', 0)
+  })
+
+  it('移动工程与删除相册都会清掉 order，新来的工程排在手动顺序的最前', async () => {
+    const travel = await storage.createAlbum('旅行')
+    const a = await storage.createProject(photo('a.jpg'))
+    const b = await storage.createProject(photo('b.jpg'), travel.id)
+    await storage.setProjectOrders(new Map([[a, 1], [b, 2]]))
+
+    await storage.moveProjectToAlbum(a, travel.id)
+    expect(await rawProject(a)).not.toHaveProperty('order')
+    expect(await rawProject(b)).toHaveProperty('order', 2)
+
+    await storage.setProjectOrders(new Map([[a, 1]]))
+    await storage.deleteAlbum(travel.id)
+    expect(await rawProject(a)).not.toHaveProperty('order')
+    expect(await rawProject(b)).not.toHaveProperty('order')
+  })
+
+  it('整个批次在一个事务里：失败时一个都不写', async () => {
+    const a = await storage.createProject(photo('a.jpg'))
+    const b = await storage.createProject(photo('b.jpg'))
+    await storage.setProjectOrders(new Map([[a, 1], [b, 2]]))
+
+    await expect(storage.setProjectOrders(new Map([[a, 5], [b, Symbol('坏值') as unknown as number]]))).rejects.toThrow()
+
+    expect(await rawProject(a)).toHaveProperty('order', 1)
+    expect(await rawProject(b)).toHaveProperty('order', 2)
   })
 })

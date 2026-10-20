@@ -1,10 +1,13 @@
 import { readFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { expect, type Page, type Route, test } from '@playwright/test'
+import { CHAT_DONE, CHAT_USAGE_CHUNK, chatChunk, chatStreamBody, pieces } from '../fixtures/chat-stream'
 
 /**
  * 端到端流程：导入 → AI 读图分析 → 采纳建议（区域调色 + 重绘）→ 生成式重绘 → 挑选结果 → 全分辨率导出；
- * 以及采纳构图建议后重新分析时，读图输入带上当前裁剪。
- * OpenAI 兼容接口由 page.route 拦截模拟，生产代码中没有任何测试分支。
+ * 采纳构图建议后重新分析时，读图输入带上当前裁剪；以及分析过程中实时显示思考过程与方案草稿。
+ * OpenAI 兼容接口由 page.route 拦截模拟（需要控制输出节奏的流式用例改用本地服务），生产代码中没有任何测试分支。
  */
 const API = 'https://api.mock.test/v1'
 const IMAGE_W = 1600
@@ -13,8 +16,8 @@ const IMAGE_H = 1000
 const VISION_MAX_SIDE = 1300
 
 const SETTINGS = {
-  vision: { baseURL: API, apiKey: 'test-key', useProxy: false, model: 'mock-vision', reasoningEffort: 'high', structuredOutput: 'json_schema', detail: 'high' },
-  image: { baseURL: API, apiKey: 'test-key', useProxy: false, sameAsVision: true, model: 'mock-image', quality: 'high', n: 2, sizeMode: 'custom', maxLongSide: 2048, stream: false, partialImages: 0 }
+  vision: { baseURL: API, apiKey: 'test-key', model: 'mock-vision', reasoningEffort: 'high', structuredOutput: 'json_schema', detail: 'high' },
+  image: { baseURL: API, apiKey: 'test-key', sameAsVision: true, model: 'mock-image', quality: 'high', n: 2, sizeMode: 'custom', maxLongSide: 2048, stream: false, partialImages: 0 }
 }
 
 const zeroParams = {
@@ -70,21 +73,16 @@ async function fulfillCors(route: Route, body: unknown) {
 
 type ChatBody = Record<string, unknown>
 
-/** 模拟读图接口：记录每次请求体，返回固定的分析结果 */
+/** 模拟读图接口：记录每次请求体，以流式（SSE）返回固定的分析结果 */
 async function mockChat(page: Page, analysis: unknown): Promise<ChatBody[]> {
   const bodies: ChatBody[] = []
   await page.route(`${API}/chat/completions`, async (route) => {
-    if (route.request().method() === 'POST') {
-      bodies.push(route.request().postDataJSON() as ChatBody)
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: CORS })
+      return
     }
-    await fulfillCors(route, {
-      id: 'chatcmpl-e2e',
-      object: 'chat.completion',
-      created: 0,
-      model: 'mock-vision',
-      choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify(analysis), refusal: null } }],
-      usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 }
-    })
+    bodies.push(route.request().postDataJSON() as ChatBody)
+    await route.fulfill({ status: 200, headers: { ...CORS, 'content-type': 'text/event-stream' }, body: chatStreamBody(JSON.stringify(analysis)) })
   })
   return bodies
 }
@@ -156,6 +154,9 @@ test('导入 → 分析 → 采纳 → 重绘 → 导出，蒙版外像素保持
   // AI 分析
   await page.getByRole('button', { name: '分析照片' }).click()
   await expect(page.getByText('天空偏亮，右下角有干扰物。')).toBeVisible()
+  // 页面不展示读图模型的名字，只留本次用量
+  await expect(page.getByText('mock-vision')).toHaveCount(0)
+  await expect(page.getByText('用量：150 tokens')).toBeVisible()
   expect(chatBodies).toHaveLength(1)
   expect((chatBodies[0]!.response_format as { type: string }).type).toBe('json_schema')
   expect(chatBodies[0]!.reasoning_effort).toBe('high')
@@ -305,5 +306,90 @@ test('采纳构图建议后重新分析：框外压暗，提示词带上当前�
   for (const r of ratios.outside) {
     expect(r).toBeGreaterThan(0.35)
     expect(r).toBeLessThan(0.55)
+  }
+})
+
+/** 测试里手动放行的关卡：本地服务写到某一步后停下，等断言完成再继续 */
+function gate() {
+  let open!: () => void
+  const opened = new Promise<void>((resolve) => {
+    open = resolve
+  })
+  return { open, opened }
+}
+
+test('分析过程实时显示：思考过程与方案草稿逐步出现，不显示 JSON', async ({ page }) => {
+  // 足够长，能撑满思考区，用来检查跟随滚动
+  const reasoning = ['先看曝光：天空偏亮，地面偏暗。', '右下角有一个深色物体，像是路人。', '色温略冷，可以加一点暖色。', '地平线基本水平。']
+    .map((line, i) => `第 ${i + 1} 步：${line}${'再仔细看看细节。'.repeat(3)}`)
+    .join('\n\n')
+  const content = JSON.stringify(ANALYSIS)
+  // 第一段写到第一条调色建议的标题为止
+  const cut = content.indexOf('"reason"')
+  const toWriting = gate()
+  const toFinish = gate()
+  const bodies: ChatBody[] = []
+
+  // page.route 只能一次性返回整个响应，这里用本地服务按节奏写出 SSE
+  const server = createServer(async (req, res) => {
+    // 真实的跨域检查里 Authorization 不在通配符 * 之内，预检时原样放行浏览器申请的请求头
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, { ...CORS, 'access-control-allow-headers': req.headers['access-control-request-headers'] ?? '*' }).end()
+      return
+    }
+    const chunks: Buffer[] = []
+    for await (const chunk of req) {
+      chunks.push(chunk as Buffer)
+    }
+    bodies.push(JSON.parse(Buffer.concat(chunks).toString('utf8')) as ChatBody)
+    res.writeHead(200, { ...CORS, 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+    res.write(chatChunk({ role: 'assistant', content: '' }))
+    pieces(reasoning).forEach(text => res.write(chatChunk({ reasoning_content: text })))
+    await toWriting.opened
+    pieces(content.slice(0, cut)).forEach(text => res.write(chatChunk({ content: text })))
+    await toFinish.opened
+    pieces(content.slice(cut)).forEach(text => res.write(chatChunk({ content: text })))
+    res.end(chatChunk({}, 'stop') + CHAT_USAGE_CHUNK + CHAT_DONE)
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address() as AddressInfo
+
+  try {
+    await page.addInitScript((settings) => {
+      localStorage.setItem('apm-settings', JSON.stringify(settings))
+    }, { ...SETTINGS, vision: { ...SETTINGS.vision, baseURL: `http://127.0.0.1:${port}/v1` } })
+    await page.goto('/')
+    await importPhoto(page, await makeImage(page, 'photo'))
+
+    await page.getByRole('button', { name: '分析照片' }).click()
+    await expect(page.getByText('AI 正在思考')).toBeVisible()
+    await expect(page.getByLabel('AI 的思考过程')).toHaveText(reasoning)
+    // 思考区跟着最新的文字滚到底（展开动画期间滚动无效，结束后补滚）
+    await expect.poll(() => page.getByLabel('AI 的思考过程').evaluate(el =>
+      el.scrollHeight > el.clientHeight && el.scrollHeight - el.scrollTop - el.clientHeight < 2)).toBe(true)
+    await expect(page.getByRole('button', { name: '取消分析' })).toBeVisible()
+    expect(bodies[0]!.stream).toBe(true)
+
+    toWriting.open()
+    await expect(page.getByText('AI 正在写修图方案')).toBeVisible()
+    await expect(page.getByText(ANALYSIS.overall)).toBeVisible()
+    await expect(page.getByText(ANALYSIS.adjustments[0]!.title)).toBeVisible()
+    // 思考过程保留在上方；JSON 本身（键名、括号）不出现在界面上
+    await expect(page.getByLabel('AI 的思考过程')).toHaveText(reasoning)
+    await expect(page.locator('body')).not.toContainText('"overall"')
+    await expect(page.locator('body')).not.toContainText('{"')
+    // 草稿阶段还没有可采纳的建议
+    await expect(page.getByRole('button', { name: '采纳', exact: true })).toHaveCount(0)
+
+    toFinish.open()
+    await expect(page.getByRole('button', { name: '采纳', exact: true })).toHaveCount(2)
+    await expect(page.getByText('AI 正在写修图方案')).toBeHidden()
+    await expect(page.getByLabel('AI 的思考过程')).toBeHidden()
+    await expect(page.getByRole('button', { name: '重新分析当前效果' })).toBeVisible()
+  } finally {
+    toWriting.open()
+    toFinish.open()
+    server.closeAllConnections()
+    await new Promise<void>(resolve => server.close(() => resolve()))
   }
 })

@@ -56,6 +56,10 @@ function hover(mask: MaskSpec | null) {
   editor.hoverMask = mask
 }
 
+function removeAtOnce(_el: Element, done: () => void) {
+  done()
+}
+
 function adoptAllAdjustments() {
   pendingAdjustments.value.forEach(s => editor.adoptSuggestion(s.id))
 }
@@ -94,14 +98,24 @@ onBeforeUnmount(() => hover(null))
     />
     <UButton
       v-else
-      icon="i-lucide-loader-circle"
-      label="分析中，点击取消"
+      icon="i-lucide-square"
+      label="取消分析"
       color="neutral"
       variant="outline"
       block
-      :ui="{ leadingIcon: 'animate-spin' }"
       @click="analysis.cancel()"
     />
+
+    <!-- 进度框随分析开始展开，实时显示思考过程与正在写出的方案；结束时立即移除，结果在原处浮现，草稿与结果不会同时出现两份 -->
+    <Transition
+      name="reveal"
+      @leave="removeAtOnce"
+    >
+      <EditorAnalysisProgress
+        v-if="analysis.progress"
+        :progress="analysis.progress"
+      />
+    </Transition>
 
     <!--
       每次得到新结果（含重新分析）时，整体分析与各组建议按阅读顺序依次浮现（错开节奏见 main.css 的 results-*）；
@@ -237,11 +251,11 @@ onBeforeUnmount(() => hover(null))
           </div>
         </section>
 
-        <p class="text-xs text-muted">
-          模型：{{ result.model }}
-          <template v-if="analysis.lastUsage">
-            · {{ analysis.lastUsage.total_tokens.toLocaleString() }} tokens
-          </template>
+        <p
+          v-if="analysis.lastUsage"
+          class="text-xs text-muted tabular-nums"
+        >
+          用量：{{ analysis.lastUsage.total_tokens.toLocaleString() }} tokens
         </p>
       </div>
     </Transition>

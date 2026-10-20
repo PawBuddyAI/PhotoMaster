@@ -49,12 +49,12 @@ function db(): PhotoDatabase {
 /** 打开编辑器所需的完整工程：元数据 + 文档 */
 export type Project = ProjectRecord & Pick<ProjectDocRecord, 'doc' | 'updatedAt'>
 
-export type ProjectSummary = Pick<Project, 'id' | 'name' | 'createdAt' | 'updatedAt' | 'width' | 'height' | 'thumbnail' | 'albumId'>
+export type ProjectSummary = Pick<Project, 'id' | 'name' | 'createdAt' | 'updatedAt' | 'width' | 'height' | 'thumbnail' | 'albumId' | 'order'>
 
 export const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-/** 新建工程；传入 albumId 时直接放进该相册 */
-export async function createProject(file: File, albumId?: string): Promise<string> {
+/** 新建工程；传入 albumId 时直接放进该相册，传入 filePath 时记下原图在磁盘上的位置（桌面版） */
+export async function createProject(file: File, albumId?: string, filePath?: string): Promise<string> {
   if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
     throw new Error(`不支持的图片格式：${file.type || '未知'}，请使用 JPEG、PNG 或 WebP`)
   }
@@ -78,7 +78,8 @@ export async function createProject(file: File, albumId?: string): Promise<strin
         originalBlobId,
         originalType: file.type,
         thumbnail,
-        ...(albumId ? { albumId } : {})
+        ...(albumId ? { albumId } : {}),
+        ...(filePath ? { filePath } : {})
       })
       await db().docs.add({ id, doc: emptyDoc(), updatedAt: now })
     })
@@ -101,8 +102,8 @@ export async function listProjects(): Promise<ProjectSummary[]> {
       if (!record) {
         return []
       }
-      const { id, name, createdAt, width, height, thumbnail, albumId } = record
-      return [{ id, name, createdAt, updatedAt, width, height, thumbnail, ...(albumId ? { albumId } : {}) }]
+      const { id, name, createdAt, width, height, thumbnail, albumId, order } = record
+      return [{ id, name, createdAt, updatedAt, width, height, thumbnail, ...(albumId ? { albumId } : {}), ...(order === undefined ? {} : { order }) }]
     })
   })
 }
@@ -134,6 +135,13 @@ export async function renameProject(id: string, name: string): Promise<void> {
     await db().projects.update(id, { name })
     await db().docs.update(id, { updatedAt: Date.now() })
   })
+}
+
+/** 记下工程对应的磁盘文件；不改修改时间（只是文件位置，照片本身没变） */
+export async function setProjectFilePath(id: string, filePath: string): Promise<void> {
+  if (!await db().projects.update(id, { filePath })) {
+    throw new Error('工程不存在或已被删除')
+  }
 }
 
 export async function deleteProject(id: string): Promise<void> {
@@ -171,27 +179,38 @@ export async function setAlbumEmoji(id: string, emoji: string | null): Promise<v
   })
 }
 
-/** 删除相册只解散分组：其中的工程移出相册、留在图库里 */
+/** 删除相册只解散分组：其中的工程移出相册、留在图库里（和移出相册一样，不再占着原来的手动位置） */
 export async function deleteAlbum(id: string): Promise<void> {
   await db().transaction('rw', db().albums, db().projects, async () => {
     await db().projects.where('albumId').equals(id).modify((project) => {
       delete project.albumId
+      delete project.order
     })
     await db().albums.delete(id)
   })
 }
 
-/** 把工程移到相册，albumId 为 null 时移出所在相册。这是整理而不是修改，不刷新工程的修改时间 */
+/**
+ * 把工程移到相册，albumId 为 null 时移出所在相册。这是整理而不是修改，不刷新工程的修改时间。
+ * 手动排序的位置只在原来的相册里有意义，所以一并清掉：新来的工程排在最前，和新导入的照片一样
+ */
 export async function moveProjectToAlbum(projectId: string, albumId: string | null): Promise<void> {
   await db().transaction('rw', db().albums, db().projects, async () => {
     if (albumId) {
       await requireAlbum(albumId)
     }
     // 值为 undefined 时 Dexie 删除该字段，工程随之离开 albumId 索引
-    const updated = await db().projects.update(projectId, { albumId: albumId ?? undefined })
+    const updated = await db().projects.update(projectId, { albumId: albumId ?? undefined, order: undefined })
     if (!updated && !await db().projects.get(projectId)) {
       throw new Error('工程不存在或已被删除')
     }
+  })
+}
+
+/** 一次写入多个工程的手动排序位置（工程 id → order）。和移动一样属于整理，不刷新修改时间；已被删除的工程跳过 */
+export async function setProjectOrders(orders: ReadonlyMap<string, number>): Promise<void> {
+  await db().transaction('rw', db().projects, async () => {
+    await db().projects.bulkUpdate([...orders].map(([key, order]) => ({ key, changes: { order } })))
   })
 }
 

@@ -1,6 +1,6 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
@@ -9,8 +9,8 @@ import { startMockServer } from './mock-server'
 
 /**
  * 桌面版端到端：在真实的 Tauri 窗口（WebView2）里跑导入 → 分析 → 流式重绘 → 取消 → 导出 → 修改后立即关窗再重启。
- * 模拟服务不返回任何 CORS 头且监听非默认端口，请求能成功即说明走的是 Rust 端；
- * 设置里故意打开「代理」，确认桌面版忽略它。WebView2 数据目录指向临时文件夹，不碰本机已安装应用的数据。
+ * 模拟服务不返回任何 CORS 头且监听非默认端口，请求能成功即说明走的是 Rust 端。
+ * WebView2 数据目录指向临时文件夹，不碰本机已安装应用的数据。
  *
  * wry 总是显式设置 WebView2 启动参数，WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS 环境变量不生效，
  * 因此测试使用合并了 tauri.desktop-test.conf.json 的 debug 构建（仅多出远程调试端口）。
@@ -37,8 +37,8 @@ const ANALYSIS = {
 }
 
 const settingsFor = (baseURL: string) => ({
-  vision: { baseURL, apiKey: 'test-key', useProxy: true, model: 'mock-vision', reasoningEffort: 'default', structuredOutput: 'json_schema', detail: 'high' },
-  image: { baseURL, apiKey: 'test-key', useProxy: true, sameAsVision: true, model: 'mock-image', quality: 'high', n: 2, sizeMode: 'custom', maxLongSide: 2048, stream: true, partialImages: 1 }
+  vision: { baseURL, apiKey: 'test-key', model: 'mock-vision', reasoningEffort: 'default', structuredOutput: 'json_schema', detail: 'high' },
+  image: { baseURL, apiKey: 'test-key', sameAsVision: true, model: 'mock-image', quality: 'high', n: 2, sizeMode: 'custom', maxLongSide: 2048, stream: true, partialImages: 1 }
 })
 
 test.describe.configure({ mode: 'serial' })
@@ -92,14 +92,13 @@ test.afterAll(async () => {
   await rm(workDir, { recursive: true, force: true }).catch(() => {})
 })
 
-test('运行在 Tauri 中：代理开关隐藏，测试连接与模型列表经 Rust 端直连无 CORS 头的服务', async () => {
+test('运行在 Tauri 中：测试连接与模型列表经 Rust 端直连无 CORS 头的服务', async () => {
   expect(await page.evaluate(() => (globalThis as { isTauri?: boolean }).isTauri)).toBe(true)
   await page.evaluate((settings) => {
     localStorage.setItem('apm-settings', JSON.stringify(settings))
   }, settingsFor(mock.baseURL))
   await page.goto(`${ORIGIN}/settings`)
   await expect(page.getByText('Base URL').first()).toBeVisible()
-  await expect(page.getByText('通过本地代理转发')).toHaveCount(0)
 
   const testButtons = page.getByRole('button', { name: '测试连接' })
   await testButtons.first().click()
@@ -110,7 +109,7 @@ test('运行在 Tauri 中：代理开关隐藏，测试连接与模型列表经 
   const chat = mock.requests.find(r => r.path === '/v1/chat/completions')!
   expect(chat.headers.authorization).toBe('Bearer test-key')
   expect(mock.requests.some(r => r.path === '/v1/models')).toBe(true)
-  // 请求不经过浏览器：没有预检，也没有发往本站代理
+  // 请求不经过浏览器，所以没有预检
   expect(mock.requests.filter(r => r.method === 'OPTIONS')).toHaveLength(0)
 })
 
@@ -207,21 +206,60 @@ test('重绘中途取消：请求被中断，界面回到可生成状态且不�
   }
 })
 
-test('导出：另存为对话框取消时不导出；保存后写入所选路径，尺寸为原图且蒙版外像素不变', async () => {
+/** 断言文件是 PNG，且 IHDR 里的宽高是原图尺寸 */
+async function expectPngOfOriginalSize(path: string) {
+  const saved = await readFile(path)
+  expect(saved.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a')
+  expect([saved.readUInt32BE(16), saved.readUInt32BE(20)]).toEqual([IMAGE_W, IMAGE_H])
+}
+
+const saveButton = () => page.getByRole('button', { name: '保存', exact: true })
+/** 通知的读屏播报区里有同样的文字，只在通知区域内查找 */
+const toasts = () => page.getByRole('region', { name: /通知/ })
+
+test('保存：照片没有记着的原图位置时（用输入框导入，与拖入相同）先选一次位置，之后直接覆盖这个文件', async () => {
+  const target = join(workDir, '保存 结果.png')
+  // 桌面版没有直接叫「导出」的按钮，导出收在旁边的菜单里
+  await expect(page.getByRole('button', { name: '导出', exact: true })).toHaveCount(0)
+
+  await saveButton().click()
+  await driveFileDialog(app.pid!, 'cancel')
+  await expect(saveButton()).toBeEnabled()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByText('照片已保存')).toHaveCount(0)
+  expect(existsSync(target)).toBe(false)
+
+  await saveButton().click()
+  await driveFileDialog(app.pid!, 'save', target)
+  await expect(page.getByText('照片已保存', { exact: true })).toBeVisible()
+  await expect(toasts().getByText(`已保存到 ${target}`)).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expectPngOfOriginalSize(target)
+
+  // 位置已经记下：先把文件写坏，再保存——不弹任何对话框，文件被重新写好（若弹了对话框，通知永远等不到）
+  await writeFile(target, 'x')
+  await saveButton().click()
+  await expect(page.getByText('已覆盖原图', { exact: true })).toBeVisible()
+  await expect(toasts().getByText(`已写回 ${target}`)).toBeVisible()
+  await expectPngOfOriginalSize(target)
+})
+
+test('导出：从「保存」旁的菜单进入；另存为对话框取消时不导出，保存后写入所选路径，尺寸为原图且蒙版外像素不变', async () => {
   const target = join(workDir, '导出 结果.png')
-  await page.getByRole('button', { name: '导出', exact: true }).click()
+  await page.getByRole('button', { name: '更多保存方式' }).click()
+  await page.getByRole('menuitem', { name: '导出…' }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByRole('combobox').click()
   await page.getByRole('option', { name: 'PNG（无损）' }).click()
 
   await dialog.getByRole('button', { name: '导出', exact: true }).click()
-  await driveSaveDialog(app.pid!, 'cancel')
+  await driveFileDialog(app.pid!, 'cancel')
   await expect(dialog.getByRole('button', { name: '导出', exact: true })).toBeEnabled()
   await expect(page.getByText('导出完成')).toHaveCount(0)
   expect(existsSync(target)).toBe(false)
 
   await dialog.getByRole('button', { name: '导出', exact: true }).click()
-  await driveSaveDialog(app.pid!, 'save', target)
+  await driveFileDialog(app.pid!, 'save', target)
   await expect(page.getByText('导出完成', { exact: true })).toBeVisible()
   // 通知的读屏播报区里有同样的文字，只在通知区域内查找
   await expect(page.getByRole('region', { name: /通知/ }).getByText(`已保存到 ${target}`)).toBeVisible()
@@ -307,6 +345,46 @@ test('应用后立即关闭窗口：补存完成才关窗，重启后结果仍�
   await expect(page.getByRole('button', { name: '重新生成' })).toBeVisible()
 })
 
+test('导入：用系统「打开」对话框导入会记下原图位置；保存直接覆盖原图，重启后仍能覆盖', async () => {
+  const original = join(workDir, '原图 照片.png')
+  await writeFile(original, Buffer.from(photoB64, 'base64'))
+
+  await page.goto(`${ORIGIN}/`)
+  await page.getByRole('button', { name: '导入照片' }).click()
+  await driveFileDialog(app.pid!, 'open', original)
+  await page.waitForURL(/\/editor\//)
+  await expect(page.getByText('正在加载图像')).toBeHidden()
+  const projectUrl = page.url()
+
+  // 先把原图文件写坏：「保存」应当写回导入时记下的位置，不弹对话框
+  await writeFile(original, 'x')
+  await saveButton().click()
+  await expect(page.getByText('已覆盖原图', { exact: true })).toBeVisible()
+  await expect(toasts().getByText(`已写回 ${original}`)).toBeVisible()
+  await expectPngOfOriginalSize(original)
+
+  // 工程记着这个位置，重启后仍然如此；对话框授予的写入权限由 persisted-scope 恢复，否则这里会被拒绝
+  await restartApp()
+  await page.goto(projectUrl)
+  await expect(page.getByText('正在加载图像')).toBeHidden()
+  await writeFile(original, 'x')
+  await saveButton().click()
+  await expect(page.getByText('已覆盖原图', { exact: true })).toBeVisible()
+  await expectPngOfOriginalSize(original)
+})
+
+/** 关闭应用主窗口（与点标题栏关闭按钮同一条路径），再以同一数据目录重新启动并连接新窗口 */
+async function restartApp() {
+  const closeWindow = await prepareWindowClose(app.pid!)
+  const exited = new Promise<void>(resolve => app.once('exit', () => resolve()))
+  const disconnected = new Promise<void>(resolve => browser.once('disconnected', () => resolve()))
+  closeWindow()
+  const closed = await Promise.race([exited.then(() => true), new Promise<boolean>(resolve => setTimeout(resolve, 15_000, false))])
+  expect(closed, '发出关闭请求 15 秒后窗口仍未关闭').toBe(true)
+  await disconnected
+  await launch()
+}
+
 /** 应用启动后远程调试端口才就绪，轮询连接 */
 async function connect(endpoint: string): Promise<Browser> {
   const deadline = Date.now() + 30_000
@@ -323,18 +401,19 @@ async function connect(endpoint: string): Promise<Browser> {
 }
 
 /**
- * 操作应用弹出的「另存为」对话框：填写完整路径后保存，或直接取消。
- * 用 UI 自动化按进程找到对话框，再按通用文件对话框固定的控件 ID（文件名 1001、保存 1、取消 2）取句柄发送窗口消息。
+ * 操作应用弹出的「另存为」「打开」对话框：填写完整路径后确定，或直接取消。
+ * 用 UI 自动化按进程找到对话框，再按通用文件对话框固定的控件 ID（文件名：另存为 1001、打开 1148；确定 1；取消 2）取句柄发送窗口消息。
  * 脚本以 -EncodedCommand（UTF-16LE）传入，中文路径不受控制台代码页影响。
  */
-async function driveSaveDialog(pid: number, action: 'save' | 'cancel', path = '') {
+async function driveFileDialog(pid: number, action: 'save' | 'open' | 'cancel', path = '') {
+  const fileNameId = action === 'open' ? '1148' : '1001'
   const script = `
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $AE = [System.Windows.Automation.AutomationElement]
 $Scope = [System.Windows.Automation.TreeScope]
 function New-Cond($property, $value) { New-Object System.Windows.Automation.PropertyCondition($property, $value) }
-function Find-SaveDialog {
+function Find-FileDialog {
   foreach ($window in $AE::RootElement.FindAll($Scope::Children, (New-Cond $AE::ProcessIdProperty ${pid}))) {
     if ($window.Current.ClassName -eq '#32770') { return $window }
     $owned = $window.FindFirst($Scope::Children, (New-Cond $AE::ClassNameProperty '#32770'))
@@ -342,8 +421,8 @@ function Find-SaveDialog {
   }
 }
 $deadline = (Get-Date).AddSeconds(20)
-do { $dialog = Find-SaveDialog; if ($dialog) { break }; Start-Sleep -Milliseconds 200 } while ((Get-Date) -lt $deadline)
-if (-not $dialog) { throw '未找到另存为对话框' }
+do { $dialog = Find-FileDialog; if ($dialog) { break }; Start-Sleep -Milliseconds 200 } while ((Get-Date) -lt $deadline)
+if (-not $dialog) { throw '未找到文件对话框' }
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -353,7 +432,8 @@ public static class SaveDialogWin32 {
 }
 '@
 # 文件名框与按钮是原生 Win32 控件，托管 UI 自动化只把它们识别为没有交互模式的 Pane，
-# 因此按 AutomationId + 窗口类名取句柄，直接发送 WM_SETTEXT / BM_CLICK（地址栏也用 1001，靠类名区分）
+# 因此按 AutomationId + 窗口类名取句柄，直接发送 WM_SETTEXT / BM_CLICK（地址栏也用 1001，靠类名区分）；
+# 脚本里的 SaveDialogWin32 只是 Win32 声明的类名，另存为、打开两种对话框共用
 function Get-Handle($id, $class) {
   $condition = New-Object System.Windows.Automation.AndCondition((New-Cond $AE::AutomationIdProperty $id), (New-Cond $AE::ClassNameProperty $class))
   $element = $dialog.FindFirst($Scope::Descendants, $condition)
@@ -362,8 +442,8 @@ function Get-Handle($id, $class) {
 }
 $WM_SETTEXT = 0x000C
 $BM_CLICK = 0x00F5
-if ('${action}' -eq 'save') {
-  [void][SaveDialogWin32]::SendMessage((Get-Handle '1001' 'Edit'), $WM_SETTEXT, [IntPtr]::Zero, '${path.replaceAll('\'', '\'\'')}')
+if ('${action}' -ne 'cancel') {
+  [void][SaveDialogWin32]::SendMessage((Get-Handle '${fileNameId}' 'Edit'), $WM_SETTEXT, [IntPtr]::Zero, '${path.replaceAll('\'', '\'\'')}')
   [void][SaveDialogWin32]::SendMessage((Get-Handle '1' 'Button'), $BM_CLICK, [IntPtr]::Zero, $null)
 } else {
   [void][SaveDialogWin32]::SendMessage((Get-Handle '2' 'Button'), $BM_CLICK, [IntPtr]::Zero, $null)

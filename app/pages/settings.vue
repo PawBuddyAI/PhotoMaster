@@ -83,7 +83,6 @@ const sizeModeItems = [
               <SettingsConnectionFields
                 v-model:base-url="settings.vision.baseURL"
                 v-model:api-key="settings.vision.apiKey"
-                v-model:use-proxy="settings.vision.useProxy"
               />
               <SettingsRow
                 label="模型"
@@ -172,7 +171,6 @@ const sizeModeItems = [
                 <SettingsConnectionFields
                   v-model:base-url="settings.image.baseURL"
                   v-model:api-key="settings.image.apiKey"
-                  v-model:use-proxy="settings.image.useProxy"
                 />
               </div>
             </Transition>

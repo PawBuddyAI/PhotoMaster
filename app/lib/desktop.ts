@@ -1,13 +1,13 @@
 import { isTauri } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link'
-import { ask, type DialogFilter, save } from '@tauri-apps/plugin-dialog'
-import { writeFile } from '@tauri-apps/plugin-fs'
+import { ask, type DialogFilter, open, save } from '@tauri-apps/plugin-dialog'
+import { readFile, writeFile } from '@tauri-apps/plugin-fs'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { openUrl } from '@tauri-apps/plugin-opener'
 
 /**
- * 桌面版（Tauri）适配：运行时判定、跨域请求、本地文件保存、窗口关闭拦截、打开外部网页与接收深链。
+ * 桌面版（Tauri）适配：运行时判定、跨域请求、本地文件打开与保存、窗口关闭拦截、打开外部网页与接收深链。
  * 网页版不会调用这些插件；Worker 与 node 测试中 isDesktop() 恒为 false。
  * 插件权限见 src-tauri/capabilities/default.json。
  */
@@ -39,6 +39,20 @@ export function pickSavePath(fileName: string, filter: DialogFilter): Promise<st
 /** 把 Blob 写入对话框选定的路径，已有文件会被覆盖 */
 export async function writeBlob(path: string, blob: Blob): Promise<void> {
   await writeFile(path, new Uint8Array(await blob.arrayBuffer()))
+}
+
+/**
+ * 弹出系统「打开」对话框选一张照片，返回路径，用户取消时返回 null。
+ * 网页的文件选择框拿不到路径，所以桌面版用它导入，路径记在工程里供「保存」写回；
+ * 所选文件由对话框插件授予读写权限，persisted-scope 插件让它重启后仍有效。
+ */
+export function pickImagePath(filter: DialogFilter): Promise<string | null> {
+  return open({ multiple: false, directory: false, filters: [filter] })
+}
+
+/** 读取磁盘上的文件，包成 File 交给与网页版相同的导入流程 */
+export async function readFileAs(path: string, name: string, type: string): Promise<File> {
+  return new File([await readFile(path)], name, { type })
 }
 
 /**

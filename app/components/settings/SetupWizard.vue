@@ -162,7 +162,6 @@ async function testConnection() {
               <SettingsConnectionFields
                 v-model:base-url="settings.vision.baseURL"
                 v-model:api-key="settings.vision.apiKey"
-                v-model:use-proxy="settings.vision.useProxy"
               />
             </div>
           </template>

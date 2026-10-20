@@ -15,7 +15,7 @@ export interface VisionSettings extends ConnectionConfig {
 }
 
 export interface ImageSettings extends ConnectionConfig {
-  /** 修图沿用读图的连接配置（Base URL、Key、代理） */
+  /** 修图沿用读图的连接配置（Base URL、Key） */
   sameAsVision: boolean
   model: string
   quality: ImageQuality
@@ -50,7 +50,6 @@ export function defaultSettings(): AppSettings {
     vision: {
       baseURL: DEFAULT_BASE_URL,
       apiKey: '',
-      useProxy: false,
       model: 'gpt-6.1-sol',
       reasoningEffort: 'default',
       structuredOutput: 'json_schema',
@@ -59,7 +58,6 @@ export function defaultSettings(): AppSettings {
     image: {
       baseURL: DEFAULT_BASE_URL,
       apiKey: '',
-      useProxy: false,
       sameAsVision: true,
       model: 'gpt-image-2.5-sunburst',
       quality: 'high',
@@ -107,13 +105,12 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const visionConnection = computed<ConnectionConfig>(() => ({
     baseURL: vision.value.baseURL,
-    apiKey: vision.value.apiKey,
-    useProxy: vision.value.useProxy
+    apiKey: vision.value.apiKey
   }))
 
   const imageConnection = computed<ConnectionConfig>(() => image.value.sameAsVision
     ? visionConnection.value
-    : { baseURL: image.value.baseURL, apiKey: image.value.apiKey, useProxy: image.value.useProxy })
+    : { baseURL: image.value.baseURL, apiKey: image.value.apiKey })
 
   const isVisionReady = computed(() => !!vision.value.apiKey.trim() && !!vision.value.model.trim())
   const isImageReady = computed(() => !!imageConnection.value.apiKey.trim() && !!image.value.model.trim())
@@ -153,11 +150,10 @@ export const useSettingsStore = defineStore('settings', () => {
     applyPawBuddyPreset()
   }
 
-  /** 用 PawBuddy 账户连接：读图走账户网关（允许浏览器跨域，不需要代理），修图沿用读图的连接，模型与思考等级用预设 */
+  /** 用 PawBuddy 账户连接：读图走账户网关（允许浏览器跨域，网页版也能直连），修图沿用读图的连接，模型与思考等级用预设 */
   function connectPawBuddy(conn: PawBuddyConnection): void {
     vision.value.baseURL = conn.gateway
     vision.value.apiKey = conn.key
-    vision.value.useProxy = false
     applyPawBuddyPreset()
     pawbuddy.value = { email: conn.email, user: conn.user, site: conn.site }
   }

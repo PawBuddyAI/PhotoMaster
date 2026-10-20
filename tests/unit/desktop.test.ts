@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { askWarning, desktopFetch, guardWindowClose, isDesktop, pickSavePath, writeBlob } from '~/lib/desktop'
+import { askWarning, desktopFetch, guardWindowClose, isDesktop, pickImagePath, pickSavePath, readFileAs, writeBlob } from '~/lib/desktop'
 import { createOpenAIClient } from '~/lib/llm/client'
 import { listModels } from '~/lib/llm/models'
 
@@ -10,14 +10,16 @@ interface CloseEvent { preventDefault: () => void }
 const plugin = vi.hoisted(() => ({
   fetch: vi.fn<(input: URL | Request | string, init?: RequestInit) => Promise<Response>>(),
   save: vi.fn<(options: unknown) => Promise<string | null>>(),
+  open: vi.fn<(options: unknown) => Promise<string | null>>(),
   ask: vi.fn<(message: string, options: unknown) => Promise<boolean>>(),
   writeFile: vi.fn<(path: string, data: Uint8Array) => Promise<void>>(),
+  readFile: vi.fn<(path: string) => Promise<Uint8Array>>(),
   onCloseRequested: vi.fn<(handler: (event: CloseEvent) => Promise<void>) => Promise<() => void>>()
 }))
 
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: plugin.fetch }))
-vi.mock('@tauri-apps/plugin-dialog', () => ({ save: plugin.save, ask: plugin.ask }))
-vi.mock('@tauri-apps/plugin-fs', () => ({ writeFile: plugin.writeFile }))
+vi.mock('@tauri-apps/plugin-dialog', () => ({ save: plugin.save, open: plugin.open, ask: plugin.ask }))
+vi.mock('@tauri-apps/plugin-fs', () => ({ writeFile: plugin.writeFile, readFile: plugin.readFile }))
 vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: () => ({ onCloseRequested: plugin.onCloseRequested }) }))
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
@@ -51,15 +53,13 @@ describe('desktopFetch', () => {
     expect(plugin.fetch).toHaveBeenCalledTimes(2)
   })
 
-  it('桌面版客户端默认经 Rust 端直连目标服务，代理设置不生效', async () => {
+  it('桌面版客户端默认经 Rust 端直连目标服务', async () => {
     plugin.fetch.mockResolvedValue(json({ object: 'list', data: [{ id: 'b-model', object: 'model' }, { id: 'a-model', object: 'model' }] }))
-    const client = createOpenAIClient({ baseURL: 'https://api.mock.test/v1', apiKey: 'test-key', useProxy: true }, { desktop: true })
+    const client = createOpenAIClient({ baseURL: 'https://api.mock.test/v1', apiKey: 'test-key' }, { desktop: true })
     expect(await listModels(client)).toEqual(['a-model', 'b-model'])
     const [input, init] = plugin.fetch.mock.calls[0]!
     expect(String(input)).toBe('https://api.mock.test/v1/models')
-    const headers = new Headers(init?.headers)
-    expect(headers.get('authorization')).toBe('Bearer test-key')
-    expect(headers.has('x-target-base-url')).toBe(false)
+    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer test-key')
   })
 })
 
@@ -88,6 +88,33 @@ describe('pickSavePath / writeBlob', () => {
   it('写入失败时向上抛出，交由调用方提示', async () => {
     plugin.writeFile.mockRejectedValue(new Error('拒绝访问'))
     await expect(writeBlob('C:\\Windows\\x.png', new Blob([new Uint8Array([1])]))).rejects.toThrow('拒绝访问')
+  })
+})
+
+describe('pickImagePath / readFileAs', () => {
+  const filter = { name: '照片', extensions: ['jpg', 'png'] }
+
+  it('打开对话框只选一个文件、限定类型，返回所选路径；取消时返回 null', async () => {
+    plugin.open.mockResolvedValue('D:\\照片\\海边.jpg')
+    expect(await pickImagePath(filter)).toBe('D:\\照片\\海边.jpg')
+    expect(plugin.open).toHaveBeenCalledWith({ multiple: false, directory: false, filters: [filter] })
+
+    plugin.open.mockResolvedValue(null)
+    expect(await pickImagePath(filter)).toBeNull()
+  })
+
+  it('读出的字节原样包成带名称与类型的 File', async () => {
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0, 1])
+    plugin.readFile.mockResolvedValue(bytes)
+    const file = await readFileAs('D:\\照片\\海边.jpg', '海边.jpg', 'image/jpeg')
+    expect(plugin.readFile).toHaveBeenCalledWith('D:\\照片\\海边.jpg')
+    expect([file.name, file.type]).toEqual(['海边.jpg', 'image/jpeg'])
+    expect(Array.from(new Uint8Array(await file.arrayBuffer()))).toEqual(Array.from(bytes))
+  })
+
+  it('读取失败时向上抛出，交由调用方提示', async () => {
+    plugin.readFile.mockRejectedValue(new Error('文件不存在'))
+    await expect(readFileAs('D:\\没有.jpg', '没有.jpg', 'image/jpeg')).rejects.toThrow('文件不存在')
   })
 })
 

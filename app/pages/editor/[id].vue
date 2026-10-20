@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { ContextMenuItem } from '@nuxt/ui'
+import type { ContextMenuItem, DropdownMenuItem } from '@nuxt/ui'
+import { isDesktop } from '~/lib/desktop'
 import { useEditorStore, type EditorTool } from '~/stores/editor'
 import { useInpaintStore } from '~/stores/inpaint'
 import { useLibraryStore } from '~/stores/library'
@@ -15,6 +16,7 @@ const assets = useProjectAssets()
 const view = useEditorRenderer()
 const notify = useNotify()
 const backdrop = useBackdrop()
+const { exporting, save } = useExport()
 
 const canvasRef = ref<{ fit: () => void, zoomBy: (f: number) => void, actualSize: () => void } | null>(null)
 const loadError = ref<string | null>(null)
@@ -33,6 +35,39 @@ const back = computed(() => {
     ? { to: `/albums/${album.id}`, label: album.name, ariaLabel: `返回相册「${album.name}」` }
     : { to: '/', label: '图库', ariaLabel: '返回图库' }
 })
+
+/**
+ * 桌面版的主操作是「保存」：保存工程，并把结果覆盖写回原图文件（原图位置见 ProjectRecord.filePath，
+ * 没有记录时先选一次位置）。要另存一份、换格式、调质量或决定是否保留 EXIF，走旁边菜单里的「导出…」。
+ * 网页版没有磁盘上的原图，只有「导出」（下载文件）
+ */
+const desktop = isDesktop()
+
+const exportMenu: DropdownMenuItem[] = [
+  { label: '导出…', icon: 'i-lucide-download', onSelect: () => { exportOpen.value = true } }
+]
+
+const saveTooltip = computed(() => editor.project?.filePath ? '覆盖原图，并保存工程' : '保存照片（第一次选位置，之后覆盖它），并保存工程')
+
+async function savePhoto() {
+  try {
+    const result = await save()
+    // 在另存为对话框中取消：不提示
+    if (!result) {
+      return
+    }
+    const summary = exportSummary(result)
+    if (result.overwrote) {
+      notify.success('已覆盖原图', `${summary}，已写回 ${result.savedPath}`)
+    } else if (result.failedPath) {
+      notify.success('照片已保存', `${summary}，原来的位置无法写入，已改存到 ${result.savedPath}`)
+    } else {
+      notify.success('照片已保存', `${summary}，已保存到 ${result.savedPath}`)
+    }
+  } catch (err) {
+    notify.error(err)
+  }
+}
 
 const SAVE_LABELS = {
   saved: '已保存',
@@ -127,7 +162,12 @@ function onShortcut(e: KeyboardEvent) {
   }
   if (mod && key === 's') {
     e.preventDefault()
-    void editor.flush().catch(err => notify.error(err))
+    // 桌面版与「保存」按钮一致；网页版没有磁盘上的文件，只把工程立即写入（平时有自动保存）
+    if (desktop && view.ready.value && !exporting.value) {
+      void savePhoto()
+    } else if (!desktop) {
+      void editor.flush().catch(err => notify.error(err))
+    }
     return
   }
   if (mod || e.altKey) {
@@ -300,7 +340,32 @@ function onShortcutUp(e: KeyboardEvent) {
                 @pointerleave="editor.compareOriginal = false"
               />
             </UTooltip>
+            <UFieldGroup v-if="desktop">
+              <UTooltip
+                :text="saveTooltip"
+                :kbds="['ctrl', 's']"
+              >
+                <UButton
+                  icon="i-lucide-save"
+                  label="保存"
+                  :loading="exporting"
+                  :disabled="!view.ready.value || exporting"
+                  @click="savePhoto"
+                />
+              </UTooltip>
+              <UDropdownMenu
+                :items="exportMenu"
+                :content="{ align: 'end' }"
+              >
+                <UButton
+                  icon="i-lucide-chevron-down"
+                  :disabled="!view.ready.value || exporting"
+                  aria-label="更多保存方式"
+                />
+              </UDropdownMenu>
+            </UFieldGroup>
             <UButton
+              v-else
               icon="i-lucide-download"
               label="导出"
               :disabled="!view.ready.value"
