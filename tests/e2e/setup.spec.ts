@@ -100,7 +100,6 @@ test('全新打开时弹出向导：回车继续、填写接口、选模型并�
   await dialog.getByRole('button', { name: '开始使用' }).click()
 
   await expectNoWizard(page)
-  await expect(page.getByText('还没有连接 AI 服务')).toHaveCount(0)
   const saved = await savedSettings(page)
   expect(saved.vision).toMatchObject({ baseURL: API, apiKey: 'test-key', model: 'gpt-6-luna', structuredOutput: 'json_schema' })
   expect(saved.image).toMatchObject({ sameAsVision: true, model: 'gpt-image-2.5-sunburst' })

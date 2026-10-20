@@ -115,10 +115,20 @@ async function testConnection() {
       <div
         ref="body"
         class="flex min-h-82 flex-col gap-4"
+        :class="{ 'justify-center': step === 0 }"
       >
+        <!-- 欢迎页内容少，三步等高留出的空白用应用图标填上，与启动画面同一个图标源文件 -->
+        <img
+          v-if="step === 0"
+          src="/app-icon.svg"
+          alt=""
+          draggable="false"
+          class="mx-auto mb-2 size-16 shrink-0"
+        >
         <ul
           v-if="highlights"
           class="flex flex-col gap-4"
+          :class="{ 'mx-auto w-full max-w-md': step === 0 }"
         >
           <li
             v-for="item in highlights"

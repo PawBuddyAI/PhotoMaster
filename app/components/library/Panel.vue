@@ -3,7 +3,6 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 import { pinLeaving } from '~/lib/motion'
 import { createProject, type ProjectSummary, SUPPORTED_IMAGE_TYPES } from '~/lib/storage/db'
 import { useLibraryStore } from '~/stores/library'
-import { useSettingsStore } from '~/stores/settings'
 
 /**
  * 工程网格：图库页列出全部工程，相册页只列出该相册的工程；在相册页导入的照片直接放进这个相册。
@@ -21,7 +20,6 @@ defineSlots<{
   actions?: () => unknown
 }>()
 
-const settings = useSettingsStore()
 const library = useLibraryStore()
 const notify = useNotify()
 const router = useRouter()
@@ -137,16 +135,6 @@ async function confirmDelete() {
 
     <template #body>
       <div class="mx-auto flex w-full max-w-6xl flex-col gap-8">
-        <UAlert
-          v-if="!settings.isVisionReady"
-          color="warning"
-          variant="subtle"
-          icon="i-lucide-key-round"
-          title="还没有连接 AI 服务"
-          description="连接后，AI 就能帮你看照片、给出修图建议，还能去掉路人、换个天空。不连接也可以自己调色、裁剪和导出。"
-          :actions="[{ label: '前往设置', to: '/settings', color: 'primary', variant: 'solid', size: 'lg' }]"
-        />
-
         <UFileUpload
           ref="uploadRef"
           v-model="file"
