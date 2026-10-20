@@ -5,6 +5,7 @@ import { useSettingsStore } from '~/stores/settings'
 /**
  * 首次配置向导：第一次打开应用时浮在图库之上，分三步填好跑通 AI 功能的必填项——欢迎、连接接口、选择模型。
  * 只覆盖接口地址、Key 与两个模型名，思考等级、修图质量等留在设置页；填写的内容直接写进设置，中途跳过也不丢。
+ * 连接一步推荐登录 PawBuddy 账户：授权后接口、Key 与官方模型自动填好，直接进入选择模型。
  * 走完、点「稍后设置」、右上角关闭或按 Esc 都记为已完成，以后不再弹出；没配好时图库顶部的提示条仍然指向设置页。
  */
 const settings = useSettingsStore()
@@ -12,7 +13,7 @@ const { testing, testVision, testImage } = useConnectionTest()
 
 const STEPS = [
   { title: '欢迎使用 AI 修图', description: '先花一分钟连上你的模型接口' },
-  { title: '连接模型接口', description: '读图建议与局部重绘都通过这个 OpenAI 兼容接口完成，修图默认沿用同一个接口' },
+  { title: '连接模型接口', description: '推荐使用 PawBuddy 账户，也可以填写自己的 OpenAI 兼容接口' },
   { title: '选择模型', description: '可从服务的模型列表中选择，也可以直接输入名称；思考等级、修图质量等更多选项在设置里' }
 ]
 const LAST_STEP = STEPS.length - 1
@@ -25,8 +26,16 @@ const HIGHLIGHTS = [
 
 // 只在启动时决定一次：向导打开期间填好 Key 后 isVisionReady 变真，向导不能自己关掉
 const open = ref(!settings.setupDone)
-const step = ref(0)
+// 网页版登录 PawBuddy 会整页跳走，跳回时已经连上账户，直接从选择模型这一步继续
+const step = ref(settings.pawbuddy ? LAST_STEP : 0)
 const body = useTemplateRef('body')
+
+// 桌面版在浏览器里授权后经深链回来，向导还停在连接这一步，连上后同样跳到选择模型
+watch(() => settings.pawbuddy, (account, previous) => {
+  if (account && !previous && step.value === 1) {
+    step.value = LAST_STEP
+  }
+})
 
 const current = computed(() => STEPS[step.value]!)
 const canContinue = computed(() => {
@@ -102,7 +111,7 @@ async function testConnection() {
     <template #body>
       <div
         ref="body"
-        class="flex min-h-64 flex-col gap-4"
+        class="flex min-h-82 flex-col gap-4"
       >
         <template v-if="step === 0">
           <ul class="flex flex-col gap-4">
@@ -126,20 +135,27 @@ async function testConnection() {
             </li>
           </ul>
           <p class="mt-auto text-sm text-pretty text-muted">
-            需要一个 OpenAI 兼容接口（Base URL 与 API Key）。暂时没有也可以先跳过，手动调色、裁剪和导出不受影响。
+            下一步可以登录 PawBuddy 账户，也可以填写自己的 OpenAI 兼容接口（Base URL 与 API Key）。暂时不想配置也可以先跳过，手动调色、裁剪和导出不受影响。
           </p>
         </template>
 
-        <div
-          v-else-if="step === 1"
-          class="divide-y divide-default rounded-xl border border-default"
-        >
-          <SettingsConnectionFields
-            v-model:base-url="settings.vision.baseURL"
-            v-model:api-key="settings.vision.apiKey"
-            v-model:use-proxy="settings.vision.useProxy"
-          />
-        </div>
+        <template v-else-if="step === 1">
+          <div class="divide-y divide-default rounded-xl border border-default">
+            <SettingsPawBuddyAccount />
+          </div>
+          <template v-if="!settings.pawbuddy">
+            <p class="text-sm text-muted">
+              或者使用自己的接口
+            </p>
+            <div class="divide-y divide-default rounded-xl border border-default">
+              <SettingsConnectionFields
+                v-model:base-url="settings.vision.baseURL"
+                v-model:api-key="settings.vision.apiKey"
+                v-model:use-proxy="settings.vision.useProxy"
+              />
+            </div>
+          </template>
+        </template>
 
         <template v-else>
           <div class="divide-y divide-default rounded-xl border border-default">

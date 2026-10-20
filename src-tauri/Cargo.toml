@@ -20,3 +20,9 @@ tauri-plugin-log = "2"
 tauri-plugin-http = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+# PawBuddy 账户：在系统浏览器打开网站授权，授权后经 ai-photo-master:// 深链回到已运行的窗口
+tauri-plugin-opener = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+# tauri.conf.json 有 plugins 配置时，generate_context! 展开的代码用 serde_json 读取它
+serde_json = "1"

@@ -30,6 +30,13 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  runtimeConfig: {
+    public: {
+      // PawBuddy 网站：「使用 PawBuddy 账户」从这里的连接页授权（NUXT_PUBLIC_PAWBUDDY_SITE，构建时写入产物）
+      pawbuddySite: 'https://pawbuddy.chat'
+    }
+  },
+
   // 路由切换走浏览器原生的视图过渡（整页交叉淡化，时长见 main.css）；系统开启「减少动态效果」时 Nuxt 自动跳过
   experimental: {
     viewTransition: true

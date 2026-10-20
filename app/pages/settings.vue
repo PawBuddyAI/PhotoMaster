@@ -77,7 +77,10 @@ const sizeModeItems = [
             />
           </div>
           <div class="divide-y divide-default rounded-xl border border-default bg-default">
+            <!-- 连上 PawBuddy 账户时接口与 Key 由账户提供，不再单独填写；断开后恢复为手动填写 -->
+            <SettingsPawBuddyAccount />
             <SettingsConnectionFields
+              v-if="!settings.pawbuddy"
               v-model:base-url="settings.vision.baseURL"
               v-model:api-key="settings.vision.apiKey"
               v-model:use-proxy="settings.vision.useProxy"

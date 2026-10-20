@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "主窗口权限：请求任意 OpenAI 兼容服务、弹出另存为对话框、写入对话框选定的文件、关闭前补存后销毁窗口并在保存失败时弹出确认",
+  "description": "主窗口权限：请求任意 OpenAI 兼容服务、弹出另存为对话框、写入对话框选定的文件、关闭前补存后销毁窗口并在保存失败时弹出确认、在系统浏览器打开 PawBuddy 网站、读取启动时的 ai-photo-master:// 深链",
   "windows": [
     "main"
   ],
@@ -17,6 +17,9 @@
     },
     "dialog:allow-save",
     "dialog:allow-message",
-    "fs:allow-write-file"
+    "fs:allow-write-file",
+    "opener:allow-open-url",
+    "opener:allow-default-urls",
+    "deep-link:default"
   ]
 }

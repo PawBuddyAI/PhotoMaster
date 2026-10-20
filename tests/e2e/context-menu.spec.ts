@@ -8,7 +8,8 @@ import { skipSetupWizard } from './helpers'
  */
 const PHOTO_NAME = 'context-menu-e2e'
 
-const listItem = (page: Page, text: string) => page.locator('li').filter({ hasText: text })
+// 通知条也是 li（Reka Toast 带 data-swipe-direction），「已移到相册」的说明里有工程名，还没消失时会被一起匹配到
+const listItem = (page: Page, text: string) => page.locator('li:not([data-swipe-direction])').filter({ hasText: text })
 const albumRow = (page: Page, name: string) => page.locator('nav[aria-label="主导航"] a').filter({ hasText: name })
 
 /** 在浏览器里生成一张小照片并返回 base64 */

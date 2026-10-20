@@ -26,6 +26,13 @@
       "csp": null
     }
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["ai-photo-master"]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["nsis"],

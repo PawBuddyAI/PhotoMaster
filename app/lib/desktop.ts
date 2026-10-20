@@ -1,11 +1,13 @@
 import { isTauri } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link'
 import { ask, type DialogFilter, save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { openUrl } from '@tauri-apps/plugin-opener'
 
 /**
- * 桌面版（Tauri）适配：运行时判定、跨域请求、本地文件保存与窗口关闭拦截。
+ * 桌面版（Tauri）适配：运行时判定、跨域请求、本地文件保存、窗口关闭拦截、打开外部网页与接收深链。
  * 网页版不会调用这些插件；Worker 与 node 测试中 isDesktop() 恒为 false。
  * 插件权限见 src-tauri/capabilities/default.json。
  */
@@ -62,6 +64,28 @@ export function guardWindowClose(beforeClose: () => Promise<boolean>): Promise<(
       pending = false
     }
   })
+}
+
+/** 在系统默认浏览器打开网页（需要 opener:allow-open-url）；网页版在新标签页打开 */
+export async function openExternal(url: string): Promise<void> {
+  if (isDesktop()) {
+    await openUrl(url)
+    return
+  }
+  globalThis.open?.(url, '_blank', 'noopener')
+}
+
+/**
+ * 接收本应用的深链（ai-photo-master://，见 tauri.conf.json）：由深链启动时的地址立即交给 handler，
+ * 运行期间再点深链时，系统新开的实例由 single-instance 插件转交给当前窗口。返回取消监听的函数。
+ */
+export async function listenDeepLinks(handler: (urls: string[]) => void): Promise<() => void> {
+  const unlisten = await onOpenUrl(handler)
+  const current = await getCurrent()
+  if (current?.length) {
+    handler(current)
+  }
+  return unlisten
 }
 
 /** 系统警告对话框，返回用户是否点了 ok 按钮（需要 dialog:allow-message） */

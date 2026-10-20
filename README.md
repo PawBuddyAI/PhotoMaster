@@ -28,7 +28,7 @@ pnpm install
 pnpm dev
 ```
 
-打开 http://localhost:3000。第一次打开时会弹出配置向导，按「欢迎 → 连接接口 → 选择模型」三步填写 OpenAI 兼容接口的 Base URL、API Key 和模型名，最后一步可以直接测试连接；也可以先跳过，之后在「设置」中填写。向导走完、跳过或关闭后不再弹出，思考等级、修图质量等其余选项只在「设置」中：
+打开 http://localhost:3000。第一次打开时会弹出配置向导，按「欢迎 → 连接接口 → 选择模型」三步填写 OpenAI 兼容接口的 Base URL、API Key 和模型名，最后一步可以直接测试连接；也可以先跳过，之后在「设置」中填写。连接接口这一步推荐直接登录 PawBuddy 账户（见下文）。向导走完、跳过或关闭后不再弹出，思考等级、修图质量等其余选项只在「设置」中：
 
 | 用途 | 默认模型 | 说明 |
 |---|---|---|
@@ -36,6 +36,17 @@ pnpm dev
 | 修图 | `gpt-image-2.5-sunburst` | 旧模型或只支持固定尺寸的兼容服务，请把「尺寸模式」切换为固定尺寸 |
 
 浏览器会直接请求你配置的接口。如果该服务不支持浏览器跨域（CORS），请在设置中开启「通过本地代理转发」；这个功能需要以 `pnpm dev` 或 `node .output/server/index.mjs` 方式运行。
+
+### PawBuddy 账户
+
+不想自己找接口时，可以在向导或设置页点「登录 PawBuddy」，用 [PawBuddy](https://pawbuddy.chat) 账户连接。读图与修图都走账户的网关，按量从账户余额扣费；设置页的账户一行可以打开充值页或断开连接。
+
+1. 网页版整页跳到 PawBuddy 网站的 `/connect?app=ai-photo&return=<当前页面>`，桌面版在系统浏览器打开同一页面，`return` 是 `ai-photo-master://connect`
+2. 网站上登录或注册，确认「授权并返回」。网站为本应用单独建一把 Key（名为「AI 修图」），与 PawBuddy 客户端互不影响
+3. 网站跳回 `return`，连接码 `PB1.…` 放在地址的 `#code=` 里（不进服务器日志）。本应用解析出网关与 Key，写进读图的连接配置（修图沿用），再从网站的 `/data/model_pricing.json` 挑出能看图的对话模型与生图模型：原来的模型名不在列表里，就换成列表中的第一个
+4. 网页版跳回后立即从地址栏去掉连接码；向导没走完时直接打开「选择模型」这一步
+
+网站没有自动跳回时（例如浏览器拦截了深链），在网站上复制连接码，到本应用点「粘贴连接码」粘贴即可。PawBuddy 网站地址默认是 `https://pawbuddy.chat`，构建时可用环境变量 `NUXT_PUBLIC_PAWBUDDY_SITE` 改成别的部署（例如本机调试的 `http://localhost:3002`）。授权页的约定见 PawBuddy 网站仓库的 `app/utils/connect.ts`。
 
 ### 部署
 
@@ -72,6 +83,7 @@ pnpm generate   # 纯静态站点（.output/public），只能使用直连模式
 - 导出时弹出系统「另存为」对话框，默认打开上次保存的文件夹
 - 关闭窗口时先写入还没保存的修改再关闭，最多等 5 秒；保存失败或超时会弹出对话框，可以放弃修改关闭，也可以返回编辑
 - 工程数据保存在 `%LOCALAPPDATA%\com.k99k5.ai-photo-master\EBWebView`，与浏览器中的网页版互不相通
+- 登录 PawBuddy 时在系统浏览器打开网站，授权后经 `ai-photo-master://` 深链回到已打开的窗口（只运行一个实例，再次启动会把已有窗口带到前台）。安装包在安装时注册这个深链，`pnpm tauri dev` 运行时自动注册
 
 构建需要 Rust 1.90 以上与 Visual Studio C++ 生成工具：
 
@@ -112,9 +124,10 @@ app/
     image/        画布工具、底图合成、EXIF、分块导出
     storage/      IndexedDB（Dexie）
     project/      工程文档模型、退出前补存
-  stores/         Pinia：设置、图库与相册、编辑会话（撤销/自动保存）、读图、重绘任务
-  plugins/        Konva 注册；页面卸载与窗口关闭前补存；拦截浏览器自带的右键菜单
-  composables/    预览渲染、资源缓存、Worker、导出、提示、相册操作（侧栏右键与相册页共用）、测试连接（设置页与配置向导共用）
+    pawbuddy.ts   PawBuddy 连接码、授权页地址与官方模型
+  stores/         Pinia：设置（含 PawBuddy 账户）、图库与相册、编辑会话（撤销/自动保存）、读图、重绘任务
+  plugins/        Konva 注册；页面卸载与窗口关闭前补存；拦截浏览器自带的右键菜单；接收 PawBuddy 授权带回的连接码
+  composables/    预览渲染、资源缓存、Worker、导出、提示、相册操作（侧栏右键与相册页共用）、测试连接（设置页与配置向导共用）、PawBuddy 登录与连接
   components/     编辑器界面（画布、图层、区域工具、参数、建议、重绘、裁剪、导出）、工程网格、侧栏导航、设置项与首次配置向导
   workers/        图像计算 Worker（导出、重绘收尾）
 server/api/proxy  可选的 CORS 代理

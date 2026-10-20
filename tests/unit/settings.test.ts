@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSettingsStore } from '~/stores/settings'
+import { nextTick } from 'vue'
+import { defaultSettings, useSettingsStore } from '~/stores/settings'
 
 /** node 环境没有 localStorage，换成内存实现；每次 createPinia 相当于重新打开一次应用 */
 function stubStorage(initial: Record<string, string> = {}): Map<string, string> {
@@ -83,5 +84,66 @@ describe('首次配置向导标记', () => {
     expect(settings.setupDone).toBe(false)
     expect(() => settings.completeSetup()).not.toThrow()
     expect(settings.setupDone).toBe(true)
+  })
+})
+
+describe('PawBuddy 账户', () => {
+  const conn = { gateway: 'https://pawbuddy.example.com/v1', site: 'https://pawbuddy.example.com', user: 42, email: 'me@example.com', key: 'sk-pb' }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('连接后读图走账户网关、修图沿用读图连接，账户随设置保存', async () => {
+    const data = stubStorage(configured({ baseURL: 'https://own.example.com/v1', apiKey: 'sk-own', useProxy: true }))
+    const settings = launch()
+    settings.image.sameAsVision = false
+    settings.connectPawBuddy(conn)
+
+    expect(settings.visionConnection).toEqual({ baseURL: conn.gateway, apiKey: 'sk-pb', useProxy: false })
+    expect(settings.imageConnection).toEqual(settings.visionConnection)
+    expect(settings.pawbuddy).toEqual({ email: 'me@example.com', user: 42, site: conn.site })
+
+    await nextTick()
+    expect(JSON.parse(data.get('apm-settings')!).pawbuddy).toEqual(settings.pawbuddy)
+    expect(launch().pawbuddy).toEqual(settings.pawbuddy)
+  })
+
+  it('官方模型：当前模型能用就保留，否则换成列表第一个；修图单独配了接口时不动修图模型', () => {
+    stubStorage()
+    const settings = launch()
+    settings.vision.model = 'kimi-k3'
+    settings.applyOfficialModels({ vision: ['qwen3.8-max', 'kimi-k3'], image: ['image-2.5-flare', 'image-2.5-sunburst'] })
+    expect(settings.vision.model).toBe('kimi-k3')
+    expect(settings.image.model).toBe('image-2.5-flare')
+
+    settings.image.sameAsVision = false
+    settings.image.model = 'own-image'
+    settings.applyOfficialModels({ vision: [], image: ['image-2.5-flare'] })
+    expect(settings.vision.model).toBe('kimi-k3')
+    expect(settings.image.model).toBe('own-image')
+  })
+
+  it('断开后清掉网关、Key 与官方模型名，回到手动填写', () => {
+    stubStorage()
+    const settings = launch()
+    settings.connectPawBuddy(conn)
+    settings.applyOfficialModels({ vision: ['qwen3.8-max'], image: ['image-2.5-flare'] })
+    settings.disconnectPawBuddy()
+
+    const defaults = defaultSettings()
+    expect(settings.pawbuddy).toBeNull()
+    expect(settings.vision).toMatchObject({ baseURL: defaults.vision.baseURL, apiKey: '', model: defaults.vision.model })
+    expect(settings.image.model).toBe(defaults.image.model)
+    expect(settings.isVisionReady).toBe(false)
+  })
+
+  it('恢复默认设置同时断开账户', () => {
+    stubStorage()
+    const settings = launch()
+    settings.connectPawBuddy(conn)
+    settings.reset()
+    expect(settings.pawbuddy).toBeNull()
+    expect(settings.vision.apiKey).toBe('')
   })
 })
