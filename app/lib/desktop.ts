@@ -5,7 +5,7 @@ import { writeFile } from '@tauri-apps/plugin-fs'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 
 /**
- * 桌面版（Tauri）适配：运行时判定、跨域请求、本地文件保存、窗口关闭拦截与 WebView 自带右键菜单的屏蔽。
+ * 桌面版（Tauri）适配：运行时判定、跨域请求、本地文件保存与窗口关闭拦截。
  * 网页版不会调用这些插件；Worker 与 node 测试中 isDesktop() 恒为 false。
  * 插件权限见 src-tauri/capabilities/default.json。
  */
@@ -62,37 +62,6 @@ export function guardWindowClose(beforeClose: () => Promise<boolean>): Promise<(
       pending = false
     }
   })
-}
-
-/** 能输入文字的控件：桌面版在这里保留 WebView 自带的剪切、复制、粘贴菜单 */
-const TEXT_FIELD = [
-  'textarea',
-  '[contenteditable]:not([contenteditable="false"])',
-  'input:not([type])',
-  ...['text', 'search', 'url', 'email', 'password', 'number', 'tel'].map(type => `input[type="${type}"]`)
-].join(', ')
-
-/** 是否保留 WebView 自带的右键菜单：右键落在能输入文字的控件里，或页面上有选中的文字（菜单里有「复制」） */
-export function keepsNativeContextMenu(target: EventTarget | null, selection: Pick<Selection, 'isCollapsed'> | null): boolean {
-  if (selection && !selection.isCollapsed) {
-    return true
-  }
-  return typeof (target as Element | null)?.closest === 'function' && (target as Element).closest(TEXT_FIELD) !== null
-}
-
-/**
- * 不弹出 WebView2 自带的右键菜单（后退、刷新、另存为、打印、检查）：这些是浏览器的操作，出现在桌面应用里既陌生，
- * 「刷新」还会丢掉正在进行的重绘。应用自己的右键菜单在触发元素上先处理并阻止默认行为，这里只兜底其余位置；
- * 输入框与选中文字处保留系统菜单。返回取消监听的函数。
- */
-export function suppressNativeContextMenu(win: Pick<Window, 'addEventListener' | 'removeEventListener' | 'getSelection'>): () => void {
-  const onContextMenu = (event: Event) => {
-    if (!keepsNativeContextMenu(event.target, win.getSelection())) {
-      event.preventDefault()
-    }
-  }
-  win.addEventListener('contextmenu', onContextMenu)
-  return () => win.removeEventListener('contextmenu', onContextMenu)
 }
 
 /** 系统警告对话框，返回用户是否点了 ok 按钮（需要 dialog:allow-message） */

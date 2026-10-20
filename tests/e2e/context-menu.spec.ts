@@ -40,6 +40,19 @@ async function pick(option: Locator): Promise<void> {
   await option.locator('xpath=ancestor::label[1]').click()
 }
 
+test('没有应用菜单的位置不弹出浏览器自带的菜单，输入框里与选中文字时保留', async ({ page }) => {
+  await page.goto('/settings')
+  // 派发合成的右键事件，返回自带菜单是否会弹出（事件没被阻止）；合成事件不会真的弹出菜单
+  const keepsNative = (target: Locator) =>
+    target.evaluate(el => el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))
+  const libraryLink = page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: /图库/ })
+  expect(await keepsNative(libraryLink)).toBe(false)
+  expect(await keepsNative(page.getByRole('heading').first())).toBe(false)
+  expect(await keepsNative(page.getByRole('textbox').first())).toBe(true)
+  await page.evaluate(() => getSelection()!.selectAllChildren(document.querySelector('nav')!))
+  expect(await keepsNative(libraryLink)).toBe(true)
+})
+
 test('工程卡片与侧栏相册：右键移入移出相册、在侧栏就地重命名、更换图标、删除相册与工程', async ({ page }) => {
   await page.goto('/')
   const sidebar = page.getByRole('navigation', { name: '主导航' })

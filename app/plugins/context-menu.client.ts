@@ -1,11 +1,6 @@
-import { isDesktop, suppressNativeContextMenu } from '~/lib/desktop'
+import { suppressNativeContextMenu } from '~/lib/context-menu'
 
-/**
- * 桌面版只显示应用自己的右键菜单（工程卡片、侧栏相册、图层、画布），其余位置不弹出 WebView 自带的浏览器菜单。
- * 网页版保留浏览器菜单：那里的「在新标签页中打开」「复制图片」等仍然有用
- */
+/** 网页版与桌面版都只显示应用自己的右键菜单，其余位置不弹出浏览器自带的菜单（保留的例外见 lib/context-menu.ts） */
 export default defineNuxtPlugin(() => {
-  if (isDesktop()) {
-    suppressNativeContextMenu(window)
-  }
+  suppressNativeContextMenu(window)
 })
