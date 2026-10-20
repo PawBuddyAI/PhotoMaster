@@ -1,11 +1,13 @@
 {
   "name": "ai-photo-master",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
+    "build:pages": "nuxt generate && node scripts/release.ts fetch",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",

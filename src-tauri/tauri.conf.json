@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "AI 修图",
-  "version": "0.1.0",
+  "version": "../package.json",
   "identifier": "com.k99k5.ai-photo-master",
   "build": {
     "frontendDist": "../.output/public",

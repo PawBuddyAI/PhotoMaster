@@ -1,5 +1,6 @@
 [package]
 name = "ai-photo-master"
+# 发布版本以 package.json 为准（tauri.conf.json 引用它），这里不随发布更新
 version = "0.1.0"
 description = "AI 修图 Windows 桌面版"
 authors = ["k99k5"]

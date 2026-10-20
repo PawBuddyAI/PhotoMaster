@@ -103,6 +103,39 @@ pnpm tauri build    # 打包：src-tauri/target/release/bundle/nsis/ 下生成�
 - 发布后不要修改 `src-tauri/tauri.conf.json` 中的 `identifier`：数据目录随之改变，已有工程会「消失」
 - 图标源文件是 `public/app-icon.svg`（启动画面也直接显示它），修改后执行 `pnpm tauri icon public/app-icon.svg`，删除生成的 `android`、`ios` 目录，再把 `src-tauri/icons/icon.ico` 复制为 `public/favicon.ico`
 
+### 部署与发布
+
+网页版部署在 Cloudflare Pages（Git 集成构建）；桌面版安装包由 GitHub Actions **只在推送 `v*` 标签时**编译，并随网页一起提供下载，普通提交不会触发编译。
+
+**Cloudflare Pages（一次性配置）**
+
+| 项 | 值 |
+|---|---|
+| 框架预设 | 无 |
+| 构建命令 | `pnpm build:pages` |
+| 输出目录 | `.output/public` |
+| 环境变量 | `PNPM_VERSION` = `10.6.3`（Node 版本读取根目录的 `.node-version`） |
+| 生产分支 | `main` |
+
+`pnpm build:pages` 先 `nuxt generate`，再执行 `scripts/release.ts fetch`：从仓库最新 Release 下载安装包和 `latest.json`，校验大小与 sha256 后放进站点的 `/download/`。还没有任何 Release 时跳过；已有 Release 但下载或校验失败时构建失败，线上保持上一次的版本（Pages 整站原子替换，放过去会让下载入口消失）。
+
+**发布桌面版（只有这一步会编译 exe）**
+
+一次性配置：在 Pages 项目的 Settings > Builds 添加 Deploy hook（分支选 `main`），把得到的 URL 存进 GitHub 仓库的 Secrets，名称 `PAGES_DEPLOY_HOOK`。不配置也能发布，但 Release 建好后要手动重新部署一次 Pages，站点才会带上新安装包。
+
+```bash
+npm version 0.2.0 -m "release %s"   # 修改 package.json 的版本、提交、打标签 v0.2.0
+git push --follow-tags              # 标签推上去后 Actions 开始编译
+```
+
+首次发布 0.1.0 时 `package.json` 已经是 0.1.0，`npm version` 不会重复升同一个版本，直接打标签：`git tag v0.1.0 && git push origin v0.1.0`。
+
+工作流 `.github/workflows/release.yml` 依次：校验标签与 `package.json` 版本一致、跑单元测试、`pnpm tauri build`、把安装包整理成固定文件名 `ai-photo-master-setup.exe` 并生成 `latest.json`（版本、大小、sha256）、创建 Release、触发 Pages 重新构建。完成后站点提供 `/download/ai-photo-master-setup.exe` 与 `/download/latest.json`。
+
+- 版本号带 `-` 的（如 `0.2.0-beta.1`）按预发布处理：不会成为 `latest`，也不会触发 Pages 重新构建
+- 版本号只维护在 `package.json`：`tauri.conf.json` 的 `version` 引用它，`Cargo.toml` 里的 `version` 不参与发布，不用改
+- 某次发布失败要重来：删掉 Release 和远程、本地标签（`gh release delete v0.2.0 --cleanup-tag && git tag -d v0.2.0`），修好后重新打标签
+
 ### 快捷键
 
 | 按键 | 作用 |

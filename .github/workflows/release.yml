@@ -1,0 +1,89 @@
+name: 发布桌面版
+
+# 只在推送 v* 标签时编译，普通提交不会触发。
+# 发布步骤见 README「部署与发布」：npm version <版本号> -m "release %s" && git push --follow-tags
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: 构建 Windows 安装包并发布
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PAGES_DEPLOY_HOOK: ${{ secrets.PAGES_DEPLOY_HOOK }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: 校验标签与 package.json 版本一致
+        id: version
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::标签 $GITHUB_REF_NAME 与 package.json 的版本 $version 不一致，请用 npm version 升版本"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: 单元测试
+        run: pnpm test
+
+      - name: 编译安装包
+        run: pnpm tauri build
+
+      - name: 整理发布文件
+        shell: bash
+        run: |
+          shopt -s nullglob
+          installers=(src-tauri/target/release/bundle/nsis/*_${{ steps.version.outputs.version }}_x64-setup.exe)
+          if [ "${#installers[@]}" -ne 1 ]; then
+            echo "::error::应当恰好找到 1 个安装包，实际 ${#installers[@]} 个"
+            exit 1
+          fi
+          node scripts/release.ts pack "${installers[0]}" release-assets "${{ steps.version.outputs.version }}"
+
+      - name: 发布到 GitHub Release
+        id: publish
+        shell: bash
+        run: |
+          flags=()
+          if [[ "${{ steps.version.outputs.version }}" == *-* ]]; then
+            flags+=(--prerelease)
+          fi
+          # 先建草稿、传完文件再公开，避免 latest.json 先于安装包可见
+          gh release create "$GITHUB_REF_NAME" release-assets/* \
+            --draft --verify-tag --generate-notes \
+            --title "AI 修图 ${{ steps.version.outputs.version }}" "${flags[@]}"
+          gh release edit "$GITHUB_REF_NAME" --draft=false
+          echo "prerelease=${#flags[@]}" >> "$GITHUB_OUTPUT"
+
+      # Pages 在构建时拉取最新 Release 里的安装包；预发布版本不是 latest，不需要重建
+      - name: 触发 Cloudflare Pages 重新构建
+        if: ${{ env.PAGES_DEPLOY_HOOK != '' && steps.publish.outputs.prerelease == '0' }}
+        shell: bash
+        run: curl -fsS --retry 3 -X POST "$PAGES_DEPLOY_HOOK"
