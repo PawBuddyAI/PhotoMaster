@@ -3,7 +3,7 @@ import { IMAGE_MODEL_GROUP } from '~/lib/llm/models'
 import { useSettingsStore } from '~/stores/settings'
 
 /**
- * 首次配置向导：第一次打开应用时浮在图库之上，分三步填好跑通 AI 功能的必填项——欢迎、连接接口、选择模型。
+ * 首次配置向导：第一次打开应用时浮在图库之上，分三步填好跑通 AI 功能的必填项——欢迎、连接 AI 服务、选择模型。
  * 只覆盖接口地址、Key 与两个模型名，思考等级、修图质量等留在设置页；填写的内容直接写进设置，中途跳过也不丢。
  * 连接一步推荐登录 PawBuddy 账户：授权后接口、Key 与官方模型自动填好，直接进入选择模型。
  * 走完、点「稍后设置」、右上角关闭或按 Esc 都记为已完成，以后不再弹出；没配好时图库顶部的提示条仍然指向设置页。
@@ -11,17 +11,18 @@ import { useSettingsStore } from '~/stores/settings'
 const settings = useSettingsStore()
 const { testing, testVision, testImage } = useConnectionTest()
 
+// 向导面向不熟悉 AI 接口的普通用户：除自带接口那一栏外，文案避开 Base URL、OpenAI 兼容、图层这类术语
 const STEPS = [
-  { title: '欢迎使用 AI 修图', description: '先花一分钟连上你的模型接口' },
-  { title: '连接模型接口', description: '推荐使用 PawBuddy 账户，也可以填写自己的 OpenAI 兼容接口' },
-  { title: '选择模型', description: '可从服务的模型列表中选择，也可以直接输入名称；思考等级、修图质量等更多选项在设置里' }
+  { title: '欢迎使用 AI 修图', description: '让 AI 帮你看照片、出主意，还能直接动手修' },
+  { title: '连接 AI 服务', description: '登录 PawBuddy 账户最省事；熟悉 API 的话，也可以填写自己的接口' },
+  { title: '选择模型', description: '一般保持默认就好，也可以从列表里换一个；更多选项之后可以在设置里调整' }
 ]
 const LAST_STEP = STEPS.length - 1
 
 const HIGHLIGHTS = [
-  { icon: 'i-lucide-scan-eye', title: 'AI 读图给方案', description: '多模态模型分析照片，给出调色、重绘与构图建议' },
-  { icon: 'i-lucide-layers', title: '每条建议都是图层', description: '采纳后可以继续微调、关闭或删除，随时对比原图' },
-  { icon: 'i-lucide-hard-drive', title: '照片只存在本机', description: '只在使用 AI 功能时发送给你配置的接口' }
+  { icon: 'i-lucide-scan-eye', title: 'AI 帮你看照片', description: '指出偏暗、偏色、拍歪等问题，还能帮你去掉路人、换个天空' },
+  { icon: 'i-lucide-undo-2', title: '不满意随时改回来', description: '每一处修改都能单独微调、隐藏或删除，原图始终保留' },
+  { icon: 'i-lucide-hard-drive', title: '照片保存在这台设备上', description: '只有用到 AI 功能时，才会把照片发给你连接的 AI 服务' }
 ]
 
 // 只在启动时决定一次：向导打开期间填好 Key 后 isVisionReady 变真，向导不能自己关掉
@@ -49,8 +50,8 @@ const canContinue = computed(() => {
   }
 })
 const imageModelHint = computed(() => settings.image.sameAsVision
-  ? '局部重绘用的图像模型，沿用上一步的接口'
-  : '局部重绘用的图像模型，使用设置里单独配置的接口')
+  ? '负责去路人、换天空这类局部修改，和上面用同一个服务'
+  : '负责去路人、换天空这类局部修改，使用设置里单独填写的服务')
 
 /**
  * 换步时焦点进入新的一步：有输入框时落在第一个输入框上，否则交给弹窗本身，回车即「继续」。
@@ -134,9 +135,6 @@ async function testConnection() {
               </div>
             </li>
           </ul>
-          <p class="mt-auto text-sm text-pretty text-muted">
-            下一步可以登录 PawBuddy 账户，也可以填写自己的 OpenAI 兼容接口（Base URL 与 API Key）。暂时不想配置也可以先跳过，手动调色、裁剪和导出不受影响。
-          </p>
         </template>
 
         <template v-else-if="step === 1">
@@ -161,7 +159,7 @@ async function testConnection() {
           <div class="divide-y divide-default rounded-xl border border-default">
             <SettingsRow
               label="读图模型"
-              description="分析照片并给出建议，需要支持图像输入"
+              description="负责看照片、给出修图建议，需要能识别图片"
             >
               <SettingsModelPicker
                 v-model="settings.vision.model"
@@ -181,7 +179,7 @@ async function testConnection() {
           </div>
           <div class="flex flex-wrap items-center justify-between gap-3">
             <p class="min-w-0 flex-1 text-sm text-pretty text-muted">
-              测试会发送一次很短的文本请求，并自动检测结构化输出方式
+              发一条很短的测试消息，确认能连上、模型名称没填错
             </p>
             <UButton
               icon="i-lucide-plug-zap"

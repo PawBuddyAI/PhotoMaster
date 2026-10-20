@@ -142,8 +142,8 @@ async function confirmDelete() {
           color="warning"
           variant="subtle"
           icon="i-lucide-key-round"
-          title="尚未配置模型接口"
-          description="填写 OpenAI 兼容接口的 Base URL 和 API Key 后，即可使用 AI 读图建议与局部重绘。不配置也可以手动调色和导出。"
+          title="还没有连接 AI 服务"
+          description="连接后，AI 就能帮你看照片、给出修图建议，还能去掉路人、换个天空。不连接也可以自己调色、裁剪和导出。"
           :actions="[{ label: '前往设置', to: '/settings', color: 'primary', variant: 'solid', size: 'lg' }]"
         />
 
@@ -154,7 +154,7 @@ async function confirmDelete() {
           :disabled="importing"
           icon="i-lucide-image-plus"
           label="拖入照片，或点击选择"
-          description="支持 JPEG、PNG、WebP。图片只保存在本机，仅在使用 AI 功能时发送给你配置的接口。"
+          description="支持 JPEG、PNG、WebP。照片只存在这台设备上，用到 AI 时才会上传。"
           class="w-full"
           :class="projects.length ? 'min-h-36' : 'min-h-56'"
           :ui="{

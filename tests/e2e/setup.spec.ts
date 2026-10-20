@@ -68,7 +68,7 @@ test('全新打开时弹出向导：回车继续、填写接口、选模型并�
 
   // 打开时焦点停在弹窗本身，回车即「继续」；进入下一步后焦点落在第一个输入框
   await page.keyboard.press('Enter')
-  await expect(dialog.getByRole('heading', { name: '连接模型接口' })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: '连接 AI 服务' })).toBeVisible()
   await expect(dialog.getByRole('list', { name: '第 2 步，共 3 步' })).toBeVisible()
   const baseURL = dialog.getByLabel('Base URL')
   await expect(baseURL).toBeFocused()
@@ -105,7 +105,7 @@ test('全新打开时弹出向导：回车继续、填写接口、选模型并�
   await dialog.getByRole('button', { name: '开始使用' }).click()
 
   await expectNoWizard(page)
-  await expect(page.getByText('尚未配置模型接口')).toHaveCount(0)
+  await expect(page.getByText('还没有连接 AI 服务')).toHaveCount(0)
   expect(await stored(page, 'apm-setup')).toBe('done')
   const saved = await savedSettings(page)
   expect(saved.vision).toMatchObject({ baseURL: API, apiKey: 'test-key', model: 'gpt-6-luna', structuredOutput: 'json_schema' })
@@ -120,12 +120,12 @@ test('「稍后设置」跳过后不再弹出，图库仍提示未配置', async
   await wizard(page).getByRole('button', { name: '稍后设置' }).click()
 
   await expectNoWizard(page)
-  await expect(page.getByText('尚未配置模型接口')).toBeVisible()
+  await expect(page.getByText('还没有连接 AI 服务')).toBeVisible()
   expect(await stored(page, 'apm-setup')).toBe('done')
 
   await page.reload()
   await expectNoWizard(page)
-  await expect(page.getByText('尚未配置模型接口')).toBeVisible()
+  await expect(page.getByText('还没有连接 AI 服务')).toBeVisible()
 })
 
 test('中途按 Esc 关闭：已填写的内容保留，也算走过向导', async ({ page }) => {
