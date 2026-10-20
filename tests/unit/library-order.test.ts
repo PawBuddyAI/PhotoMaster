@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { manualSequence, manualValues, planReorder, sortProjects } from '~/lib/library/order'
+import { groupByAlbum, isViewMode, manualSequence, manualValues, planReorder, sortProjects } from '~/lib/library/order'
 
 interface Item {
   id: string
   name: string
   createdAt: number
   order?: number
+  albumId?: string
 }
 
 /** 传入顺序即最近修改倒序 */
@@ -148,5 +149,52 @@ describe('planReorder', () => {
     const plan = planReorder(all, ['b', 'a', 'c'], 'c', 'b', 'before')
 
     expect(apply(all, plan)).toEqual(['c', 'b', 'a'])
+  })
+})
+
+describe('groupByAlbum', () => {
+  const albums = [{ id: 'travel' }, { id: 'food' }, { id: 'empty' }]
+  const idsOf = (groups: ReturnType<typeof groupByAlbum<Item, { id: string }>>) => groups.map(g => [g.album?.id ?? null, ids(g.projects)])
+
+  it('相册按传入的顺序排列，没有工程的相册不出现，不在相册里的工程收在最后一组', () => {
+    const groups = groupByAlbum([
+      item('a'),
+      item('b', { albumId: 'food' }),
+      item('c', { albumId: 'travel' }),
+      item('d')
+    ], albums)
+
+    expect(idsOf(groups)).toEqual([['travel', ['c']], ['food', ['b']], [null, ['a', 'd']]])
+  })
+
+  it('组内保持传入的顺序，所以先排序再分组就是按当前排序方式排列', () => {
+    const sorted = sortProjects([
+      item('b', { albumId: 'travel', name: '乙' }),
+      item('a', { albumId: 'travel', name: '甲' }),
+      item('c', { name: '丙' })
+    ], 'name')
+
+    expect(idsOf(groupByAlbum(sorted, albums))).toEqual([['travel', ['a', 'b']], [null, ['c']]])
+  })
+
+  it('所属相册已不存在的工程归入最后一组，不会从界面上消失', () => {
+    const groups = groupByAlbum([item('a', { albumId: 'gone' }), item('b', { albumId: 'travel' })], albums)
+
+    expect(idsOf(groups)).toEqual([['travel', ['b']], [null, ['a']]])
+  })
+
+  it('没有工程、没有相册、全部未分组时的边界', () => {
+    expect(groupByAlbum([], albums)).toEqual([])
+    expect(idsOf(groupByAlbum([item('a'), item('b')], []))).toEqual([[null, ['a', 'b']]])
+    expect(idsOf(groupByAlbum([item('a', { albumId: 'travel' })], albums))).toEqual([['travel', ['a']]])
+  })
+})
+
+describe('isViewMode', () => {
+  it('只认「全部」与「按相册」两种存档', () => {
+    expect(isViewMode('all')).toBe(true)
+    expect(isViewMode('albums')).toBe(true)
+    expect(isViewMode('grid')).toBe(false)
+    expect(isViewMode(null)).toBe(false)
   })
 })

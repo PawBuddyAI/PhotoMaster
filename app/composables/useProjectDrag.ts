@@ -8,9 +8,10 @@ const PROJECT_DRAG_TYPE = 'application/x-apm-project'
 const LIBRARY_TARGET = 'library'
 
 /**
- * 工程卡片的拖放：卡片网格是拖动的起点，侧栏的「图库」与各相册是放下的目标（移到该相册 / 移出相册）。
+ * 工程卡片的拖放：卡片网格是拖动的起点，侧栏的「图库」与各相册是放下的目标（移到该相册 / 移出相册），
+ * 图库按相册分组展示时，每一组的网格也是同样的放下目标。
  * 拖动在整个窗口里只会有一个，状态用 useState 共享，网格与侧栏据此判断是否接受放下；
- * 网格里卡片之间的排序是网格自己的事，见 LibraryPanel。
+ * 网格里卡片之间的排序是网格自己的事，见 LibraryProjectGrid。
  */
 export function useProjectDrag() {
   const library = useLibraryStore()
@@ -96,5 +97,5 @@ export function useProjectDrag() {
     return hovering.value === (albumId ?? LIBRARY_TARGET)
   }
 
-  return { dragging, lifted, begin, finish, move, dropTarget, isDropping }
+  return { dragging, lifted, begin, finish, move, accepts, dropTarget, isDropping }
 }

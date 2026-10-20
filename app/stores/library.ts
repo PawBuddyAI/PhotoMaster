@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import { type DropSide, isSortMode, planReorder, type SortMode, sortProjects } from '~/lib/library/order'
+import { type DropSide, isSortMode, isViewMode, planReorder, type SortMode, sortProjects, type ViewMode } from '~/lib/library/order'
 import {
   createAlbum,
   deleteAlbum,
@@ -25,13 +25,23 @@ export interface AlbumEntry extends AlbumRecord {
 const RELEASE_DELAY = 1000
 
 const SORT_STORAGE_KEY = 'apm-library-sort'
+const VIEW_STORAGE_KEY = 'apm-library-view'
 
-function loadSortMode(): SortMode {
+/** 读取记在本机的选项；没有存档、存档无效或 localStorage 不可读时用默认值 */
+function loadChoice<T extends string>(key: string, isValid: (value: unknown) => value is T, fallback: T): T {
   try {
-    const saved = globalThis.localStorage?.getItem(SORT_STORAGE_KEY)
-    return isSortMode(saved) ? saved : 'recent'
+    const saved = globalThis.localStorage?.getItem(key)
+    return isValid(saved) ? saved : fallback
   } catch {
-    return 'recent'
+    return fallback
+  }
+}
+
+function saveChoice(key: string, value: string): void {
+  try {
+    globalThis.localStorage?.setItem(key, value)
+  } catch {
+    // 隐私模式等场景下 localStorage 不可写，选项仅在本次会话内生效
   }
 }
 
@@ -60,15 +70,12 @@ export const useLibraryStore = defineStore('library', () => {
   /** 首次读取完成前，页面显示骨架而不是「没有工程」 */
   const loaded = ref(false)
   /** 图库页与相册页共用的排序方式，记在本机 */
-  const sortMode = ref<SortMode>(loadSortMode())
+  const sortMode = ref<SortMode>(loadChoice(SORT_STORAGE_KEY, isSortMode, 'recent'))
+  /** 图库页的展示方式（全部 / 按相册），相册页不受影响，记在本机 */
+  const viewMode = ref<ViewMode>(loadChoice(VIEW_STORAGE_KEY, isViewMode, 'all'))
 
-  watch(sortMode, (mode) => {
-    try {
-      globalThis.localStorage?.setItem(SORT_STORAGE_KEY, mode)
-    } catch {
-      // 隐私模式等场景下 localStorage 不可写，排序方式仅在本次会话内生效
-    }
-  })
+  watch(sortMode, mode => saveChoice(SORT_STORAGE_KEY, mode))
+  watch(viewMode, mode => saveChoice(VIEW_STORAGE_KEY, mode))
 
   async function refresh(): Promise<void> {
     const [projectList, albumList] = await Promise.all([listProjects(), listAlbums()])
@@ -138,11 +145,11 @@ export const useLibraryStore = defineStore('library', () => {
   }
 
   /**
-   * 把工程放到同一页面里另一个工程的前面或后面。无论原来是哪种排序方式，看到的顺序就成了手动顺序，
-   * 排序方式随之切到「手动排序」；放回原位时什么都不做。albumId 为 null 时是整个图库
+   * 把工程放到同一个网格里另一个工程的前面或后面。shown 是这个网格此刻看到的工程 id，按显示顺序
+   * （整个图库、一个相册，或按相册分组时的一组）。无论原来是哪种排序方式，看到的顺序就成了手动顺序，
+   * 排序方式随之切到「手动排序」；放回原位时什么都不做
    */
-  async function reorderProject(projectId: string, targetId: string, side: DropSide, albumId: string | null): Promise<void> {
-    const shown = sortedProjectsIn(albumId).map(project => project.id)
+  async function reorderProject(projectId: string, targetId: string, side: DropSide, shown: readonly string[]): Promise<void> {
     const plan = planReorder(projects.value, shown, projectId, targetId, side)
     if (!plan.size) {
       return
@@ -205,6 +212,7 @@ export const useLibraryStore = defineStore('library', () => {
     thumbnails,
     loaded,
     sortMode,
+    viewMode,
     albumEntries,
     refresh,
     projectsIn,

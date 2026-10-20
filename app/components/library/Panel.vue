@@ -2,15 +2,15 @@
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { isDesktop, pickImagePath, readFileAs } from '~/lib/desktop'
 import { baseName, FORMAT_EXTENSIONS, formatFromPath } from '~/lib/image/export-options'
-import { type DropSide, SORT_MODES } from '~/lib/library/order'
-import { pinLeaving } from '~/lib/motion'
+import { groupByAlbum, SORT_MODES, VIEW_MODES } from '~/lib/library/order'
 import { createProject, type ProjectSummary, SUPPORTED_IMAGE_TYPES } from '~/lib/storage/db'
 import { useLibraryStore } from '~/stores/library'
 
 /**
- * 工程网格：图库页列出全部工程，相册页只列出该相册的工程；在相册页导入的照片直接放进这个相册。
- * 页面自定义标题区（相册重命名）和标题栏右侧的额外操作（相册菜单），导入、排序、移动和删除工程在这里统一处理。
- * 卡片可以拖：拖到侧栏的相册上移进去（放下目标在外壳里），在网格里拖到另一张卡片的前后则调整顺序。
+ * 工程列表页：图库页列出全部工程，相册页只列出该相册的工程；在相册页导入的照片直接放进这个相册。
+ * 图库页还能切换展示方式：全部工程一个网格，或按相册分组（每个相册一组，没放进相册的收在最后）。
+ * 页面自定义标题区（相册重命名）和标题栏右侧的额外操作（相册菜单），导入、排序、展示方式和删除确认在这里统一处理；
+ * 卡片网格、拖放与移动见 LibraryProjectGrid。
  */
 const props = defineProps<{
   id: string
@@ -30,16 +30,20 @@ const router = useRouter()
 const backdrop = useBackdrop()
 const drag = useProjectDrag()
 
-/** 已解码完成的缩略图：解码前只露出凹槽底色，完成后再淡入，网格不会逐张闪现 */
-const decoded = ref(new Set<string>())
 const importing = ref(false)
 const file = ref<File | null>(null)
 const pendingDelete = ref<ProjectSummary | null>(null)
 const uploadRef = ref<{ inputRef: HTMLInputElement | undefined } | null>(null)
 
-const dateFormat = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' })
-
 const projects = computed(() => library.sortedProjectsIn(props.albumId ?? null))
+
+/** 分组只在图库页有意义（相册页本身就是一个相册），而且至少有一个相册、有工程时才提供切换 */
+const canGroup = computed(() => !props.albumId && library.albums.length > 0 && projects.value.length > 0)
+const grouped = computed(() => canGroup.value && library.viewMode === 'albums')
+/** 先按排序方式排好再分组，每一组里就是同样的排序 */
+const groups = computed(() => groupByAlbum(projects.value, library.albums))
+
+const viewItems = VIEW_MODES.map(({ value, label, icon }) => ({ value, label, icon }))
 
 // 侧栏透出这里最近修过的那张照片（与排序方式无关）；空相册沿用图库最近的照片，侧栏不会突然褪成纯灰
 watchEffect(() => {
@@ -106,80 +110,6 @@ watch(() => uploadRef.value?.inputRef, (input, previous) => {
     input?.addEventListener('click', interceptPick)
   }
 }, { immediate: true, flush: 'post' })
-
-/** 拖动排序时光标停在哪张卡片的哪一侧：放下后被拖的工程排在它之前或之后 */
-const hint = ref<{ id: string, side: DropSide } | null>(null)
-
-function onGridDragOver(event: DragEvent) {
-  if (!drag.dragging.value) {
-    return
-  }
-  event.preventDefault()
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move'
-  }
-  // 光标在卡片之间的空隙里时保持上一次的位置，指示线不会来回闪
-  const card = (event.target as Element).closest<HTMLElement>('li[data-project]')
-  if (!card) {
-    return
-  }
-  if (card.dataset.project === drag.dragging.value) {
-    hint.value = null
-    return
-  }
-  const rect = card.getBoundingClientRect()
-  hint.value = { id: card.dataset.project!, side: event.clientX < rect.left + rect.width / 2 ? 'before' : 'after' }
-}
-
-function onGridDragLeave(event: DragEvent) {
-  if (!(event.currentTarget as Node).contains(event.relatedTarget as Node | null)) {
-    hint.value = null
-  }
-}
-
-async function onGridDrop(event: DragEvent) {
-  event.preventDefault()
-  const moved = drag.dragging.value
-  const target = hint.value
-  endDrag()
-  if (!moved || !target) {
-    return
-  }
-  try {
-    await library.reorderProject(moved, target.id, target.side, props.albumId ?? null)
-  } catch (err) {
-    notify.error(err)
-  }
-}
-
-function endDrag() {
-  hint.value = null
-  drag.finish()
-}
-
-function cardMenu(project: ProjectSummary): DropdownMenuItem[][] {
-  const targets = library.albums.filter(album => album.id !== project.albumId)
-  const organize: DropdownMenuItem[] = [{
-    label: '移到相册',
-    icon: 'i-lucide-folder-input',
-    children: targets.length
-      // 有 emoji 的相册走 album 插槽，用 emoji 代替文件夹图标
-      ? targets.map(album => ({ label: album.name, icon: 'i-lucide-folder', emoji: album.emoji, slot: album.emoji ? 'album' : undefined, onSelect: () => drag.move(project, album.id) }))
-      : [{ label: library.albums.length ? '没有其他相册' : '还没有相册，可在侧栏新建', disabled: true }]
-  }]
-  if (project.albumId) {
-    organize.push({ label: '移出相册', icon: 'i-lucide-folder-output', onSelect: () => drag.move(project, null) })
-  }
-  const remove: DropdownMenuItem = {
-    label: '删除工程',
-    icon: 'i-lucide-trash-2',
-    color: 'error',
-    onSelect: () => {
-      pendingDelete.value = project
-    }
-  }
-  return [organize, [remove]]
-}
 
 async function confirmDelete() {
   const target = pendingDelete.value
@@ -256,16 +186,34 @@ async function confirmDelete() {
               {{ library.sortMode === 'recent' ? '最近的工程' : '工程' }}
             </h2>
             <div
-              v-if="projects.length > 1"
-              class="flex items-center gap-3"
+              v-if="canGroup || projects.length > 1"
+              class="flex flex-wrap items-center justify-end gap-3"
             >
               <p
-                v-if="library.sortMode === 'manual'"
+                v-if="projects.length > 1 && library.sortMode === 'manual'"
                 class="text-sm text-muted"
               >
                 拖动卡片调整顺序
               </p>
+              <!-- 切换视图的分段控件，样式与编辑器左栏的「AI 建议 / 图层」一致；没有内容面板，只负责切换 -->
+              <UTabs
+                v-if="canGroup"
+                v-model="library.viewMode"
+                role="group"
+                aria-label="展示方式"
+                :items="viewItems"
+                :content="false"
+                variant="pill"
+                color="neutral"
+                size="lg"
+                :ui="{
+                  list: 'rounded-lg bg-transparent p-0.5 ring ring-default ring-inset',
+                  indicator: 'rounded-md bg-surface shadow-none ring ring-default',
+                  trigger: 'data-[state=active]:text-highlighted'
+                }"
+              />
               <UDropdownMenu
+                v-if="projects.length > 1"
                 :items="sortMenu"
                 :content="{ align: 'end' }"
               >
@@ -295,90 +243,67 @@ async function confirmDelete() {
             title="相册里还没有工程"
             description="在图库里打开工程卡片的「更多操作」，可以把已有的工程移到这个相册。"
           />
-          <TransitionGroup
+          <LibraryProjectGrid
+            v-else-if="!grouped"
+            :projects="projects"
+            @remove="pendingDelete = $event"
+          />
+          <!-- 按相册分组：相册按侧栏里的顺序，没放进相册的收在最后；标题点进去是该相册的页面 -->
+          <div
             v-else
-            tag="ul"
-            name="list"
-            class="relative grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
-            @before-leave="pinLeaving"
-            @dragover="onGridDragOver"
-            @dragleave="onGridDragLeave"
-            @drop="onGridDrop"
+            class="flex flex-col gap-8"
           >
-            <!-- li 是过渡的直接子元素，右键菜单只能放在里面：卡片外观挂在触发元素上，被右键的卡片才能描上蓝边 -->
-            <li
-              v-for="project in projects"
-              :key="project.id"
-              :data-project="project.id"
-              class="relative min-w-0"
+            <section
+              v-for="group in groups"
+              :key="group.album?.id ?? 'loose'"
+              :aria-labelledby="`group-${group.album?.id ?? 'loose'}`"
+              class="flex flex-col gap-3"
             >
-              <!-- 拖动排序的插入位置：落在卡片之间的空隙里，系统蓝竖线 -->
-              <span
-                v-if="hint?.id === project.id"
-                aria-hidden="true"
-                class="pointer-events-none absolute inset-y-0 z-10 w-0.5 rounded-full bg-primary"
-                :class="hint.side === 'before' ? '-left-2.25' : '-right-2.25'"
-              />
-              <UContextMenu :items="cardMenu(project)">
-                <!-- 菜单项是运行时拼出来的，slot 名不是字面量，Nuxt UI 推断不出插槽参数的类型 -->
-                <template #album-leading="{ item }">
-                  <LibraryAlbumEmoji :emoji="(item as DropdownMenuItem).emoji" />
-                </template>
-                <!-- 链接和图片自己也能被浏览器拖走，关掉它们的拖动，整张卡片才是拖动的对象 -->
-                <div
-                  draggable="true"
-                  class="h-full overflow-hidden rounded-xl border border-default bg-default outline-primary transition-[background-color,border-color,opacity] duration-200 ease-out hover:border-accented hover:bg-(--mac-mid-hover) data-[state=open]:outline-2"
-                  :class="drag.lifted.value && drag.dragging.value === project.id ? 'opacity-50' : ''"
-                  @dragstart="drag.begin($event, project)"
-                  @dragend="endDrag"
+              <div class="flex items-center gap-2">
+                <h3
+                  :id="`group-${group.album?.id ?? 'loose'}`"
+                  class="min-w-0 text-sm font-semibold text-highlighted"
                 >
                   <NuxtLink
-                    :to="`/editor/${project.id}`"
-                    class="block outline-primary/60 focus-visible:outline-2 focus-visible:-outline-offset-2"
-                    tabindex="-1"
-                    aria-hidden="true"
-                    draggable="false"
+                    v-if="group.album"
+                    :to="`/albums/${group.album.id}`"
+                    class="-ms-1.5 flex items-center gap-2 rounded-md px-1.5 py-0.5 outline-primary/60 transition-colors duration-200 ease-out hover:bg-elevated focus-visible:outline-2"
                   >
-                    <img
-                      :src="library.thumbnails[project.id]"
-                      alt=""
-                      draggable="false"
-                      class="aspect-4/3 w-full border-b border-default bg-deep object-cover transition-opacity duration-300 ease-out"
-                      :class="decoded.has(project.id) ? 'opacity-100' : 'opacity-0'"
-                      @load="decoded.add(project.id)"
-                    >
+                    <LibraryAlbumEmoji
+                      v-if="group.album.emoji"
+                      :emoji="group.album.emoji"
+                    />
+                    <UIcon
+                      v-else
+                      name="i-lucide-folder"
+                      class="size-4 shrink-0 text-muted"
+                    />
+                    <span class="truncate">{{ group.album.name }}</span>
+                    <UIcon
+                      name="i-lucide-chevron-right"
+                      class="size-4 shrink-0 text-muted"
+                    />
                   </NuxtLink>
-                  <div class="flex items-center justify-between gap-2 py-2 ps-3 pe-1.5">
-                    <NuxtLink
-                      :to="`/editor/${project.id}`"
-                      draggable="false"
-                      class="min-w-0 rounded-md outline-primary/60 focus-visible:outline-2"
-                    >
-                      <p class="truncate text-sm font-medium text-highlighted">{{ project.name }}</p>
-                      <p class="truncate text-xs text-muted tabular-nums">
-                        {{ project.width }}×{{ project.height }} · {{ dateFormat.format(project.updatedAt) }}
-                      </p>
-                    </NuxtLink>
-                    <UDropdownMenu
-                      :items="cardMenu(project)"
-                      :content="{ align: 'end' }"
-                    >
-                      <template #album-leading="{ item }">
-                        <LibraryAlbumEmoji :emoji="(item as DropdownMenuItem).emoji" />
-                      </template>
-                      <UButton
-                        icon="i-lucide-ellipsis"
-                        color="neutral"
-                        variant="ghost"
-                        size="sm"
-                        aria-label="更多操作"
-                      />
-                    </UDropdownMenu>
-                  </div>
-                </div>
-              </UContextMenu>
-            </li>
-          </TransitionGroup>
+                  <span
+                    v-else
+                    class="flex items-center gap-2"
+                  >
+                    <UIcon
+                      name="i-lucide-image"
+                      class="size-4 shrink-0 text-muted"
+                    />
+                    未放入相册
+                  </span>
+                </h3>
+                <span class="shrink-0 text-xs text-muted tabular-nums">{{ group.projects.length }}</span>
+              </div>
+              <LibraryProjectGrid
+                :projects="group.projects"
+                :album-id="group.album?.id ?? null"
+                @remove="pendingDelete = $event"
+              />
+            </section>
+          </div>
         </section>
       </div>
       <UModal

@@ -43,6 +43,9 @@ async function seed<const T extends Array<[name: string, albumId?: string]>>(...
   return ids as { [K in keyof T]: string }
 }
 
+/** 页面上某个网格此刻看到的工程 id：整个图库（null）或一个相册 */
+const shownIn = (library: ReturnType<typeof useLibraryStore>, albumId: string | null) => library.sortedProjectsIn(albumId).map(p => p.id)
+
 describe('useLibraryStore', () => {
   it('刷新后按相册推导数量与封面，封面取相册里最近修改的工程', async () => {
     const travel = await storage.createAlbum('旅行')
@@ -221,6 +224,47 @@ describe('useLibraryStore', () => {
     vi.unstubAllGlobals()
   })
 
+  it('展示方式默认「全部」，选择后记在本机，下次启动沿用；无效的存档回到默认', async () => {
+    const saved = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => saved.get(key) ?? null,
+      setItem: (key: string, value: string) => void saved.set(key, value)
+    })
+    const library = useLibraryStore()
+    expect(library.viewMode).toBe('all')
+
+    library.viewMode = 'albums'
+    await nextTick()
+    expect(saved.get('apm-library-view')).toBe('albums')
+    // 展示方式与排序方式各记各的
+    expect(saved.has('apm-library-sort')).toBe(false)
+
+    setActivePinia(createPinia())
+    expect(useLibraryStore().viewMode).toBe('albums')
+    saved.set('apm-library-view', '乱写的')
+    setActivePinia(createPinia())
+    expect(useLibraryStore().viewMode).toBe('all')
+    vi.unstubAllGlobals()
+  })
+
+  it('按相册分组时，「未放入相册」一组里拖动排序只动这一组占着的位置', async () => {
+    const travel = await storage.createAlbum('旅行')
+    const [a, b, c, d] = await seed(['a'], ['b', travel.id], ['c'], ['d'])
+    const library = useLibraryStore()
+    await library.refresh()
+    // 图库里是 d c b a；未放入相册的是 d c a
+    expect(shownIn(library, null)).toEqual([d, c, b, a])
+    const loose = [d, c, a]
+
+    await library.reorderProject(a, d, 'before', loose)
+
+    // 这一组占着第 1、2、4 位，按新顺序 a d c 重新分配；旅行相册里的 b 仍在第 3 位
+    expect(shownIn(library, null)).toEqual([a, d, b, c])
+    expect(shownIn(library, travel.id)).toEqual([b])
+    await library.refresh()
+    expect(shownIn(library, null)).toEqual([a, d, b, c])
+  })
+
   it('拖动排序写库后就地更新列表，刷新后顺序不变，排序方式切到手动排序', async () => {
     const [a, b, c] = await seed(['a'], ['b'], ['c'])
     const library = useLibraryStore()
@@ -228,7 +272,7 @@ describe('useLibraryStore', () => {
     expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([c, b, a])
 
     // 把 a 放到最前：第一次排序给所有工程补上 order
-    await library.reorderProject(a, c, 'before', null)
+    await library.reorderProject(a, c, 'before', shownIn(library, null))
 
     expect(library.sortMode).toBe('manual')
     expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([a, c, b])
@@ -246,8 +290,8 @@ describe('useLibraryStore', () => {
     await library.refresh()
     const put = vi.spyOn(IDBObjectStore.prototype, 'put')
 
-    await library.reorderProject(b, a, 'before', null)
-    await library.reorderProject(b, b, 'after', null)
+    await library.reorderProject(b, a, 'before', shownIn(library, null))
+    await library.reorderProject(b, b, 'after', shownIn(library, null))
 
     expect(put).not.toHaveBeenCalled()
     expect(library.sortMode).toBe('recent')
@@ -260,11 +304,11 @@ describe('useLibraryStore', () => {
     await library.refresh()
     // 先在图库里排成 a b c d
     for (const [id, before] of [[c, d], [b, c], [a, b]] as const) {
-      await library.reorderProject(id, before, 'before', null)
+      await library.reorderProject(id, before, 'before', shownIn(library, null))
     }
     expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([a, b, c, d])
 
-    await library.reorderProject(d, a, 'before', travel.id)
+    await library.reorderProject(d, a, 'before', shownIn(library, travel.id))
 
     expect(library.sortedProjectsIn(travel.id).map(p => p.id)).toEqual([d, a, c])
     expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([d, b, a, c])
@@ -282,7 +326,7 @@ describe('useLibraryStore', () => {
     const [a, b] = await seed(['a', travel.id], ['b'])
     const library = useLibraryStore()
     await library.refresh()
-    await library.reorderProject(a, b, 'before', null)
+    await library.reorderProject(a, b, 'before', shownIn(library, null))
     expect(library.sortedProjectsIn(null).map(p => p.id)).toEqual([a, b])
 
     await library.removeAlbum(travel.id)
