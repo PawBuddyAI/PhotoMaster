@@ -19,6 +19,8 @@ const MIN_SCALE = 0.02
 const MAX_SCALE = 32
 /** 按钮、快捷键与进入/退出裁剪触发的视角过渡时长；滚轮缩放和拖动平移始终直接跟手 */
 const VIEW_TWEEN_MS = 280
+/** 按下与松开相距不超过这个屏幕距离，就算一次单击而不是拖动 */
+const CLICK_SLOP = 4
 
 const container = ref<HTMLDivElement | null>(null)
 const layerRef = ref<VueKonvaRef<Konva.Layer> | null>(null)
@@ -388,16 +390,18 @@ const hoverConfig = computed(() => {
 const brushActive = computed(() =>
   (editor.tool === 'brush' || editor.tool === 'erase') && !!layer.value && !regionLocked.value && !comparing.value)
 const brushRadiusPx = computed(() => editor.brush.radius * longSide.value)
+/** 指针在舞台中的屏幕坐标：笔刷圆圈画在裁剪与旋转之外，指针移出裁剪框后圆圈仍然跟手 */
 const pointer = ref<{ x: number, y: number } | null>(null)
 const liveStroke = ref<number[] | null>(null)
 
 const cursorConfigs = computed(() => {
   const p = pointer.value
   if (!p) return null
-  const base = { x: p.x, y: p.y, strokeScaleEnabled: false, listening: false }
+  const radius = brushRadiusPx.value * vp.scale
+  const base = { x: p.x, y: p.y, listening: false }
   return {
-    outer: { ...base, radius: brushRadiusPx.value, stroke: '#ffffff', strokeWidth: 1.5, shadowColor: 'black', shadowBlur: 2, shadowOpacity: 0.8, shadowForStrokeEnabled: true },
-    inner: { ...base, radius: brushRadiusPx.value * Math.max(0.02, editor.brush.hardness), stroke: '#ffffff', strokeWidth: 1, dash: [px(3), px(3)], opacity: 0.7 }
+    outer: { ...base, radius, stroke: '#ffffff', strokeWidth: 1.5, shadowColor: 'black', shadowBlur: 2, shadowOpacity: 0.8, shadowForStrokeEnabled: true },
+    inner: { ...base, radius: radius * Math.max(0.02, editor.brush.hardness), stroke: '#ffffff', strokeWidth: 1, dash: [3, 3], opacity: 0.7 }
   }
 })
 
@@ -416,19 +420,27 @@ function localPointer(): { x: number, y: number } | null {
 
 // ---------- 指针交互：平移 / 画笔 ----------
 
-let panning: { startX: number, startY: number, vpX: number, vpY: number } | null = null
+/** blank：主键按在照片之外的空白处，松开时没有拖动就是一次「点空白处」 */
+let panning: { startX: number, startY: number, vpX: number, vpY: number, blank: boolean } | null = null
 const isPanning = ref(false)
 const spaceDown = ref(false)
 
+/** 照片之外的空白处（舞台本身）；有裁剪时被裁掉的部分也算 */
+function isBlank(target: Konva.Node): boolean {
+  return target.getType() === 'Stage'
+}
+
 function isBackground(target: Konva.Node): boolean {
-  return target.getType() === 'Stage' || target.name() === 'photo'
+  return isBlank(target) || target.name() === 'photo'
 }
 
 function onPointerDown(e: KonvaEventObject<PointerEvent>) {
   const evt = e.evt
-  if (evt.button === 1 || spaceDown.value || (evt.button === 0 && !brushActive.value && isBackground(e.target))) {
+  // 中键、空格是明确的平移手势，不会被当作单击
+  const explicitPan = evt.button === 1 || spaceDown.value
+  if (explicitPan || (evt.button === 0 && !brushActive.value && isBackground(e.target))) {
     stopTween()
-    panning = { startX: evt.clientX, startY: evt.clientY, vpX: vp.x, vpY: vp.y }
+    panning = { startX: evt.clientX, startY: evt.clientY, vpX: vp.x, vpY: vp.y, blank: !explicitPan && isBlank(e.target) }
     isPanning.value = true
     return
   }
@@ -450,8 +462,8 @@ function onPointerMove(e: KonvaEventObject<PointerEvent>) {
     pointer.value = null
     return
   }
+  pointer.value = e.target.getStage()?.getPointerPosition() ?? null
   const p = localPointer()
-  pointer.value = p
   const stroke = liveStroke.value
   if (stroke && p) {
     const lx = stroke[stroke.length - 2]!
@@ -462,9 +474,14 @@ function onPointerMove(e: KonvaEventObject<PointerEvent>) {
   }
 }
 
-function finishPointer() {
+function finishPointer(e: PointerEvent) {
+  const pan = panning
   panning = null
   isPanning.value = false
+  // 单击照片外的空白处取消选中图层。只在选择工具下生效：画笔要允许从照片外起笔，裁剪时选中的图层本就不显示
+  if (pan?.blank && editor.tool === 'move' && Math.hypot(e.clientX - pan.startX, e.clientY - pan.startY) <= CLICK_SLOP) {
+    editor.selectedLayerId = null
+  }
   const stroke = liveStroke.value
   const l = layer.value
   liveStroke.value = null
@@ -511,7 +528,8 @@ function onKeyUp(e: KeyboardEvent) {
 const cursor = computed(() => {
   if (isPanning.value) return 'grabbing'
   if (spaceDown.value) return 'grab'
-  if (brushActive.value) return 'none'
+  // 不能用 none 把系统光标藏起来：隐藏光标会让桌面端的鼠标在画布边缘被拽回容器内，圆圈只负责标出笔刷范围
+  if (brushActive.value) return 'crosshair'
   return 'default'
 })
 
@@ -661,10 +679,6 @@ function onCropChange(e: KonvaEventObject<Event>) {
                 v-if="liveStroke"
                 :config="liveStrokeConfig"
               />
-              <template v-if="brushActive && cursorConfigs">
-                <v-circle :config="cursorConfigs.outer" />
-                <v-circle :config="cursorConfigs.inner" />
-              </template>
             </v-group>
           </v-group>
 
@@ -696,6 +710,11 @@ function onCropChange(e: KonvaEventObject<Event>) {
           ref="cropTrRef"
           :config="cropTrConfig"
         />
+
+        <template v-if="brushActive && cursorConfigs">
+          <v-circle :config="cursorConfigs.outer" />
+          <v-circle :config="cursorConfigs.inner" />
+        </template>
       </v-layer>
     </v-stage>
 
