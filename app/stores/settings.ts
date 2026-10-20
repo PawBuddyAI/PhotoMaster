@@ -4,7 +4,7 @@ import { MIN_CUSTOM_LONG_SIDE } from '~/lib/inpaint/sizing'
 import type { ReasoningEffortSetting, StructuredOutputMode } from '~/lib/llm/analyze'
 import { type ConnectionConfig, DEFAULT_BASE_URL } from '~/lib/llm/client'
 import type { ImageQuality } from '~/lib/llm/imageEdit'
-import { type OfficialModels, type PawBuddyConnection, pickModel } from '~/lib/pawbuddy'
+import { PAWBUDDY_PRESET, type PawBuddyConnection } from '~/lib/pawbuddy'
 
 export interface VisionSettings extends ConnectionConfig {
   model: string
@@ -29,11 +29,11 @@ export interface ImageSettings extends ConnectionConfig {
   partialImages: number
 }
 
-/** 已连接的 PawBuddy 账户；网关地址与 Key 写在读图的连接配置里 */
+/** 已连接的 PawBuddy 账户；网关地址与 Key 写在读图的连接配置里，连着账户时模型与思考等级固定为 PAWBUDDY_PRESET */
 export interface PawBuddyAccount {
   email: string
   user: number
-  /** PawBuddy 网站，充值页与官方模型表在这里 */
+  /** PawBuddy 网站，充值页在这里 */
   site: string
 }
 
@@ -44,8 +44,6 @@ export interface AppSettings {
 }
 
 const STORAGE_KEY = 'apm-settings'
-/** 首次配置向导走完或跳过的标记；不属于 AppSettings，「恢复默认设置」不会让向导重新弹出 */
-const SETUP_KEY = 'apm-setup'
 
 export function defaultSettings(): AppSettings {
   return {
@@ -93,14 +91,6 @@ function loadSettings(): AppSettings {
   }
 }
 
-function loadSetupDone(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(SETUP_KEY) === 'done'
-  } catch {
-    return false
-  }
-}
-
 export const useSettingsStore = defineStore('settings', () => {
   const initial = loadSettings()
   const vision = ref<VisionSettings>(initial.vision)
@@ -131,21 +121,16 @@ export const useSettingsStore = defineStore('settings', () => {
   /** 编辑分辨率上限的合法取值范围 */
   const maxLongSideRange = { min: MIN_CUSTOM_LONG_SIDE, max: 3840 }
 
-  /** 首次配置向导是否已走完或跳过；为 false 时外壳在启动时弹出向导 */
-  const setupDone = ref(loadSetupDone())
+  /**
+   * 配置向导是否待处理：启动时读图还没配好（没有 Key 或模型）就为 true，每次启动都重新判定。
+   * AI 是应用的核心功能，不配置就无法使用，所以向导不能跳过，只能配好后走完。
+   * 只在启动时判定一次：向导打开期间填好 Key、或网页版授权跳回时插件先于向导连上账户，向导都不能因此自己消失；
+   * 走完后记为已处理，本次运行里外壳重新挂载（如从编辑器返回）也不会再弹
+   */
+  const setupPending = ref(!isVisionReady.value)
 
-  function completeSetup(): void {
-    setupDone.value = true
-    try {
-      globalThis.localStorage?.setItem(SETUP_KEY, 'done')
-    } catch {
-      // 与设置一样，不可写时只在本次会话内记住
-    }
-  }
-
-  // 有向导之前就已配好读图接口的用户不再打扰；记下标记，以后清空 Key 也不会再弹
-  if (!setupDone.value && isVisionReady.value) {
-    completeSetup()
+  function finishSetup(): void {
+    setupPending.value = false
   }
 
   function reset(): void {
@@ -155,32 +140,36 @@ export const useSettingsStore = defineStore('settings', () => {
     pawbuddy.value = defaults.pawbuddy
   }
 
-  /** 用 PawBuddy 账户连接：读图走账户网关（允许浏览器跨域，不需要代理），修图沿用读图的连接 */
+  /** 连着 PawBuddy 账户时修图沿用账户的连接，模型与思考等级用账户预设 */
+  function applyPawBuddyPreset(): void {
+    image.value.sameAsVision = true
+    vision.value.model = PAWBUDDY_PRESET.visionModel
+    vision.value.reasoningEffort = PAWBUDDY_PRESET.reasoningEffort
+    image.value.model = PAWBUDDY_PRESET.imageModel
+  }
+
+  // 存档里的模型可能是早先连接时按网站模型表挑的，启动时统一改回预设
+  if (pawbuddy.value) {
+    applyPawBuddyPreset()
+  }
+
+  /** 用 PawBuddy 账户连接：读图走账户网关（允许浏览器跨域，不需要代理），修图沿用读图的连接，模型与思考等级用预设 */
   function connectPawBuddy(conn: PawBuddyConnection): void {
     vision.value.baseURL = conn.gateway
     vision.value.apiKey = conn.key
     vision.value.useProxy = false
-    image.value.sameAsVision = true
+    applyPawBuddyPreset()
     pawbuddy.value = { email: conn.email, user: conn.user, site: conn.site }
   }
 
-  /** 模型名换成账户能用的官方模型：当前模型在列表里就保留；修图单独配了接口时不动修图模型 */
-  function applyOfficialModels(models: OfficialModels): void {
-    vision.value.model = pickModel(vision.value.model, models.vision)
-    if (image.value.sameAsVision) {
-      image.value.model = pickModel(image.value.model, models.image)
-    }
-  }
-
-  /** 断开 PawBuddy 账户：清掉网关与 Key，模型名回到默认（官方模型名在其他服务上通常不存在） */
+  /** 断开 PawBuddy 账户：清掉网关与 Key，模型名与思考等级回到默认（PawBuddy 的模型名在其他服务上通常不存在） */
   function disconnectPawBuddy(): void {
     const defaults = defaultSettings()
     vision.value.baseURL = defaults.vision.baseURL
     vision.value.apiKey = defaults.vision.apiKey
     vision.value.model = defaults.vision.model
-    if (image.value.sameAsVision) {
-      image.value.model = defaults.image.model
-    }
+    vision.value.reasoningEffort = defaults.vision.reasoningEffort
+    image.value.model = defaults.image.model
     pawbuddy.value = null
   }
 
@@ -193,11 +182,10 @@ export const useSettingsStore = defineStore('settings', () => {
     isVisionReady,
     isImageReady,
     maxLongSideRange,
-    setupDone,
-    completeSetup,
+    setupPending,
+    finishSetup,
     reset,
     connectPawBuddy,
-    applyOfficialModels,
     disconnectPawBuddy
   }
 })

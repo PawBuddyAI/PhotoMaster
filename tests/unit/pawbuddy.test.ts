@@ -1,12 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   authorizeUrl,
   decodeConnectCode,
   DESKTOP_RETURN_URL,
   extractConnectCode,
-  fetchOfficialModels,
-  officialModels,
-  pickModel,
   purchaseUrl,
   webReturnUrl
 } from '~/lib/pawbuddy'
@@ -89,46 +86,5 @@ describe('网站地址', () => {
 
   it('充值页在账户所在的网站', () => {
     expect(purchaseUrl('https://pawbuddy.example.com')).toBe('https://pawbuddy.example.com/purchase')
-  })
-})
-
-describe('官方模型', () => {
-  const table = {
-    models: [
-      { id: 'deepseek-v4-flash' },
-      { id: 'qwen3.8-max', capabilities: ['image'] },
-      { id: 'qwen3.8-max', capabilities: ['image'], display_name: '长文本档' },
-      { id: 'qwen3.7-plus-1m', capabilities: ['image'] },
-      { id: 'kimi-k2.6', enabled: false, capabilities: ['image'] },
-      { id: ' kimi-k3 ', capabilities: ['image'] },
-      null,
-      { capabilities: ['image'] }
-    ],
-    image_models: [
-      { id: 'image-2.5-flare', per_image: 0.2 },
-      { id: 'image-2.5-off', enabled: false },
-      { id: 'image-2.5-sunburst', per_image: 0.2 }
-    ]
-  }
-
-  it('读图只列能看图的对话模型，去掉停用、长上下文版本与重复计价档；修图列出生图模型', () => {
-    expect(officialModels(table)).toEqual({ vision: ['qwen3.8-max', 'kimi-k3'], image: ['image-2.5-flare', 'image-2.5-sunburst'] })
-    expect(officialModels(null)).toEqual({ vision: [], image: [] })
-    expect(officialModels({ models: 'x' })).toEqual({ vision: [], image: [] })
-  })
-
-  it('从网站读取模型表，HTTP 失败时抛错', async () => {
-    const ok = vi.fn(async () => new Response(JSON.stringify(table)))
-    await expect(fetchOfficialModels('https://pawbuddy.example.com', ok as unknown as typeof fetch)).resolves.toEqual(officialModels(table))
-    expect(String((ok.mock.calls[0] as unknown[])[0])).toBe('https://pawbuddy.example.com/data/model_pricing.json')
-
-    const failing = vi.fn(async () => new Response('', { status: 503 }))
-    await expect(fetchOfficialModels('https://pawbuddy.example.com', failing as unknown as typeof fetch)).rejects.toThrow('HTTP 503')
-  })
-
-  it('当前模型在列表里就保留，否则用第一个，列表为空时不变', () => {
-    expect(pickModel('kimi-k3', ['qwen3.8-max', 'kimi-k3'])).toBe('kimi-k3')
-    expect(pickModel('gpt-6.1-sol', ['qwen3.8-max', 'kimi-k3'])).toBe('qwen3.8-max')
-    expect(pickModel('gpt-6.1-sol', [])).toBe('gpt-6.1-sol')
   })
 })

@@ -3,10 +3,10 @@ import { IMAGE_MODEL_GROUP } from '~/lib/llm/models'
 import { useSettingsStore } from '~/stores/settings'
 
 /**
- * 首次配置向导：第一次打开应用时浮在图库之上，分三步填好跑通 AI 功能的必填项——欢迎、连接 AI 服务、选择模型。
- * 只覆盖接口地址、Key 与两个模型名，思考等级、修图质量等留在设置页；填写的内容直接写进设置，中途跳过也不丢。
- * 连接一步推荐登录 PawBuddy 账户：授权后接口、Key 与官方模型自动填好，直接进入选择模型。
- * 走完、点「稍后设置」、右上角关闭或按 Esc 都记为已完成，以后不再弹出；没配好时图库顶部的提示条仍然指向设置页。
+ * 配置向导：启动时没有读图 Key（或模型）就浮在图库之上，分三步填好跑通 AI 功能的必填项——欢迎、连接 AI 服务、选择模型。
+ * 应用的功能都依赖 AI，不配置就用不了，所以不能跳过：没有「稍后设置」与关闭按钮，Esc 和点到弹窗外也关不掉，只能在最后一步配好后「开始使用」。
+ * 只覆盖接口地址、Key 与两个模型名，思考等级、修图质量等留在设置页；填写的内容直接写进设置，中途刷新或退出也不丢。
+ * 连接一步推荐登录 PawBuddy 账户：授权后接口、Key 与模型都由账户预设，最后一步不再选模型，改为「准备就绪」的确认。
  */
 const settings = useSettingsStore()
 const { testing, testVision, testImage } = useConnectionTest()
@@ -18,6 +18,8 @@ const STEPS = [
   { title: '选择模型', description: '一般保持默认就好，也可以从列表里换一个；更多选项之后可以在设置里调整' }
 ]
 const LAST_STEP = STEPS.length - 1
+/** 连着 PawBuddy 账户时模型由账户预设、不显示，最后一步只用来确认与测试连接 */
+const PAWBUDDY_LAST_STEP = { title: '准备就绪', description: '点「开始使用」就可以修照片了' }
 
 const HIGHLIGHTS = [
   { icon: 'i-lucide-scan-eye', title: 'AI 帮你看照片', description: '指出偏暗、偏色、拍歪等问题，还能帮你去掉路人、换个天空' },
@@ -25,20 +27,20 @@ const HIGHLIGHTS = [
   { icon: 'i-lucide-hard-drive', title: '照片保存在这台设备上', description: '只有用到 AI 功能时，才会把照片发给你连接的 AI 服务' }
 ]
 
-// 只在启动时决定一次：向导打开期间填好 Key 后 isVisionReady 变真，向导不能自己关掉
-const open = ref(!settings.setupDone)
-// 网页版登录 PawBuddy 会整页跳走，跳回时已经连上账户，直接从选择模型这一步继续
+// 启动时没配好就打开，走完才关：向导打开期间填好 Key 后 isVisionReady 变真，向导也不能自己关掉
+const open = ref(settings.setupPending)
+// 网页版登录 PawBuddy 会整页跳走，跳回时已经连上账户，直接打开最后一步
 const step = ref(settings.pawbuddy ? LAST_STEP : 0)
 const body = useTemplateRef('body')
 
-// 桌面版在浏览器里授权后经深链回来，向导还停在连接这一步，连上后同样跳到选择模型
+// 桌面版在浏览器里授权后经深链回来，向导还停在连接这一步，连上后同样跳到最后一步
 watch(() => settings.pawbuddy, (account, previous) => {
   if (account && !previous && step.value === 1) {
     step.value = LAST_STEP
   }
 })
 
-const current = computed(() => STEPS[step.value]!)
+const current = computed(() => step.value === LAST_STEP && settings.pawbuddy ? PAWBUDDY_LAST_STEP : STEPS[step.value]!)
 const canContinue = computed(() => {
   switch (step.value) {
     case 1:
@@ -49,13 +51,27 @@ const canContinue = computed(() => {
       return true
   }
 })
+/** 要点列表：欢迎页介绍功能；连着 PawBuddy 账户时最后一步说明已经替用户配好了什么 */
+const highlights = computed(() => {
+  if (step.value === 0) {
+    return HIGHLIGHTS
+  }
+  if (step.value === LAST_STEP && settings.pawbuddy) {
+    return [
+      { icon: 'i-lucide-circle-check', title: '已连接 PawBuddy 账户', description: settings.pawbuddy.email || '断开或充值都在设置里' },
+      { icon: 'i-lucide-sparkles', title: '模型已经配好', description: '看照片和修图用的模型都由账户提供，不用自己选' },
+      { icon: 'i-lucide-wallet', title: '用多少扣多少', description: '每次用 AI 按用量从账户余额里扣，余额不够时可以在设置里充值' }
+    ]
+  }
+  return null
+})
 const imageModelHint = computed(() => settings.image.sameAsVision
   ? '负责去路人、换天空这类局部修改，和上面用同一个服务'
   : '负责去路人、换天空这类局部修改，使用设置里单独填写的服务')
 
 /**
  * 换步时焦点进入新的一步：有输入框时落在第一个输入框上，否则交给弹窗本身，回车即「继续」。
- * 否则焦点留在原来的按钮上，从第二步「返回」后同一个按钮已变成「稍后设置」，再按一次回车就跳过了
+ * 否则焦点留在原来的按钮上，从第二步「返回」回到第一步时那个按钮已经消失，焦点会丢到页面上
  */
 watch(step, async () => {
   await nextTick()
@@ -64,7 +80,7 @@ watch(step, async () => {
 })
 
 function finish() {
-  settings.completeSetup()
+  settings.finishSetup()
   open.value = false
 }
 
@@ -76,23 +92,9 @@ function next() {
   }
 }
 
+/** 第一步没有「返回」按钮，只会在第二步起被调用 */
 function back() {
-  if (step.value > 0) {
-    step.value--
-  } else {
-    finish()
-  }
-}
-
-function onOpenChange(value: boolean) {
-  if (!value) {
-    finish()
-  }
-}
-
-/** 点到弹窗外（包括通知条）不算关闭：向导关掉就不会再弹，误触的代价太大 */
-function keepOpenOnOutside(event: Event) {
-  event.preventDefault()
+  step.value--
 }
 
 async function testConnection() {
@@ -105,39 +107,40 @@ async function testConnection() {
     :open="open"
     :title="current.title"
     :description="current.description"
-    :content="{ onInteractOutside: keepOpenOnOutside }"
+    :close="false"
+    :dismissible="false"
     :ui="{ content: 'max-w-2xl' }"
-    @update:open="onOpenChange"
   >
     <template #body>
       <div
         ref="body"
         class="flex min-h-82 flex-col gap-4"
       >
-        <template v-if="step === 0">
-          <ul class="flex flex-col gap-4">
-            <li
-              v-for="item in HIGHLIGHTS"
-              :key="item.title"
-              class="flex gap-3"
-            >
-              <UIcon
-                :name="item.icon"
-                class="mt-0.5 size-5 shrink-0 text-muted"
-              />
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-highlighted">
-                  {{ item.title }}
-                </p>
-                <p class="text-sm text-pretty text-muted">
-                  {{ item.description }}
-                </p>
-              </div>
-            </li>
-          </ul>
-        </template>
+        <ul
+          v-if="highlights"
+          class="flex flex-col gap-4"
+        >
+          <li
+            v-for="item in highlights"
+            :key="item.title"
+            class="flex gap-3"
+          >
+            <UIcon
+              :name="item.icon"
+              class="mt-0.5 size-5 shrink-0 text-muted"
+            />
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-highlighted">
+                {{ item.title }}
+              </p>
+              <p class="text-sm text-pretty text-muted">
+                {{ item.description }}
+              </p>
+            </div>
+          </li>
+        </ul>
 
-        <template v-else-if="step === 1">
+        <template v-if="step === 1">
           <div class="divide-y divide-default rounded-xl border border-default">
             <SettingsPawBuddyAccount />
           </div>
@@ -155,8 +158,11 @@ async function testConnection() {
           </template>
         </template>
 
-        <template v-else>
-          <div class="divide-y divide-default rounded-xl border border-default">
+        <template v-else-if="step === LAST_STEP">
+          <div
+            v-if="!settings.pawbuddy"
+            class="divide-y divide-default rounded-xl border border-default"
+          >
             <SettingsRow
               label="读图模型"
               description="负责看照片、给出修图建议，需要能识别图片"
@@ -179,7 +185,7 @@ async function testConnection() {
           </div>
           <div class="flex flex-wrap items-center justify-between gap-3">
             <p class="min-w-0 flex-1 text-sm text-pretty text-muted">
-              发一条很短的测试消息，确认能连上、模型名称没填错
+              {{ settings.pawbuddy ? '发一条很短的测试消息，确认能连上' : '发一条很短的测试消息，确认能连上、模型名称没填错' }}
             </p>
             <UButton
               icon="i-lucide-plug-zap"
@@ -213,7 +219,8 @@ async function testConnection() {
         </ol>
         <DialogActions
           class="min-w-0 flex-1"
-          :cancel-label="step === 0 ? '稍后设置' : '返回'"
+          cancel-label="返回"
+          :hide-cancel="step === 0"
           :confirm-label="step === LAST_STEP ? '开始使用' : '继续'"
           :disabled="!canContinue"
           @confirm="next"

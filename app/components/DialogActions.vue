@@ -11,6 +11,8 @@ const props = withDefaults(defineProps<{
   confirmLabel: string
   confirmIcon?: string
   cancelLabel?: string
+  /** 不显示「取消」：只能确认的弹窗（分步弹窗的第一步，不允许跳过） */
+  hideCancel?: boolean
   /** 危险操作：红字按钮，不响应回车 */
   danger?: boolean
   disabled?: boolean
@@ -19,6 +21,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   confirmIcon: undefined,
   cancelLabel: '取消',
+  hideCancel: false,
   danger: false,
   disabled: false,
   loading: false
@@ -67,6 +70,7 @@ onBeforeUnmount(() => {
     class="flex w-full justify-end gap-2"
   >
     <UButton
+      v-if="!hideCancel"
       :label="cancelLabel"
       color="neutral"
       variant="ghost"

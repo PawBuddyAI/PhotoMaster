@@ -1,7 +1,7 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
 
 /**
- * 首次配置向导：全新状态打开应用时浮在图库之上，三步填好接口与模型；走完、跳过或关闭后不再弹出。
+ * 配置向导：打开应用时没有读图 Key 就浮在图库之上，三步填好接口与模型；不能跳过，只有走完才关闭，没配好则每次打开都会弹出。
  * OpenAI 兼容接口由 page.route 拦截模拟。
  */
 const API = 'https://api.mock.test/v1'
@@ -61,12 +61,7 @@ test('全新打开时弹出向导：回车继续、填写接口、选模型并�
   const dialog = wizard(page)
   await expect(dialog.getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
   await expect(dialog.getByRole('list', { name: '第 1 步，共 3 步' })).toBeVisible()
-  await expect(dialog.getByRole('button', { name: '稍后设置' })).toBeVisible()
-  // 点到弹窗外不关闭
-  await page.mouse.click(8, 8)
-  await expect(dialog).toBeVisible()
-
-  // 打开时焦点停在弹窗本身，回车即「继续」；进入下一步后焦点落在第一个输入框
+  // 回车即「继续」；进入下一步后焦点落在第一个输入框
   await page.keyboard.press('Enter')
   await expect(dialog.getByRole('heading', { name: '连接 AI 服务' })).toBeVisible()
   await expect(dialog.getByRole('list', { name: '第 2 步，共 3 步' })).toBeVisible()
@@ -98,7 +93,7 @@ test('全新打开时弹出向导：回车继续、填写接口、选模型并�
   await page.getByText('读图模型连接正常', { exact: true }).click()
   await expect(dialog).toBeVisible()
 
-  // 返回上一步时已填的内容还在；第一步的取消按钮是「稍后设置」，第二步起是「返回」
+  // 返回上一步时已填的内容还在
   await dialog.getByRole('button', { name: '返回' }).click()
   await expect(dialog.getByLabel('Base URL')).toHaveValue(API)
   await dialog.getByRole('button', { name: '继续' }).click()
@@ -106,7 +101,6 @@ test('全新打开时弹出向导：回车继续、填写接口、选模型并�
 
   await expectNoWizard(page)
   await expect(page.getByText('还没有连接 AI 服务')).toHaveCount(0)
-  expect(await stored(page, 'apm-setup')).toBe('done')
   const saved = await savedSettings(page)
   expect(saved.vision).toMatchObject({ baseURL: API, apiKey: 'test-key', model: 'gpt-6-luna', structuredOutput: 'json_schema' })
   expect(saved.image).toMatchObject({ sameAsVision: true, model: 'gpt-image-2.5-sunburst' })
@@ -115,37 +109,62 @@ test('全新打开时弹出向导：回车继续、填写接口、选模型并�
   await expectNoWizard(page)
 })
 
-test('「稍后设置」跳过后不再弹出，图库仍提示未配置', async ({ page }) => {
+test('没设置 API Key 时不能跳过：没有关闭与「稍后设置」，Esc 和点到弹窗外都关不掉，刷新后重新弹出', async ({ page }) => {
   await page.goto('/')
-  await wizard(page).getByRole('button', { name: '稍后设置' }).click()
+  const dialog = wizard(page)
+  const skipExits = [dialog.getByRole('button', { name: '稍后设置' }), dialog.getByRole('button', { name: '返回' }), dialog.locator('[data-slot="close"]')]
+  const expectNoExit = async () => {
+    for (const exit of skipExits) {
+      await expect(exit).toHaveCount(0)
+    }
+  }
 
-  await expectNoWizard(page)
-  await expect(page.getByText('还没有连接 AI 服务')).toBeVisible()
-  expect(await stored(page, 'apm-setup')).toBe('done')
+  await expect(dialog.getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
+  await expectNoExit()
+  await page.keyboard.press('Escape')
+  await page.mouse.click(8, 8)
+  await expect(dialog).toBeVisible()
+
+  // 第二步要填好接口与 Key 才能继续；返回第一步后同样没有出口
+  await dialog.getByRole('button', { name: '继续' }).click()
+  await expect(dialog.getByRole('button', { name: '继续' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('button', { name: '返回' }).click()
+  await expect(dialog.getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
+  await expectNoExit()
 
   await page.reload()
-  await expectNoWizard(page)
-  await expect(page.getByText('还没有连接 AI 服务')).toBeVisible()
+  await expect(wizard(page).getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
 })
 
-test('中途按 Esc 关闭：已填写的内容保留，也算走过向导', async ({ page }) => {
+test('中途填了 Key 按 Esc 也关不掉；内容已保存，刷新后因为已配好不再弹出', async ({ page }) => {
   await page.goto('/')
   const dialog = wizard(page)
   await dialog.getByRole('button', { name: '继续' }).click()
   await dialog.getByLabel('API Key').fill('half-way-key')
   await page.keyboard.press('Escape')
-
-  await expectNoWizard(page)
-  expect(await stored(page, 'apm-setup')).toBe('done')
+  await expect(dialog).toBeVisible()
   expect((await savedSettings(page)).vision.apiKey).toBe('half-way-key')
+
+  await page.reload()
+  await expectNoWizard(page)
 })
 
-test('有向导之前就已配好接口的用户直接进入图库', async ({ page }) => {
+test('已配好接口的用户直接进入图库；清空 Key 之后再打开应用重新弹出向导', async ({ page }) => {
   await page.addInitScript((api) => {
-    localStorage.setItem('apm-settings', JSON.stringify({ vision: { baseURL: api, apiKey: 'old-key', model: 'gpt-6.1-sol' } }))
+    if (localStorage.getItem('apm-settings') === null) {
+      localStorage.setItem('apm-settings', JSON.stringify({ vision: { baseURL: api, apiKey: 'old-key', model: 'gpt-6.1-sol' } }))
+    }
   }, API)
   await page.goto('/')
-
   await expectNoWizard(page)
-  expect(await stored(page, 'apm-setup')).toBe('done')
+
+  await page.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem('apm-settings')!)
+    saved.vision.apiKey = ''
+    localStorage.setItem('apm-settings', JSON.stringify(saved))
+  })
+  await page.reload()
+  await expect(wizard(page).getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
 })

@@ -13,7 +13,7 @@ export default defineNuxtPlugin((nuxtApp) => {
     void listenDeepLinks((urls) => {
       const link = urls.find(url => url.startsWith(DESKTOP_RETURN_URL))
       if (link) {
-        void pawbuddy.connect(link)
+        pawbuddy.connect(link)
       }
     })
     return
@@ -23,7 +23,7 @@ export default defineNuxtPlugin((nuxtApp) => {
   if (!code) {
     return
   }
-  void pawbuddy.connect(code)
+  pawbuddy.connect(code)
   // 路由在 app:created 时按带片段的初始地址再导航一次，要等它之后再清掉片段
   const router = useRouter()
   nuxtApp.hooks.hookOnce('app:mounted', () => {

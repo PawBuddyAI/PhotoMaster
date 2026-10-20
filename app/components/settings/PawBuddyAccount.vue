@@ -14,7 +14,6 @@ const desktop = isDesktop()
 const loggingIn = ref(false)
 const pasting = ref(false)
 const code = ref('')
-const connecting = ref(false)
 
 /** 网页版整页跳走，按钮保持加载直到离开；桌面版打开浏览器后展开连接码一行，深链没回来时可以粘贴 */
 async function login() {
@@ -33,15 +32,10 @@ async function login() {
   }
 }
 
-async function submitCode() {
-  connecting.value = true
-  try {
-    if (await pawbuddy.connect(code.value)) {
-      code.value = ''
-      pasting.value = false
-    }
-  } finally {
-    connecting.value = false
+function submitCode() {
+  if (pawbuddy.connect(code.value)) {
+    code.value = ''
+    pasting.value = false
   }
 }
 
@@ -123,7 +117,6 @@ async function openPurchase() {
             label="连接"
             color="neutral"
             variant="outline"
-            :loading="connecting"
             :disabled="!code.trim()"
           />
         </form>

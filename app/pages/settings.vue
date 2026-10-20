@@ -77,33 +77,34 @@ const sizeModeItems = [
             />
           </div>
           <div class="divide-y divide-default rounded-xl border border-default bg-default">
-            <!-- 连上 PawBuddy 账户时接口与 Key 由账户提供，不再单独填写；断开后恢复为手动填写 -->
+            <!-- 连上 PawBuddy 账户时接口、Key、模型与思考等级都由账户预设（PAWBUDDY_PRESET），这几行不显示；断开后恢复为手动填写 -->
             <SettingsPawBuddyAccount />
-            <SettingsConnectionFields
-              v-if="!settings.pawbuddy"
-              v-model:base-url="settings.vision.baseURL"
-              v-model:api-key="settings.vision.apiKey"
-              v-model:use-proxy="settings.vision.useProxy"
-            />
-            <SettingsRow
-              label="模型"
-              description="可从服务的模型列表中选择或直接输入，例如 gpt-6.1-sol；想节省成本可用 gpt-6-luna"
-            >
-              <SettingsModelPicker
-                v-model="settings.vision.model"
-                :connection="settings.visionConnection"
+            <template v-if="!settings.pawbuddy">
+              <SettingsConnectionFields
+                v-model:base-url="settings.vision.baseURL"
+                v-model:api-key="settings.vision.apiKey"
+                v-model:use-proxy="settings.vision.useProxy"
               />
-            </SettingsRow>
-            <SettingsRow
-              label="思考等级"
-              description="仅推理模型有效，越高越细致、越慢越贵；「模型默认」不发送该参数"
-            >
-              <USelect
-                v-model="settings.vision.reasoningEffort"
-                :items="reasoningEffortItems"
-                class="w-full"
-              />
-            </SettingsRow>
+              <SettingsRow
+                label="模型"
+                description="可从服务的模型列表中选择或直接输入，例如 gpt-6.1-sol；想节省成本可用 gpt-6-luna"
+              >
+                <SettingsModelPicker
+                  v-model="settings.vision.model"
+                  :connection="settings.visionConnection"
+                />
+              </SettingsRow>
+              <SettingsRow
+                label="思考等级"
+                description="仅推理模型有效，越高越细致、越慢越贵；「模型默认」不发送该参数"
+              >
+                <USelect
+                  v-model="settings.vision.reasoningEffort"
+                  :items="reasoningEffortItems"
+                  class="w-full"
+                />
+              </SettingsRow>
+            </template>
             <SettingsRow
               label="结构化输出"
               description="测试连接会自动检测"
@@ -154,7 +155,9 @@ const sizeModeItems = [
             />
           </div>
           <div class="divide-y divide-default rounded-xl border border-default bg-default">
+            <!-- 连着 PawBuddy 账户时修图走账户的连接、用预设的模型，开关与模型都不显示；断开后恢复 -->
             <SettingsRow
+              v-if="!settings.pawbuddy"
               label="沿用读图模型的连接配置"
               toggle
             >
@@ -174,6 +177,7 @@ const sizeModeItems = [
               </div>
             </Transition>
             <SettingsRow
+              v-if="!settings.pawbuddy"
               label="模型"
               description="可从模型列表中选择或直接输入；gpt-image-2.5-sunburst 编辑精度更高，gpt-image-2.5-flare 更快"
             >

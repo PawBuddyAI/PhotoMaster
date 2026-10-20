@@ -1,10 +1,9 @@
-import { desktopFetch, isDesktop, openExternal } from '~/lib/desktop'
+import { isDesktop, openExternal } from '~/lib/desktop'
 import {
   authorizeUrl,
   decodeConnectCode,
   DESKTOP_RETURN_URL,
   extractConnectCode,
-  fetchOfficialModels,
   purchaseUrl,
   webReturnUrl
 } from '~/lib/pawbuddy'
@@ -32,8 +31,8 @@ export function usePawBuddy() {
     globalThis.location.assign(authorizeUrl(defaultSite, webReturnUrl(globalThis.location)))
   }
 
-  /** 用连接码（或带连接码的跳回地址）连接，并把模型换成账户能用的官方模型；连接码无效时提示并返回 false */
-  async function connect(text: string): Promise<boolean> {
+  /** 用连接码（或带连接码的跳回地址）连接，模型随之换成账户指定的模型；连接码无效时提示并返回 false */
+  function connect(text: string): boolean {
     const code = extractConnectCode(text)
     const conn = code ? decodeConnectCode(code) : null
     if (!conn) {
@@ -42,11 +41,6 @@ export function usePawBuddy() {
     }
     settings.connectPawBuddy(conn)
     notify.success('已连接 PawBuddy 账户', conn.email || undefined)
-    try {
-      settings.applyOfficialModels(await fetchOfficialModels(conn.site, isDesktop() ? desktopFetch : globalThis.fetch))
-    } catch {
-      notify.warning('没能读取 PawBuddy 的模型列表', '可以在模型下拉中选择，或直接输入模型名称')
-    }
     return true
   }
 

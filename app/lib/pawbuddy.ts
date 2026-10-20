@@ -13,7 +13,7 @@ export const DESKTOP_RETURN_URL = 'ai-photo-master://connect'
 export interface PawBuddyConnection {
   /** OpenAI 兼容网关，形如 https://pawbuddy.chat/v1 */
   gateway: string
-  /** PawBuddy 网站：官方模型表与充值页都在这里 */
+  /** PawBuddy 网站：授权页与充值页都在这里 */
   site: string
   user: number
   email: string
@@ -103,59 +103,12 @@ export function webReturnUrl(location: Pick<Location, 'origin' | 'pathname'>): s
   return `${location.origin}${location.pathname}`
 }
 
-export interface OfficialModels {
-  /** 能看图的对话模型，可用于读图 */
-  vision: string[]
-  /** 生图模型，可用于局部重绘 */
-  image: string[]
-}
-
-type TableEntry = Record<string, unknown>
-
-function entries(value: unknown): TableEntry[] {
-  return Array.isArray(value) ? value.filter((item): item is TableEntry => !!item && typeof item === 'object') : []
-}
-
-function listedId(entry: TableEntry): string | null {
-  const id = typeof entry.id === 'string' ? entry.id.trim() : ''
-  return id && entry.enabled !== false ? id : null
-}
-
 /**
- * 按网站的模型表（/data/model_pricing.json）取官方模型，规则与价格页、PawBuddy 客户端相同：
- * 停用的（enabled: false）与 -1m 长上下文版本不列，同一模型的多个计价档只留一条；
- * models 中 capabilities 含 image 的能看图，image_models 是生图模型。
+ * 连上 PawBuddy 账户时固定使用的读图模型、思考等级与修图模型：用户不能改，设置页与向导都不显示这几项，断开账户后才恢复。
+ * 模型名与网站模型表（/data/model_pricing.json）中的 id 一致：读图模型在 models 里且能看图，修图模型在 image_models 里
  */
-export function officialModels(table: unknown): OfficialModels {
-  const root = (table && typeof table === 'object' ? table : {}) as TableEntry
-  const vision = new Set<string>()
-  for (const entry of entries(root.models)) {
-    const id = listedId(entry)
-    const capabilities = Array.isArray(entry.capabilities) ? entry.capabilities : []
-    if (id && !id.toLowerCase().endsWith('-1m') && capabilities.includes('image')) {
-      vision.add(id)
-    }
-  }
-  const image = new Set<string>()
-  for (const entry of entries(root.image_models)) {
-    const id = listedId(entry)
-    if (id) {
-      image.add(id)
-    }
-  }
-  return { vision: [...vision], image: [...image] }
-}
-
-/** 读取网站的模型表；桌面版传入 desktopFetch（模型表不一定允许跨域） */
-export async function fetchOfficialModels(site: string, fetchImpl: typeof fetch, signal?: AbortSignal): Promise<OfficialModels> {
-  const response = await fetchImpl(new URL('/data/model_pricing.json', site).toString(), { signal })
-  if (!response.ok) {
-    throw new Error(`读取 PawBuddy 模型表失败：HTTP ${response.status}`)
-  }
-  return officialModels(await response.json())
-}
-
-/** 当前模型在官方列表里就保留，否则换成列表里的第一个；列表为空时不变 */
-export function pickModel(current: string, options: readonly string[]): string {
-  return options.includes(current) || !options.length ? current : options[0]!
-}
+export const PAWBUDDY_PRESET = {
+  visionModel: 'deepseek-v4.1-flash',
+  reasoningEffort: 'max',
+  imageModel: 'image-2.5-sunburst'
+} as const
