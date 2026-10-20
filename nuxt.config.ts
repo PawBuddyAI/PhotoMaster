@@ -12,7 +12,8 @@ export default defineNuxtConfig({
     tauri: { buildDir: 'node_modules/.cache/nuxt-tauri' }
   },
 
-  // 纯前端 SPA：所有图像处理与模型调用都在浏览器内完成
+  // 纯前端 SPA：所有图像处理与模型调用都在浏览器内完成。
+  // 脚本跑起来之前显示启动画面 app/spa-loading-template.html（Nuxt 按约定文件名自动启用）
   ssr: false,
 
   devtools: {

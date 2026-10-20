@@ -311,6 +311,18 @@ textarea {
   animation: photo-focus 480ms var(--ease-out) both;
 }
 
+/*
+ * 启动画面（app/spa-loading-template.html）：图标随窗口出现淡入；「正在启动」等 800ms 才浮现，
+ * 正常启动只看到图标，启动慢时才说明在等什么。只有透明度变化，减少动态效果时照常保留
+ */
+.launch-icon {
+  animation: emerge 240ms var(--ease-out) both;
+}
+
+.launch-status {
+  animation: emerge 240ms var(--ease-out) 800ms both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* 等待中的旋转指示是功能性的；用户要求减少动态效果时也停下 */
   .animate-spin {

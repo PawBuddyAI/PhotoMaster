@@ -45,11 +45,15 @@ onMounted(async () => {
           to="/"
           class="flex items-center gap-2 rounded-lg outline-primary/60 focus-visible:outline-2"
         >
-          <UIcon
-            name="i-lucide-aperture"
-            class="size-5 text-muted"
-          />
-          <span class="text-[17px] font-semibold text-highlighted">AI 修图</span>
+          <!-- 与安装包、启动画面同一个应用图标源文件 -->
+          <img
+            src="/app-icon.svg"
+            alt=""
+            draggable="false"
+            class="size-6 shrink-0"
+          >
+          <!-- 思源黑体的上伸部比下伸部大，行框居中时字形偏低；文字盒裁到大写字母顶端与基线之间，字形中心才与图标对齐 -->
+          <span class="text-[17px] font-semibold text-highlighted [text-box:trim-both_cap_alphabetic]">AI 修图</span>
         </NuxtLink>
       </template>
 

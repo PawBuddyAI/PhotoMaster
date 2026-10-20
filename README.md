@@ -83,7 +83,7 @@ pnpm tauri build    # 打包：src-tauri/target/release/bundle/nsis/ 下生成�
 - 安装包按当前用户安装，不需要管理员权限；Windows 11 自带 WebView2，缺少时安装器会联网下载
 - 安装包未签名，首次运行会出现 SmartScreen 提示
 - 发布后不要修改 `src-tauri/tauri.conf.json` 中的 `identifier`：数据目录随之改变，已有工程会「消失」
-- 图标源文件是 `src-tauri/app-icon.svg`，修改后执行 `pnpm tauri icon src-tauri/app-icon.svg`，并删除生成的 `android`、`ios` 目录
+- 图标源文件是 `public/app-icon.svg`（启动画面也直接显示它），修改后执行 `pnpm tauri icon public/app-icon.svg`，删除生成的 `android`、`ios` 目录，再把 `src-tauri/icons/icon.ico` 复制为 `public/favicon.ico`
 
 ### 快捷键
 

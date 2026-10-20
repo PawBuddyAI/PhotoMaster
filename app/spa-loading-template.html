@@ -1,0 +1,32 @@
+<!--
+  启动画面：应用脚本跑起来之前显示，根组件挂载完成时由 Nuxt 移除。
+  main.css 与颜色模式脚本都在 <head> 里先于这里生效，可以直接用工具类，第一帧就是正确的明暗。
+-->
+<div class="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-deep select-none">
+  <img
+    src="/app-icon.svg"
+    alt=""
+    width="64"
+    height="64"
+    draggable="false"
+    class="launch-icon"
+  >
+  <p
+    role="status"
+    class="launch-status flex items-center gap-2 text-sm text-muted"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      class="size-4 animate-spin"
+    >
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </svg>
+    正在启动…
+  </p>
+</div>

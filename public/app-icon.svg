@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- 应用图标源文件：石墨底 + 系统蓝风景照片 + 星芒（AI）。修改后执行 pnpm tauri icon src-tauri/app-icon.svg 重新生成 icons/ -->
+  <!-- 应用图标源文件：石墨底 + 系统蓝风景照片 + 星芒（AI），启动画面（app/spa-loading-template.html）直接显示它。修改后执行 pnpm tauri icon public/app-icon.svg 重新生成 src-tauri/icons/，再把其中的 icon.ico 复制为 public/favicon.ico -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#3a3a3c"/>
@@ -21,12 +21,15 @@
   </defs>
   <rect x="40" y="40" width="944" height="944" rx="212" fill="url(#bg)"/>
   <rect x="41.5" y="41.5" width="941" height="941" rx="210.5" fill="none" stroke="#fff" stroke-opacity="0.12" stroke-width="3"/>
-  <g mask="url(#gap)">
-    <g clip-path="url(#photo)">
-      <rect x="192" y="304" width="576" height="456" fill="url(#sky)"/>
-      <circle cx="328" cy="430" r="50" fill="#fff" fill-opacity="0.92"/>
-      <path d="M192 760 L392 548 L478 636 L590 520 L768 704 L768 760 Z" fill="#1c1c1e" fill-opacity="0.88"/>
+  <!-- 照片加星芒的整体外框是 x 192–908、y 168–760，整组平移到底板（40–984）正中：左右各留 114，上下各留 176 -->
+  <g transform="translate(-38 48)">
+    <g mask="url(#gap)">
+      <g clip-path="url(#photo)">
+        <rect x="192" y="304" width="576" height="456" fill="url(#sky)"/>
+        <circle cx="328" cy="430" r="50" fill="#fff" fill-opacity="0.92"/>
+        <path d="M192 760 L392 548 L478 636 L590 520 L768 704 L768 760 Z" fill="#1c1c1e" fill-opacity="0.88"/>
+      </g>
     </g>
+    <use href="#spark" fill="#fff"/>
   </g>
-  <use href="#spark" fill="#fff"/>
 </svg>
