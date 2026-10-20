@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
+import { skipSetupWizard } from './helpers'
 
 /**
  * 启动画面（app/spa-loading-template.html）：应用脚本跑起来之前显示，根组件挂载后由 Nuxt 移除。
@@ -23,6 +24,8 @@ async function openHeld(page: Page): Promise<() => void> {
 }
 
 const loader = (page: Page) => page.locator('#__nuxt-loader')
+
+test.beforeEach(({ page }) => skipSetupWizard(page))
 
 const DEEP = [
   { colorScheme: 'light', label: '浅色', color: 'rgb(229, 229, 234)' },

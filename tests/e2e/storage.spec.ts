@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { skipSetupWizard } from './helpers'
 
 /**
  * 存储升级：按第 1 版结构（工程文档与 updatedAt 存在 projects 表）预置一个工程，
@@ -12,6 +13,8 @@ const LEGACY = {
   updatedAt: Date.UTC(2026, 0, 2),
   layerName: '升级前的调整'
 }
+
+test.beforeEach(({ page }) => skipSetupWizard(page))
 
 test('第 1 版工程升级后仍在列表中，打开后图层保留', async ({ page }) => {
   // 应用的每个外壳页面都会在侧栏读取图库；在同源但不运行应用的图标文件上按旧结构建库

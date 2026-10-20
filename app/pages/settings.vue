@@ -1,21 +1,13 @@
 <script setup lang="ts">
 import { VISION_MAX_SIDE } from '~/lib/llm/analyze'
-import { createOpenAIClient } from '~/lib/llm/client'
-import { probeStructuredOutput } from '~/lib/llm/probe'
-import { useModelListStore } from '~/stores/models'
+import { IMAGE_MODEL_GROUP } from '~/lib/llm/models'
+import { STRUCTURED_OUTPUT_LABELS } from '~/lib/llm/probe'
 import { useSettingsStore } from '~/stores/settings'
 
 const settings = useSettingsStore()
-const modelList = useModelListStore()
-const notify = useNotify()
-const testing = reactive({ vision: false, image: false })
+const { testing, testVision, testImage } = useConnectionTest()
 
-const structuredOutputItems = [
-  { label: 'JSON Schema（严格结构化，推荐）', value: 'json_schema' },
-  { label: 'JSON 模式', value: 'json_object' },
-  { label: '仅提示词约束', value: 'none' }
-]
-const STRUCTURED_LABELS: Record<string, string> = Object.fromEntries(structuredOutputItems.map(i => [i.value, i.label]))
+const structuredOutputItems = Object.entries(STRUCTURED_OUTPUT_LABELS).map(([value, label]) => ({ label, value }))
 const reasoningEffortItems = [
   { label: '模型默认', value: 'default' },
   { label: '关闭（none）', value: 'none' },
@@ -41,44 +33,10 @@ const qualityItems = [
 ]
 /** 数字输入的增减按钮用中性色，强调色只留给选中与焦点 */
 const STEPPER = { color: 'neutral' as const }
-/** 修图模型下拉中优先列出的图像模型 */
-const IMAGE_MODELS = { label: '图像模型', pattern: /image|dall-e/i }
 const sizeModeItems = [
   { label: '自定义尺寸（gpt-image-2 及以后）', value: 'custom' },
   { label: '固定尺寸（1024² / 1536×1024 / 1024×1536）', value: 'fixed' }
 ]
-
-async function testVision() {
-  testing.vision = true
-  try {
-    const client = createOpenAIClient(settings.visionConnection, { timeout: 60_000 })
-    const mode = await probeStructuredOutput(client, settings.vision.model, settings.vision.reasoningEffort)
-    settings.vision.structuredOutput = mode
-    notify.success('读图模型连接正常', `结构化输出方式：${STRUCTURED_LABELS[mode]}`)
-  } catch (err) {
-    notify.error(err)
-  } finally {
-    testing.vision = false
-  }
-}
-
-async function testImage() {
-  testing.image = true
-  try {
-    const models = await modelList.load(settings.imageConnection, { force: true })
-    if (models?.includes(settings.image.model)) {
-      notify.success('修图模型连接正常', `已在模型列表中找到 ${settings.image.model}`)
-    } else if (models) {
-      notify.warning('连接正常，但未找到该模型', `模型列表中没有 ${settings.image.model}，请确认模型名称`)
-    } else {
-      notify.info('连接正常', '该服务不提供模型列表接口，无法确认模型名称是否正确')
-    }
-  } catch (err) {
-    notify.error(err)
-  } finally {
-    testing.image = false
-  }
-}
 </script>
 
 <template>
@@ -219,7 +177,7 @@ async function testImage() {
               <SettingsModelPicker
                 v-model="settings.image.model"
                 :connection="settings.imageConnection"
-                :preferred="IMAGE_MODELS"
+                :preferred="IMAGE_MODEL_GROUP"
               />
             </SettingsRow>
             <SettingsRow label="质量">

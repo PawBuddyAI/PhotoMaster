@@ -6,6 +6,13 @@ import { isUnsupportedFormatError, reasoningParams } from './analyze'
 
 const PingSchema = z.object({ ok: z.boolean() })
 
+/** 结构化输出方式的界面名称，按推荐程度排列；设置页的下拉选项与测试结果共用 */
+export const STRUCTURED_OUTPUT_LABELS: Record<StructuredOutputMode, string> = {
+  json_schema: 'JSON Schema（严格结构化，推荐）',
+  json_object: 'JSON 模式',
+  none: '仅提示词约束'
+}
+
 /**
  * 探测读图服务支持的结构化输出能力（只发送极短的文本请求，成本可忽略）。
  * 带上与读图相同的思考等级，模型不支持该档位时在测试阶段就能暴露。

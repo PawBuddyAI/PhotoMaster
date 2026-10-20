@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
+import { skipSetupWizard } from './helpers'
 
 /**
  * 图库与相册：在侧栏新建带 emoji 的相册、在相册里导入照片、从编辑器回到来时的相册、
@@ -28,6 +29,8 @@ async function makePhoto(page: Page): Promise<string> {
 async function pick(option: Locator): Promise<void> {
   await option.locator('xpath=ancestor::label[1]').click()
 }
+
+test.beforeEach(({ page }) => skipSetupWizard(page))
 
 test('新建相册 → 在相册中导入 → 移出移回 → 重命名 → 更换图标 → 删除相册后工程仍在图库', async ({ page }) => {
   await page.goto('/')

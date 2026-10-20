@@ -2,7 +2,7 @@
 import { shouldConfirmOnEnter } from '~/lib/dialog'
 
 /**
- * 弹窗底部的按钮行：「取消」在左，确认在右，放进 UModal 的 footer 插槽。
+ * 弹窗底部的按钮行：「取消」在左（分步弹窗里可改成「返回」等），确认在右，放进 UModal 的 footer 插槽。
  * 普通确认是系统蓝实心按钮，也是弹窗的默认按钮：焦点在弹窗里的输入框、单选项、滑块上或停在弹窗本身时，回车即确认；
  * 焦点在其他按钮、多行文本或下拉框上时，回车留给它们自己。
  * 危险确认（删除）是凸起灰底红字，回车不触发，避免误删。
@@ -10,6 +10,7 @@ import { shouldConfirmOnEnter } from '~/lib/dialog'
 const props = withDefaults(defineProps<{
   confirmLabel: string
   confirmIcon?: string
+  cancelLabel?: string
   /** 危险操作：红字按钮，不响应回车 */
   danger?: boolean
   disabled?: boolean
@@ -17,6 +18,7 @@ const props = withDefaults(defineProps<{
   loading?: boolean
 }>(), {
   confirmIcon: undefined,
+  cancelLabel: '取消',
   danger: false,
   disabled: false,
   loading: false
@@ -65,7 +67,7 @@ onBeforeUnmount(() => {
     class="flex w-full justify-end gap-2"
   >
     <UButton
-      label="取消"
+      :label="cancelLabel"
       color="neutral"
       variant="ghost"
       :disabled="loading"

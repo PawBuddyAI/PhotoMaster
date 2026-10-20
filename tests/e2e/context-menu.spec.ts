@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
+import { skipSetupWizard } from './helpers'
 
 /**
  * 右键菜单：工程卡片、侧栏相册、图层、画布。不涉及模型接口。
@@ -39,6 +40,8 @@ async function importPhoto(page: Page): Promise<void> {
 async function pick(option: Locator): Promise<void> {
   await option.locator('xpath=ancestor::label[1]').click()
 }
+
+test.beforeEach(({ page }) => skipSetupWizard(page))
 
 test('没有应用菜单的位置不弹出浏览器自带的菜单，输入框里与选中文字时保留', async ({ page }) => {
   await page.goto('/settings')

@@ -34,6 +34,8 @@ export interface AppSettings {
 }
 
 const STORAGE_KEY = 'apm-settings'
+/** 首次配置向导走完或跳过的标记；不属于 AppSettings，「恢复默认设置」不会让向导重新弹出 */
+const SETUP_KEY = 'apm-setup'
 
 export function defaultSettings(): AppSettings {
   return {
@@ -79,6 +81,14 @@ function loadSettings(): AppSettings {
   }
 }
 
+function loadSetupDone(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(SETUP_KEY) === 'done'
+  } catch {
+    return false
+  }
+}
+
 export const useSettingsStore = defineStore('settings', () => {
   const initial = loadSettings()
   const vision = ref<VisionSettings>(initial.vision)
@@ -108,11 +118,28 @@ export const useSettingsStore = defineStore('settings', () => {
   /** 编辑分辨率上限的合法取值范围 */
   const maxLongSideRange = { min: MIN_CUSTOM_LONG_SIDE, max: 3840 }
 
+  /** 首次配置向导是否已走完或跳过；为 false 时外壳在启动时弹出向导 */
+  const setupDone = ref(loadSetupDone())
+
+  function completeSetup(): void {
+    setupDone.value = true
+    try {
+      globalThis.localStorage?.setItem(SETUP_KEY, 'done')
+    } catch {
+      // 与设置一样，不可写时只在本次会话内记住
+    }
+  }
+
+  // 有向导之前就已配好读图接口的用户不再打扰；记下标记，以后清空 Key 也不会再弹
+  if (!setupDone.value && isVisionReady.value) {
+    completeSetup()
+  }
+
   function reset(): void {
     const defaults = defaultSettings()
     vision.value = defaults.vision
     image.value = defaults.image
   }
 
-  return { vision, image, visionConnection, imageConnection, isVisionReady, isImageReady, maxLongSideRange, reset }
+  return { vision, image, visionConnection, imageConnection, isVisionReady, isImageReady, maxLongSideRange, setupDone, completeSetup, reset }
 })

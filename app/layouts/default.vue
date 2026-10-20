@@ -5,6 +5,7 @@ import { useLibraryStore } from '~/stores/library'
  * 图库、相册与设置共用的窗口外壳：毛玻璃导航侧栏 + 内容区；侧栏背后的照片底图由 app.vue 常驻渲染。
  * 侧栏按 macOS「照片」的结构排列：图库在上，相册分组其次，设置与外观收在底部。
  * 工程与相册数据在这里读取一次，侧栏和各页面共用；从编辑器返回时外壳重新挂载，列表随之刷新。
+ * 首次启动的配置向导也挂在外壳里，浮在启动时所在的页面（通常是图库）之上。
  */
 const colorMode = useColorMode()
 const library = useLibraryStore()
@@ -181,6 +182,7 @@ onMounted(async () => {
 
     <LibraryNewAlbumModal v-model:open="creatingAlbum" />
     <LibraryAlbumDialogs />
+    <SettingsSetupWizard />
 
     <slot />
   </UDashboardGroup>
