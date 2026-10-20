@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ContextMenuItem } from '@nuxt/ui'
 import { useEditorStore, type EditorTool } from '~/stores/editor'
 import { useInpaintStore } from '~/stores/inpaint'
 import { useLibraryStore } from '~/stores/library'
@@ -46,6 +47,35 @@ const tools: Array<{ value: EditorTool, label: string, icon: string, key: string
   { value: 'erase', label: '画笔擦除区域', icon: 'i-lucide-eraser', key: 'E' },
   { value: 'crop', label: '裁剪与校正', icon: 'i-lucide-crop', key: 'C' }
 ]
+
+/** 工具条按钮与右键菜单每次放大、缩小的倍数 */
+const ZOOM_STEP = 1.25
+
+/** 画布的右键菜单：撤销重做、工具与视图，与工具条和快捷键是同一组操作；当前工具打勾 */
+const canvasMenu = computed<ContextMenuItem[][]>(() => [
+  [
+    { label: '撤销', icon: 'i-lucide-undo-2', kbds: ['ctrl', 'z'], disabled: !editor.canUndo, onSelect: () => editor.undo() },
+    { label: '重做', icon: 'i-lucide-redo-2', kbds: ['ctrl', 'shift', 'z'], disabled: !editor.canRedo, onSelect: () => editor.redo() }
+  ],
+  tools.map(tool => ({
+    label: tool.label,
+    icon: tool.icon,
+    kbds: [tool.key],
+    type: 'checkbox' as const,
+    checked: editor.tool === tool.value,
+    // 勾放在快捷键前面，各行的快捷键仍然右对齐
+    ui: { itemTrailing: 'flex-row-reverse' },
+    onSelect: () => {
+      editor.tool = tool.value
+    }
+  })),
+  [
+    { label: '放大', icon: 'i-lucide-zoom-in', onSelect: () => canvasRef.value?.zoomBy(ZOOM_STEP) },
+    { label: '缩小', icon: 'i-lucide-zoom-out', onSelect: () => canvasRef.value?.zoomBy(1 / ZOOM_STEP) },
+    { label: '适应窗口', icon: 'i-lucide-scan', kbds: ['0'], onSelect: () => canvasRef.value?.fit() },
+    { label: '原始像素', icon: 'i-lucide-ratio', onSelect: () => canvasRef.value?.actualSize() }
+  ]
+])
 
 // 侧栏透出当前工程的照片；从工程列表进来时由上一张照片的色调溶解过来
 watch(() => editor.project?.thumbnail, (thumbnail) => {
@@ -310,7 +340,7 @@ function onShortcutUp(e: KeyboardEvent) {
                 color="neutral"
                 variant="ghost"
                 aria-label="缩小"
-                @click="canvasRef?.zoomBy(1 / 1.25)"
+                @click="canvasRef?.zoomBy(1 / ZOOM_STEP)"
               />
             </UTooltip>
             <UTooltip
@@ -339,17 +369,19 @@ function onShortcutUp(e: KeyboardEvent) {
                 color="neutral"
                 variant="ghost"
                 aria-label="放大"
-                @click="canvasRef?.zoomBy(1.25)"
+                @click="canvasRef?.zoomBy(ZOOM_STEP)"
               />
             </UTooltip>
           </template>
         </UDashboardToolbar>
       </template>
       <template #body>
-        <EditorCanvas
-          ref="canvasRef"
-          :view="view"
-        />
+        <UContextMenu :items="canvasMenu">
+          <EditorCanvas
+            ref="canvasRef"
+            :view="view"
+          />
+        </UContextMenu>
       </template>
     </UDashboardPanel>
 

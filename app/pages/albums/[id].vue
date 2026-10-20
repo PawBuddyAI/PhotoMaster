@@ -1,99 +1,27 @@
 <script setup lang="ts">
-import type { DropdownMenuItem } from '@nuxt/ui'
 import { useLibraryStore } from '~/stores/library'
 
 const route = useRoute()
-const router = useRouter()
 const library = useLibraryStore()
-const notify = useNotify()
+const albumActions = useAlbumActions()
+const { renaming } = albumActions
 
 const albumId = computed(() => String(route.params.id))
 const album = computed(() => library.findAlbum(albumId.value))
-const count = computed(() => library.projectsIn(albumId.value).length)
+/** 菜单与侧栏右键菜单相同；在这里选「重命名相册」时在标题栏就地改名 */
+const menuItems = computed(() => albumActions.menu(albumId.value, 'title'))
+const renamingTitle = computed(() => albumActions.isRenaming(albumId.value, 'title'))
 
-/** 正在编辑的相册名称；null 表示没有在重命名 */
-const draftName = ref<string | null>(null)
 const renameInput = ref<{ inputRef: HTMLInputElement | undefined } | null>(null)
-const confirmingDelete = ref(false)
-const pickingEmoji = ref(false)
-/** 更换图标弹窗里还没确认的选择 */
-const draftEmoji = ref<string | null>(null)
 
 /**
  * 菜单关闭时默认把焦点还给菜单按钮。选了「重命名相册」时改为交给标题栏的输入框，
  * 否则输入框刚出现就失焦，失焦即提交，输入框随之收起
  */
 function onMenuCloseAutoFocus(event: Event) {
-  if (draftName.value !== null) {
+  if (renamingTitle.value) {
     event.preventDefault()
     renameInput.value?.inputRef?.focus()
-  }
-}
-
-const menuItems: DropdownMenuItem[][] = [
-  [{
-    label: '重命名相册',
-    icon: 'i-lucide-pencil',
-    onSelect: () => {
-      draftName.value = album.value?.name ?? ''
-    }
-  }, {
-    label: '更换图标',
-    icon: 'i-lucide-smile',
-    onSelect: () => {
-      draftEmoji.value = album.value?.emoji ?? null
-      pickingEmoji.value = true
-    }
-  }],
-  [{
-    label: '删除相册',
-    icon: 'i-lucide-trash-2',
-    color: 'error',
-    onSelect: () => {
-      confirmingDelete.value = true
-    }
-  }]
-]
-
-// 换到另一个相册时放弃未提交的重命名与图标
-watch(albumId, () => {
-  draftName.value = null
-  confirmingDelete.value = false
-  pickingEmoji.value = false
-})
-
-/** 回车与失焦都会提交：先清空草稿，输入框卸载时再触发的失焦就不会重复写入 */
-async function commitRename() {
-  const name = draftName.value
-  draftName.value = null
-  if (name === null) {
-    return
-  }
-  try {
-    await library.renameAlbum(albumId.value, name)
-  } catch (err) {
-    notify.error(err)
-  }
-}
-
-async function commitEmoji() {
-  pickingEmoji.value = false
-  try {
-    await library.setAlbumEmoji(albumId.value, draftEmoji.value)
-  } catch (err) {
-    notify.error(err)
-  }
-}
-
-/** 先回到图库再删除：反过来的话，本页会在跳转前闪一下「相册不存在」 */
-async function confirmDeleteAlbum() {
-  const id = albumId.value
-  confirmingDelete.value = false
-  await router.push('/')
-  try {
-    await library.removeAlbum(id)
-  } catch (err) {
-    notify.error(err)
   }
 }
 </script>
@@ -106,20 +34,20 @@ async function confirmDeleteAlbum() {
     :album-id="albumId"
   >
     <template
-      v-if="draftName !== null"
+      v-if="renamingTitle && renaming"
       #title
     >
       <form
         class="w-full max-w-sm"
-        @submit.prevent="commitRename"
+        @submit.prevent="albumActions.commitRename"
       >
         <UInput
           ref="renameInput"
-          v-model="draftName"
+          v-model="renaming.name"
           aria-label="相册名称"
           class="w-full"
-          @keydown.esc="draftName = null"
-          @blur="commitRename"
+          @keydown.esc="renaming = null"
+          @blur="albumActions.commitRename"
         />
       </form>
     </template>
@@ -136,36 +64,6 @@ async function confirmDeleteAlbum() {
           aria-label="相册操作"
         />
       </UDropdownMenu>
-      <UModal
-        v-model:open="pickingEmoji"
-        title="更换图标"
-        description="选「照片封面」时，侧栏显示相册里最近修改的那张照片"
-      >
-        <template #body>
-          <LibraryEmojiPicker v-model="draftEmoji" />
-        </template>
-        <template #footer>
-          <DialogActions
-            confirm-label="完成"
-            @confirm="commitEmoji"
-            @cancel="pickingEmoji = false"
-          />
-        </template>
-      </UModal>
-      <UModal
-        v-model:open="confirmingDelete"
-        title="删除相册"
-        :description="`确定删除相册「${album?.name ?? ''}」吗？其中的 ${count} 个工程不会被删除，仍在图库里。`"
-      >
-        <template #footer>
-          <DialogActions
-            confirm-label="删除相册"
-            danger
-            @confirm="confirmDeleteAlbum"
-            @cancel="confirmingDelete = false"
-          />
-        </template>
-      </UModal>
     </template>
   </LibraryPanel>
 

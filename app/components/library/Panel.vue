@@ -200,55 +200,60 @@ async function confirmDelete() {
             class="relative grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
             @before-leave="pinLeaving"
           >
+            <!-- li 是过渡的直接子元素，右键菜单只能放在里面：卡片外观挂在触发元素上，被右键的卡片才能描上蓝边 -->
             <li
               v-for="project in projects"
               :key="project.id"
-              class="overflow-hidden rounded-xl border border-default bg-default transition-colors duration-200 ease-out hover:border-accented hover:bg-(--mac-mid-hover)"
+              class="min-w-0"
             >
-              <NuxtLink
-                :to="`/editor/${project.id}`"
-                class="block outline-primary/60 focus-visible:outline-2 focus-visible:-outline-offset-2"
-                tabindex="-1"
-                aria-hidden="true"
-              >
-                <img
-                  :src="library.thumbnails[project.id]"
-                  alt=""
-                  class="aspect-4/3 w-full border-b border-default bg-deep object-cover transition-opacity duration-300 ease-out"
-                  :class="decoded.has(project.id) ? 'opacity-100' : 'opacity-0'"
-                  @load="decoded.add(project.id)"
-                >
-              </NuxtLink>
-              <div class="flex items-center justify-between gap-2 py-2 ps-3 pe-1.5">
-                <NuxtLink
-                  :to="`/editor/${project.id}`"
-                  class="min-w-0 rounded-md outline-primary/60 focus-visible:outline-2"
-                >
-                  <p class="truncate text-sm font-medium text-highlighted">{{ project.name }}</p>
-                  <p class="truncate text-xs text-muted tabular-nums">
-                    {{ project.width }}×{{ project.height }} · {{ dateFormat.format(project.updatedAt) }}
-                  </p>
-                </NuxtLink>
-                <UDropdownMenu
-                  :items="cardMenu(project)"
-                  :content="{ align: 'end' }"
-                >
-                  <!-- 菜单项是运行时拼出来的，slot 名不是字面量，Nuxt UI 推断不出插槽参数的类型 -->
-                  <template #album-leading="{ item }">
-                    <span
-                      aria-hidden="true"
-                      class="flex size-4 shrink-0 items-center justify-center text-sm leading-none"
-                    >{{ (item as DropdownMenuItem).emoji }}</span>
-                  </template>
-                  <UButton
-                    icon="i-lucide-ellipsis"
-                    color="neutral"
-                    variant="ghost"
-                    size="sm"
-                    aria-label="更多操作"
-                  />
-                </UDropdownMenu>
-              </div>
+              <UContextMenu :items="cardMenu(project)">
+                <!-- 菜单项是运行时拼出来的，slot 名不是字面量，Nuxt UI 推断不出插槽参数的类型 -->
+                <template #album-leading="{ item }">
+                  <LibraryAlbumEmoji :emoji="(item as DropdownMenuItem).emoji" />
+                </template>
+                <div class="h-full overflow-hidden rounded-xl border border-default bg-default outline-primary transition-colors duration-200 ease-out hover:border-accented hover:bg-(--mac-mid-hover) data-[state=open]:outline-2">
+                  <NuxtLink
+                    :to="`/editor/${project.id}`"
+                    class="block outline-primary/60 focus-visible:outline-2 focus-visible:-outline-offset-2"
+                    tabindex="-1"
+                    aria-hidden="true"
+                  >
+                    <img
+                      :src="library.thumbnails[project.id]"
+                      alt=""
+                      class="aspect-4/3 w-full border-b border-default bg-deep object-cover transition-opacity duration-300 ease-out"
+                      :class="decoded.has(project.id) ? 'opacity-100' : 'opacity-0'"
+                      @load="decoded.add(project.id)"
+                    >
+                  </NuxtLink>
+                  <div class="flex items-center justify-between gap-2 py-2 ps-3 pe-1.5">
+                    <NuxtLink
+                      :to="`/editor/${project.id}`"
+                      class="min-w-0 rounded-md outline-primary/60 focus-visible:outline-2"
+                    >
+                      <p class="truncate text-sm font-medium text-highlighted">{{ project.name }}</p>
+                      <p class="truncate text-xs text-muted tabular-nums">
+                        {{ project.width }}×{{ project.height }} · {{ dateFormat.format(project.updatedAt) }}
+                      </p>
+                    </NuxtLink>
+                    <UDropdownMenu
+                      :items="cardMenu(project)"
+                      :content="{ align: 'end' }"
+                    >
+                      <template #album-leading="{ item }">
+                        <LibraryAlbumEmoji :emoji="(item as DropdownMenuItem).emoji" />
+                      </template>
+                      <UButton
+                        icon="i-lucide-ellipsis"
+                        color="neutral"
+                        variant="ghost"
+                        size="sm"
+                        aria-label="更多操作"
+                      />
+                    </UDropdownMenu>
+                  </div>
+                </div>
+              </UContextMenu>
             </li>
           </TransitionGroup>
         </section>

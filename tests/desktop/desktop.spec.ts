@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
-import { type Browser, chromium, expect, type Page, test } from '@playwright/test'
+import { type Browser, chromium, expect, type Locator, type Page, test } from '@playwright/test'
 import { startMockServer } from './mock-server'
 
 /**
@@ -112,6 +112,31 @@ test('运行在 Tauri 中：代理开关隐藏，测试连接与模型列表经 
   expect(mock.requests.some(r => r.path === '/v1/models')).toBe(true)
   // 请求不经过浏览器：没有预检，也没有发往本站代理
   expect(mock.requests.filter(r => r.method === 'OPTIONS')).toHaveLength(0)
+})
+
+test('右键：其余位置不弹出 WebView 自带菜单，输入框与选中文字处保留；应用自己的右键菜单照常打开', async () => {
+  await page.goto(`${ORIGIN}/settings`)
+  // 用合成事件判断是否保留系统菜单：真实右键会弹出原生菜单并阻塞后续输入
+  const keepsNative = (target: Locator) =>
+    target.evaluate(el => el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })))
+  const libraryLink = page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: /图库/ })
+  expect(await keepsNative(libraryLink)).toBe(false)
+  expect(await keepsNative(page.getByRole('textbox').first())).toBe(true)
+  await page.evaluate(() => getSelection()!.selectAllChildren(document.querySelector('nav')!))
+  expect(await keepsNative(libraryLink)).toBe(true)
+  await page.evaluate(() => getSelection()!.removeAllRanges())
+
+  // 应用的菜单先处理并阻止默认行为，窗口上的兜底监听不影响它；这里用真实右键
+  const sidebar = page.getByRole('navigation', { name: '主导航' })
+  await sidebar.getByRole('button', { name: '新建相册' }).click()
+  const dialog = page.getByRole('dialog', { name: '新建相册' })
+  await dialog.getByRole('textbox', { name: '名称' }).fill('右键')
+  await dialog.getByRole('textbox', { name: '名称' }).press('Enter')
+  await expect(dialog).toBeHidden()
+  await sidebar.getByRole('link', { name: /右键/ }).click({ button: 'right' })
+  await expect(page.getByRole('menuitem', { name: '重命名相册' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toBeHidden()
 })
 
 test('导入 → 分析 → 采纳 → 流式重绘 → 应用；编辑器页刷新后仍能打开', async () => {

@@ -18,6 +18,18 @@ const appearanceItems = [
 ]
 
 const creatingAlbum = ref(false)
+const albumActions = useAlbumActions()
+const { renaming } = albumActions
+
+/**
+ * 右键菜单关闭时焦点默认回到右键前的位置。选了「重命名相册」时那一行已换成输入框并自动聚焦，
+ * 不能再把焦点拿走，否则输入框刚出现就失焦，失焦即提交
+ */
+function onAlbumMenuCloseAutoFocus(event: Event) {
+  if (renaming.value?.place === 'sidebar') {
+    event.preventDefault()
+  }
+}
 
 onMounted(async () => {
   try {
@@ -90,16 +102,39 @@ onMounted(async () => {
               />
             </UTooltip>
           </div>
-          <ShellNavItem
+          <template
             v-for="album in library.albumEntries"
             :key="album.id"
-            :to="`/albums/${album.id}`"
-            :label="album.name"
-            icon="i-lucide-folder"
-            :emoji="album.emoji"
-            :cover="album.cover"
-            :count="album.count"
-          />
+          >
+            <!-- 与 macOS「照片」一样，从侧栏右键重命名时就在这一行里改名 -->
+            <form
+              v-if="albumActions.isRenaming(album.id, 'sidebar') && renaming"
+              @submit.prevent="albumActions.commitRename"
+            >
+              <UInput
+                v-model="renaming.name"
+                aria-label="相册名称"
+                autofocus
+                class="w-full"
+                @keydown.esc="renaming = null"
+                @blur="albumActions.commitRename"
+              />
+            </form>
+            <UContextMenu
+              v-else
+              :items="albumActions.menu(album.id, 'sidebar')"
+              :content="{ onCloseAutoFocus: onAlbumMenuCloseAutoFocus }"
+            >
+              <ShellNavItem
+                :to="`/albums/${album.id}`"
+                :label="album.name"
+                icon="i-lucide-folder"
+                :emoji="album.emoji"
+                :cover="album.cover"
+                :count="album.count"
+              />
+            </UContextMenu>
+          </template>
           <p
             v-if="library.loaded && !library.albums.length"
             class="px-2.5 py-1.5 text-sm text-muted"
@@ -145,6 +180,7 @@ onMounted(async () => {
     </UDashboardSidebar>
 
     <LibraryNewAlbumModal v-model:open="creatingAlbum" />
+    <LibraryAlbumDialogs />
 
     <slot />
   </UDashboardGroup>

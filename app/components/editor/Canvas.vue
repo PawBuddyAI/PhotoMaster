@@ -589,7 +589,6 @@ function onCropChange(e: KonvaEventObject<Event>) {
     ref="container"
     class="relative size-full overflow-hidden bg-deep select-none"
     :style="{ cursor }"
-    @contextmenu.prevent
     @pointerleave="pointer = null"
   >
     <!-- 照片第一次落到画布上时合焦：这是打开工程时唯一的一段编排动效 -->

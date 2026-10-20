@@ -11,6 +11,23 @@ const RAISED = 'bg-surface ring ring-inset ring-default hover:bg-(--mac-surface-
 const OVERLAY_SHADOW = 'shadow-[0_2px_8px_rgba(0,0,0,0.3)]'
 /** 菜单与提示气泡：不缩放，只做 100ms 淡入淡出 */
 const MENU_FADE = 'data-[state=open]:animate-[fade-in_100ms_var(--ease-out)] data-[state=closed]:animate-[fade-out_100ms_var(--ease-out)]'
+/**
+ * 操作菜单（「更多操作」按钮与右键菜单）与 select 的下拉外观一致：不缩放，高亮项用选中底；危险项的红色只落在文字上。
+ * 下拉菜单与右键菜单的主题结构相同，共用一份
+ */
+const ACTION_MENU = {
+  slots: {
+    content: `rounded-lg bg-default/85 backdrop-blur-xl ${OVERLAY_SHADOW} ${MENU_FADE}`
+  },
+  variants: {
+    active: {
+      false: { item: 'data-highlighted:before:bg-(--mac-selected) data-[state=open]:before:bg-(--mac-selected)' }
+    }
+  },
+  compoundVariants: [
+    { color: STATUS_COLORS, active: false, class: { item: 'data-highlighted:before:bg-(--mac-selected) data-[state=open]:before:bg-(--mac-selected)' } }
+  ]
+}
 
 export default defineAppConfig({
   ui: {
@@ -77,20 +94,8 @@ export default defineAppConfig({
       },
       compoundVariants: [{ color: 'primary', variant: ['outline', 'subtle'], class: 'focus-visible:ring-primary/60' }]
     },
-    // 操作菜单（工程卡片、相册）与 select 的下拉外观一致：不缩放，高亮项用选中底；危险项的红色只落在文字上
-    dropdownMenu: {
-      slots: {
-        content: `rounded-lg bg-default/85 backdrop-blur-xl ${OVERLAY_SHADOW} ${MENU_FADE}`
-      },
-      variants: {
-        active: {
-          false: { item: 'data-highlighted:before:bg-(--mac-selected) data-[state=open]:before:bg-(--mac-selected)' }
-        }
-      },
-      compoundVariants: [
-        { color: STATUS_COLORS, active: false, class: { item: 'data-highlighted:before:bg-(--mac-selected) data-[state=open]:before:bg-(--mac-selected)' } }
-      ]
-    },
+    dropdownMenu: ACTION_MENU,
+    contextMenu: ACTION_MENU,
     // 可输入的下拉框（模型名称）与 select 外观一致；它的展开动画写在 content 上，没有 transition 变体
     inputMenu: {
       slots: {
