@@ -91,21 +91,13 @@ async function start() {
       </div>
     </template>
     <template #footer>
-      <div class="flex w-full justify-end gap-2">
-        <UButton
-          label="取消"
-          color="neutral"
-          variant="ghost"
-          :disabled="exporting"
-          @click="open = false"
-        />
-        <UButton
-          icon="i-lucide-download"
-          label="导出"
-          :loading="exporting"
-          @click="start"
-        />
-      </div>
+      <DialogActions
+        confirm-label="导出"
+        confirm-icon="i-lucide-download"
+        :loading="exporting"
+        @confirm="start"
+        @cancel="open = false"
+      />
     </template>
   </UModal>
 </template>

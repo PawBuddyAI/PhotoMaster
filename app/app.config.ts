@@ -1,7 +1,7 @@
 /**
  * macOS Vibrancy 组件主题。
  * 颜色全部来自 main.css 的三级深度令牌：deep（侧栏、凹槽）→ mid（面板、卡片）→ surface（按钮）。
- * 强调色标记交互状态（焦点、选中工具、滑块填充、开关开启），也是主按钮的底色，从不做面板底色；
+ * 强调色只标记交互状态（焦点、选中工具、滑块填充、开关开启），从不做按钮或面板底色；
  * 浮层沿用 macOS 的分寸：菜单和提示气泡只淡入淡出，弹窗带轻微放大，离场比入场快。
  */
 const ALL_COLORS = ['primary', 'secondary', 'success', 'info', 'warning', 'error', 'neutral']
@@ -15,7 +15,9 @@ const MENU_FADE = 'data-[state=open]:animate-[fade-in_100ms_var(--ease-out)] dat
 export default defineAppConfig({
   ui: {
     colors: {
-      primary: 'sky',
+      primary: 'blue',
+      // 只用于 DialogActions 的确认按钮；实际色值在 main.css 里与系统蓝对齐
+      secondary: 'blue',
       neutral: 'neutral'
     },
     button: {
@@ -27,11 +29,13 @@ export default defineAppConfig({
         size: 'lg'
       },
       compoundVariants: [
-        // 主按钮（primary solid）沿用 Nuxt UI 默认的强调色填充；中性实心按钮是凸起灰
-        { color: 'neutral', variant: 'solid', class: `${RAISED} text-highlighted` },
+        // 主按钮：凸起灰填充，不用强调色做底
+        { color: ['primary', 'neutral'], variant: 'solid', class: `${RAISED} text-highlighted` },
         // 危险、警示操作沿用凸起底，语义色只落在文字上
         { color: 'error', variant: 'solid', class: `${RAISED} text-error` },
         { color: 'warning', variant: 'solid', class: `${RAISED} text-warning` },
+        // 弹窗确认：系统蓝实心填充，亮暗都用白字，与 macOS 弹窗的默认按钮一致
+        { color: 'secondary', variant: 'solid', class: 'text-white' },
         // 次按钮：透明底 + 1px 描边
         { color: 'neutral', variant: ['outline', 'subtle'], class: 'bg-transparent text-muted ring-accented hover:bg-elevated hover:text-highlighted active:bg-elevated disabled:bg-transparent aria-disabled:bg-transparent' },
         { color: 'neutral', variant: 'ghost', class: 'text-muted hover:bg-elevated hover:text-highlighted active:bg-elevated disabled:bg-transparent aria-disabled:bg-transparent' },

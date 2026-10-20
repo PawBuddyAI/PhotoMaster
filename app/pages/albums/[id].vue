@@ -145,18 +145,11 @@ async function confirmDeleteAlbum() {
           <LibraryEmojiPicker v-model="draftEmoji" />
         </template>
         <template #footer>
-          <div class="flex w-full justify-end gap-2">
-            <UButton
-              color="neutral"
-              variant="ghost"
-              label="取消"
-              @click="pickingEmoji = false"
-            />
-            <UButton
-              label="完成"
-              @click="commitEmoji"
-            />
-          </div>
+          <DialogActions
+            confirm-label="完成"
+            @confirm="commitEmoji"
+            @cancel="pickingEmoji = false"
+          />
         </template>
       </UModal>
       <UModal
@@ -165,19 +158,12 @@ async function confirmDeleteAlbum() {
         :description="`确定删除相册「${album?.name ?? ''}」吗？其中的 ${count} 个工程不会被删除，仍在图库里。`"
       >
         <template #footer>
-          <div class="flex w-full justify-end gap-2">
-            <UButton
-              color="neutral"
-              variant="ghost"
-              label="取消"
-              @click="confirmingDelete = false"
-            />
-            <UButton
-              color="error"
-              label="删除相册"
-              @click="confirmDeleteAlbum"
-            />
-          </div>
+          <DialogActions
+            confirm-label="删除相册"
+            danger
+            @confirm="confirmDeleteAlbum"
+            @cancel="confirmingDelete = false"
+          />
         </template>
       </UModal>
     </template>

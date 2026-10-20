@@ -120,10 +120,12 @@ test('新建相册 → 在相册中导入 → 移出移回 → 重命名 → 更
   await expect(renamedLink).toHaveAttribute('aria-current', 'page')
   await expect(nameInput).toBeHidden()
 
-  // 更换图标：弹窗里标出当前的 emoji；取消不改变，改回照片封面后侧栏显示相册里的照片
+  // 更换图标：弹窗里标出当前的 emoji；取消不改变，改回照片封面后侧栏显示相册里的照片。
+  // 打开时焦点停在弹窗本身而不是关闭按钮上，回车即「完成」
   await page.getByRole('button', { name: '相册操作' }).click()
   await page.getByRole('menuitem', { name: '更换图标' }).click()
   const emojiDialog = page.getByRole('dialog', { name: '更换图标' })
+  await expect(emojiDialog).toBeFocused()
   await expect(emojiDialog.getByRole('radio', { name: '旅行', exact: true })).toBeChecked()
   await pick(emojiDialog.getByRole('radio', { name: '雪山', exact: true }))
   await emojiDialog.getByRole('button', { name: '取消' }).click()
@@ -132,19 +134,25 @@ test('新建相册 → 在相册中导入 → 移出移回 → 重命名 → 更
   await page.getByRole('button', { name: '相册操作' }).click()
   await page.getByRole('menuitem', { name: '更换图标' }).click()
   await expect(emojiDialog.getByRole('radio', { name: '旅行', exact: true })).toBeChecked()
+  // 选中后焦点在单选项上，回车同样是「完成」
   await pick(emojiDialog.getByRole('radio', { name: '照片封面' }))
-  await emojiDialog.getByRole('button', { name: '完成' }).click()
+  await page.keyboard.press('Enter')
   await expect(emojiDialog).toBeHidden()
   await expect(renamedLink).not.toContainText('✈️')
   await expect(renamedLink.locator('img')).toBeVisible()
   await page.reload()
   await expect(renamedLink.locator('img')).toBeVisible()
 
-  // 删除相册：回到图库，工程还在
+  // 删除相册：危险操作不响应回车（焦点在关闭按钮上，回车只关掉弹窗）；点删除后回到图库，工程还在
   await page.getByRole('button', { name: '相册操作' }).click()
   await page.getByRole('menuitem', { name: '删除相册' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toContainText('其中的 1 个工程不会被删除')
+  await page.keyboard.press('Enter')
+  await expect(dialog).toBeHidden()
+  await expect(renamedLink).toBeVisible()
+  await page.getByRole('button', { name: '相册操作' }).click()
+  await page.getByRole('menuitem', { name: '删除相册' }).click()
   await dialog.getByRole('button', { name: '删除相册' }).click()
   await page.waitForURL(url => url.pathname === '/')
   await expect(sidebar.getByText('还没有相册')).toBeVisible()

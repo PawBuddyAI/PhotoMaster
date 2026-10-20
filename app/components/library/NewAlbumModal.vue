@@ -7,7 +7,6 @@ const library = useLibraryStore()
 const notify = useNotify()
 const router = useRouter()
 
-const formId = useId()
 const name = ref('')
 const emoji = ref<string | null>(null)
 const creating = ref(false)
@@ -45,11 +44,7 @@ async function create() {
     :dismissible="!creating"
   >
     <template #body>
-      <form
-        :id="formId"
-        class="space-y-4"
-        @submit.prevent="create"
-      >
+      <div class="space-y-4">
         <UFormField label="名称">
           <UInput
             v-model="name"
@@ -64,25 +59,16 @@ async function create() {
         >
           <LibraryEmojiPicker v-model="emoji" />
         </UFormField>
-      </form>
+      </div>
     </template>
     <template #footer>
-      <div class="flex w-full justify-end gap-2">
-        <UButton
-          label="取消"
-          color="neutral"
-          variant="ghost"
-          :disabled="creating"
-          @click="open = false"
-        />
-        <UButton
-          type="submit"
-          :form="formId"
-          label="新建相册"
-          :disabled="!name.trim()"
-          :loading="creating"
-        />
-      </div>
+      <DialogActions
+        confirm-label="新建相册"
+        :disabled="!name.trim()"
+        :loading="creating"
+        @confirm="create"
+        @cancel="open = false"
+      />
     </template>
   </UModal>
 </template>

@@ -260,19 +260,12 @@ async function confirmDelete() {
         @update:open="value => { if (!value) pendingDelete = null }"
       >
         <template #footer>
-          <div class="flex w-full justify-end gap-2">
-            <UButton
-              color="neutral"
-              variant="ghost"
-              label="取消"
-              @click="pendingDelete = null"
-            />
-            <UButton
-              color="error"
-              label="删除"
-              @click="confirmDelete"
-            />
-          </div>
+          <DialogActions
+            confirm-label="删除"
+            danger
+            @confirm="confirmDelete"
+            @cancel="pendingDelete = null"
+          />
         </template>
       </UModal>
     </template>
