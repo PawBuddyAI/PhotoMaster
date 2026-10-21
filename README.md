@@ -239,3 +239,7 @@ git push --follow-tags              # 标签推上去后 Actions 开始编译
 - 版本号带 `-` 的（如 `0.2.0-beta.1`）按预发布处理：不会成为 `latest`，也不会触发 Pages 重新构建。
 - 版本号只维护在 `package.json`：`tauri.conf.json` 的 `version` 引用它，`Cargo.toml` 里的 `version` 不参与发布，不用改。
 - 某次发布失败要重来：先删掉 Release 和远程、本地标签（`gh release delete v0.2.0 --cleanup-tag && git tag -d v0.2.0`），修好后重新打标签。
+
+## 友情链接
+
+- [LINUX DO](https://linux.do/)
