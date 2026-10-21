@@ -277,7 +277,7 @@ const sizeModeItems = [
           </div>
           <div class="rounded-xl border border-default bg-default">
             <SettingsRow
-              label="下载 AI 修图桌面版"
+              label="下载 AI修图大师桌面版"
               :description="`版本 ${download.version}，${download.size}。装在电脑上使用，修完点「保存」就直接存回原来的照片，不用再导出`"
             >
               <div class="flex justify-end">

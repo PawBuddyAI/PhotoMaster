@@ -80,7 +80,7 @@ describe('siteDownloadDir', () => {
 
 describe('packRelease', () => {
   it('安装包改成固定文件名，并写出带校验信息的 latest.json', async () => {
-    const source = join(dir, 'AI 修图_0.1.0_x64-setup.exe')
+    const source = join(dir, 'AI修图大师_0.1.0_x64-setup.exe')
     await writeFile(source, installerBytes)
     const outDir = join(dir, 'out')
 

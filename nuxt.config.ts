@@ -23,7 +23,7 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { lang: 'zh-CN' },
-      title: 'AI 修图',
+      title: 'AI修图大师',
       link: [{ rel: 'icon', href: '/favicon.ico' }]
     }
   },

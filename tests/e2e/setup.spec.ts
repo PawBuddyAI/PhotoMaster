@@ -59,7 +59,7 @@ test('全新打开时弹出向导：回车继续、填写接口、选模型并�
   await page.goto('/')
 
   const dialog = wizard(page)
-  await expect(dialog.getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: '欢迎使用 AI修图大师' })).toBeVisible()
   await expect(dialog.getByRole('list', { name: '第 1 步，共 3 步' })).toBeVisible()
   // 回车即「继续」；进入下一步后焦点落在第一个输入框
   await page.keyboard.press('Enter')
@@ -118,7 +118,7 @@ test('没设置 API Key 时不能跳过：没有关闭与「稍后设置」，Es
     }
   }
 
-  await expect(dialog.getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: '欢迎使用 AI修图大师' })).toBeVisible()
   await expectNoExit()
   await page.keyboard.press('Escape')
   await page.mouse.click(8, 8)
@@ -130,11 +130,11 @@ test('没设置 API Key 时不能跳过：没有关闭与「稍后设置」，Es
   await page.keyboard.press('Escape')
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: '返回' }).click()
-  await expect(dialog.getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: '欢迎使用 AI修图大师' })).toBeVisible()
   await expectNoExit()
 
   await page.reload()
-  await expect(wizard(page).getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
+  await expect(wizard(page).getByRole('heading', { name: '欢迎使用 AI修图大师' })).toBeVisible()
 })
 
 test('中途填了 Key 按 Esc 也关不掉；内容已保存，刷新后因为已配好不再弹出', async ({ page }) => {
@@ -165,5 +165,5 @@ test('已配好接口的用户直接进入图库；清空 Key 之后再打开应
     localStorage.setItem('apm-settings', JSON.stringify(saved))
   })
   await page.reload()
-  await expect(wizard(page).getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
+  await expect(wizard(page).getByRole('heading', { name: '欢迎使用 AI修图大师' })).toBeVisible()
 })

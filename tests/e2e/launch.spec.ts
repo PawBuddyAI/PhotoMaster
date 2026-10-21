@@ -48,11 +48,11 @@ for (const { colorScheme, label, color } of DEEP) {
     await expect(page.getByRole('navigation', { name: '主导航' })).toBeVisible()
     await expect(loader(page)).toHaveCount(0)
 
-    const brand = page.getByRole('link', { name: 'AI 修图' }).locator('img')
+    const brand = page.getByRole('link', { name: 'AI修图大师' }).locator('img')
     await expect(brand).toHaveAttribute('src', '/app-icon.svg')
     await expect.poll(() => brand.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
     // 品牌名的文字盒裁到大写字母顶端与基线之间（约 0.73em），居中对齐的是字形而不是行框
-    const name = page.getByRole('link', { name: 'AI 修图' }).locator('span')
+    const name = page.getByRole('link', { name: 'AI修图大师' }).locator('span')
     await expect(name).toHaveCSS('text-box-trim', 'trim-both')
     expect((await name.boundingBox())!.height).toBeLessThan(14)
   })

@@ -64,7 +64,7 @@ test.describe('配置向导首屏', () => {
     await mockRelease(page, MANIFEST)
     await page.goto('/')
 
-    await expect(dialog(page).getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
+    await expect(dialog(page).getByRole('heading', { name: '欢迎使用 AI修图大师' })).toBeVisible()
     await expect(dialog(page).getByText('Windows 桌面版')).toBeVisible()
     const link = dialog(page).getByRole('link', { name: '下载' })
     await expect(link).toHaveAttribute('href', INSTALLER_URL)
@@ -84,7 +84,7 @@ test.describe('配置向导首屏', () => {
     await page.goto('/')
     await loaded
 
-    await expect(dialog(page).getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
+    await expect(dialog(page).getByRole('heading', { name: '欢迎使用 AI修图大师' })).toBeVisible()
     await expect(dialog(page).getByText('Windows 桌面版')).toHaveCount(0)
     await expect(dialog(page).getByRole('link', { name: '下载' })).toHaveCount(0)
   })

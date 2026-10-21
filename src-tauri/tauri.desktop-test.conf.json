@@ -3,7 +3,7 @@
   "app": {
     "windows": [
       {
-        "title": "AI 修图",
+        "title": "AI修图大师",
         "width": 1280,
         "height": 800,
         "minWidth": 960,

@@ -68,7 +68,7 @@ onMounted(async () => {
             class="size-6 shrink-0"
           >
           <!-- 思源黑体的上伸部比下伸部大，行框居中时字形偏低；文字盒裁到大写字母顶端与基线之间，字形中心才与图标对齐 -->
-          <span class="text-[17px] font-semibold text-highlighted [text-box:trim-both_cap_alphabetic]">AI 修图</span>
+          <span class="text-[17px] font-semibold text-highlighted [text-box:trim-both_cap_alphabetic]">AI修图大师</span>
         </NuxtLink>
       </template>
 

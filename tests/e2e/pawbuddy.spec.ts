@@ -166,7 +166,7 @@ test('设置页：无效连接码给出提示，连接后显示账户、预设�
 
   // 刷新后仍是断开状态；断开清掉了 Key，重新打开应用会弹出向导，不能跳过，在向导里填上自己的接口才能回到设置页
   await page.reload()
-  await expect(wizard(page).getByRole('heading', { name: '欢迎使用 AI 修图' })).toBeVisible()
+  await expect(wizard(page).getByRole('heading', { name: '欢迎使用 AI修图大师' })).toBeVisible()
   await wizard(page).getByRole('button', { name: '继续' }).click()
   await expect(wizard(page).getByLabel('Base URL')).toHaveValue('https://api.openai.com/v1')
   await expect(wizard(page).getByRole('button', { name: '登录 PawBuddy' })).toBeVisible()

@@ -78,7 +78,7 @@ jobs:
           # 先建草稿、传完文件再公开，避免 latest.json 先于安装包可见
           gh release create "$GITHUB_REF_NAME" release-assets/* \
             --draft --verify-tag --generate-notes \
-            --title "AI 修图 ${{ steps.version.outputs.version }}" "${flags[@]}"
+            --title "AI修图大师 ${{ steps.version.outputs.version }}" "${flags[@]}"
           gh release edit "$GITHUB_REF_NAME" --draft=false
           echo "prerelease=${#flags[@]}" >> "$GITHUB_OUTPUT"
 

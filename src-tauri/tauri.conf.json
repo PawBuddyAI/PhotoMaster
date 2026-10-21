@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "AI 修图",
+  "productName": "AI修图大师",
   "version": "../package.json",
   "identifier": "com.k99k5.ai-photo-master",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "AI 修图",
+        "title": "AI修图大师",
         "width": 1280,
         "height": 800,
         "minWidth": 960,
@@ -37,7 +37,7 @@
     "active": true,
     "targets": ["nsis"],
     "category": "Photography",
-    "shortDescription": "AI 修图",
+    "shortDescription": "AI修图大师",
     "longDescription": "多模态模型读图给出修图方案，本地 GPU 无损调色，OpenAI 兼容接口局部重绘。",
     "icon": [
       "icons/32x32.png",

@@ -14,7 +14,7 @@ const { download } = useDesktopRelease()
 
 // 向导面向不熟悉 AI 接口的普通用户：除自带接口那一栏外，文案避开 Base URL、OpenAI 兼容、图层这类术语
 const STEPS = [
-  { title: '欢迎使用 AI 修图', description: '让 AI 帮你看照片、出主意，还能直接动手修' },
+  { title: '欢迎使用 AI修图大师', description: '让 AI 帮你看照片、出主意，还能直接动手修' },
   { title: '连接 AI 服务', description: '登录 PawBuddy 账户最省事；熟悉 API 的话，也可以填写自己的接口' },
   { title: '选择模型', description: '一般保持默认就好，也可以从列表里换一个；更多选项之后可以在设置里调整' }
 ]

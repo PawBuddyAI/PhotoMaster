@@ -1,5 +1,5 @@
 ---
-name: AI 修图
+name: AI修图大师
 description: macOS 毛玻璃（Vibrancy）风格的桌面修图工作台，照片的色调透过侧栏，界面其余部分退到照片后面
 colors:
   system-blue: "#0a84ff"
@@ -202,7 +202,7 @@ components:
     rounded: "{rounded.lg}"
 ---
 
-# Design System: AI 修图
+# Design System: AI修图大师
 
 ## Overview
 
@@ -260,7 +260,7 @@ components:
 思源黑体由 `@nuxt/fonts` 从 Google Fonts 下载后自托管，按 400–600 的可变字重区间请求，每个编号切片一个文件同时覆盖 400、500、600 三档；切片以 unicode-range 声明，浏览器只下载页面实际用到的字。由于 `@nuxt/fonts` 只解析字体栈的第一个家族，`--font-sans` 必须以 `'Noto Sans SC'` 开头。
 
 ### Hierarchy
-- **Headline**（600，17px，行高 1.35）：品牌名「AI 修图」、导航栏里的工程名与页面标题、检查器中当前对象的名字（图层名、「裁剪与校正」）、弹窗标题。同屏只出现一到两处。
+- **Headline**（600，17px，行高 1.35）：品牌名「AI修图大师」、导航栏里的工程名与页面标题、检查器中当前对象的名字（图层名、「裁剪与校正」）、弹窗标题。同屏只出现一到两处。
 - **Title**（600，15px，行高 1.4）：面板里的分组标题，如「调色建议」「区域」「画笔」「光线」「读图模型」。不加小号大写眉标，只靠字号和字重与正文区分。
 - **Body**（400，14px，行高 20px）：正文、导航项、设置行标签、AI 的整体分析段落（行高放宽到 relaxed）。
 - **Body Strong**（500，14px）：按钮文字、建议卡片标题、工程卡片名称。
