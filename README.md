@@ -113,9 +113,11 @@ pnpm tauri build    # 打包：src-tauri/target/release/bundle/nsis/ 下生成�
 |---|---|
 | 框架预设 | 无 |
 | 构建命令 | `pnpm build:pages` |
-| 输出目录 | `.output/public` |
+| 输出目录 | `dist` |
 | 环境变量 | `PNPM_VERSION` = `10.6.3`（Node 版本读取根目录的 `.node-version`） |
 | 生产分支 | `main` |
+
+Pages 构建环境下 Nuxt 自动选用 `cloudflare-pages-static` 预设，产物在 `dist/`（本机与 GitHub Actions 仍是 `.output/public`），所以输出目录填 `dist`；填 `.output/public` 的话站点里只剩 `/download/`。
 
 `pnpm build:pages` 先 `nuxt generate`，再执行 `scripts/release.ts fetch`：从仓库最新 Release 下载安装包和 `latest.json`，校验大小与 sha256 后放进站点的 `/download/`。还没有任何 Release 时跳过；已有 Release 但下载或校验失败时构建失败，线上保持上一次的版本（Pages 整站原子替换，放过去会让下载入口消失）。
 

@@ -13,7 +13,14 @@ export const INSTALLER_NAME = 'ai-photo-master-setup.exe'
 export const MANIFEST_NAME = 'latest.json'
 
 const DEFAULT_REPO = 'PawBuddyAI/PhotoMaster'
-const DEFAULT_SITE_DIR = '.output/public/download'
+
+/**
+ * 站点里 /download/ 对应的目录，须与 nuxt generate 的产物目录一致：
+ * Cloudflare Pages 构建环境（CF_PAGES）下 Nitro 自动选 cloudflare-pages-static 预设，产物在 dist/，其余环境在 .output/public
+ */
+export function siteDownloadDir(env: Record<string, string | undefined> = process.env) {
+  return env.CF_PAGES ? 'dist/download' : '.output/public/download'
+}
 
 export const manifestSchema = z.object({
   version: z.string().regex(/^\d+\.\d+\.\d+/),
@@ -95,7 +102,7 @@ export type FetchReleaseResult = { status: 'skipped' } | { status: 'fetched', ma
 export async function fetchRelease(options: FetchReleaseOptions = {}): Promise<FetchReleaseResult> {
   const {
     repo = DEFAULT_REPO,
-    outDir = DEFAULT_SITE_DIR,
+    outDir = siteDownloadDir(),
     fetch: fetchImpl = globalThis.fetch,
     attempts = 3,
     delayMs = 2000,

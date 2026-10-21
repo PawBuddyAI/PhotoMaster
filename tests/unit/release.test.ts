@@ -9,7 +9,8 @@ import {
   manifestSchema,
   packRelease,
   releaseAssetUrl,
-  sha256Hex
+  sha256Hex,
+  siteDownloadDir
 } from '../../scripts/release'
 
 const REPO = 'owner/repo'
@@ -58,6 +59,17 @@ function validManifest(overrides: Partial<Record<string, unknown>> = {}) {
 describe('releaseAssetUrl', () => {
   it('指向最新 Release 下的固定文件名', () => {
     expect(releaseAssetUrl(REPO, MANIFEST_NAME)).toBe('https://github.com/owner/repo/releases/latest/download/latest.json')
+  })
+})
+
+describe('siteDownloadDir', () => {
+  it('Cloudflare Pages 构建环境放进 dist（cloudflare-pages-static 的产物目录）', () => {
+    expect(siteDownloadDir({ CF_PAGES: '1' })).toBe('dist/download')
+  })
+
+  it('其他环境放进 .output/public（static 预设的产物目录）', () => {
+    expect(siteDownloadDir({})).toBe('.output/public/download')
+    expect(siteDownloadDir({ CF_PAGES: '' })).toBe('.output/public/download')
   })
 })
 
