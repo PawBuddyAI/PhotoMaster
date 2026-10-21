@@ -10,6 +10,7 @@ import { useSettingsStore } from '~/stores/settings'
  */
 const settings = useSettingsStore()
 const { testing, testVision, testImage } = useConnectionTest()
+const { download } = useDesktopRelease()
 
 // 向导面向不熟悉 AI 接口的普通用户：除自带接口那一栏外，文案避开 Base URL、OpenAI 兼容、图层这类术语
 const STEPS = [
@@ -149,6 +150,29 @@ async function testConnection() {
             </div>
           </li>
         </ul>
+
+        <!-- 欢迎页是每个网页版新用户的必经之路，顺带介绍桌面版；站点没有安装包（以及桌面版里）不显示 -->
+        <div
+          v-if="step === 0 && download"
+          class="mx-auto flex w-full max-w-md items-center gap-3 rounded-xl border border-default px-4 py-3"
+        >
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-highlighted">
+              Windows 桌面版
+            </p>
+            <p class="truncate text-sm text-muted">
+              装在电脑上，修完一键存回原照片
+            </p>
+          </div>
+          <UButton
+            icon="i-lucide-download"
+            label="下载"
+            color="neutral"
+            variant="outline"
+            :href="download.url"
+            download
+          />
+        </div>
 
         <template v-if="step === 1">
           <div class="divide-y divide-default rounded-xl border border-default">

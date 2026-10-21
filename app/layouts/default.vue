@@ -153,6 +153,7 @@ onMounted(async () => {
 
       <template #footer>
         <div class="flex w-full flex-col gap-2">
+          <ShellDownloadItem />
           <ShellNavItem
             to="/settings"
             label="设置"

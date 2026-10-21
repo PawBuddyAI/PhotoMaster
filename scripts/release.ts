@@ -1,17 +1,15 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { z } from 'zod'
+// CI 用 node 直接运行本脚本（类型剥离），相对导入必须带 .ts 扩展名
+import { INSTALLER_NAME, MANIFEST_NAME, manifestSchema, type ReleaseManifest } from '../app/lib/release.ts'
 
 /**
  * 桌面版安装包的发布与取用。
  * 发布（GitHub Actions）：pack 把 NSIS 安装包整理成固定文件名 + 校验信息 latest.json，上传到 Release。
  * 取用（Cloudflare Pages 构建）：fetch 从最新 Release 下载并校验后放进站点的 /download/，国内用户从 Pages 下载。
- * 固定的 ASCII 文件名让 releases/latest/download/ 的地址不随版本变化，也避开产品名里的中文和空格。
+ * 文件名与清单格式见 app/lib/release.ts，网页版的下载入口读取同一份清单。
  */
-export const INSTALLER_NAME = 'ai-photo-master-setup.exe'
-export const MANIFEST_NAME = 'latest.json'
-
 const DEFAULT_REPO = 'PawBuddyAI/PhotoMaster'
 
 /**
@@ -22,15 +20,6 @@ export function siteDownloadDir(env: Record<string, string | undefined> = proces
   return env.CF_PAGES ? 'dist/download' : '.output/public/download'
 }
 
-export const manifestSchema = z.object({
-  version: z.string().regex(/^\d+\.\d+\.\d+/),
-  file: z.literal(INSTALLER_NAME),
-  sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  size: z.number().int().positive(),
-  date: z.iso.datetime()
-})
-
-export type ReleaseManifest = z.infer<typeof manifestSchema>
 export type FetchLike = (url: string) => Promise<Response>
 
 export function releaseAssetUrl(repo: string, name: string) {

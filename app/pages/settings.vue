@@ -6,6 +6,7 @@ import { useSettingsStore } from '~/stores/settings'
 
 const settings = useSettingsStore()
 const { testing, testVision, testImage } = useConnectionTest()
+const { download } = useDesktopRelease()
 
 const structuredOutputItems = Object.entries(STRUCTURED_OUTPUT_LABELS).map(([value, label]) => ({ label, value }))
 const reasoningEffortItems = [
@@ -254,6 +255,40 @@ const sizeModeItems = [
                 />
               </SettingsRow>
             </Transition>
+          </div>
+        </section>
+
+        <!-- 只有网页版、且站点提供了安装包时才出现；只介绍桌面版独有的功能，不拿网页版的不足做文案；面向普通用户，不用接口、跨域这类术语 -->
+        <section
+          v-if="download"
+          aria-labelledby="desktop-heading"
+          class="flex flex-col gap-3"
+        >
+          <div class="min-w-0">
+            <h2
+              id="desktop-heading"
+              class="section-title"
+            >
+              桌面版
+            </h2>
+            <p class="mt-0.5 text-sm text-pretty text-muted">
+              安装到 Windows 电脑上使用，界面和网页版一样
+            </p>
+          </div>
+          <div class="rounded-xl border border-default bg-default">
+            <SettingsRow
+              label="下载 AI 修图桌面版"
+              :description="`版本 ${download.version}，${download.size}。装在电脑上使用，修完点「保存」就直接存回原来的照片，不用再导出`"
+            >
+              <div class="flex justify-end">
+                <UButton
+                  icon="i-lucide-download"
+                  label="下载 Windows 版"
+                  :href="download.url"
+                  download
+                />
+              </div>
+            </SettingsRow>
           </div>
         </section>
 

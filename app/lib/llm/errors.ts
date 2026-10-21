@@ -6,6 +6,8 @@ export interface FriendlyError {
   description: string
   /** 被用户主动取消，界面通常不需要提示 */
   aborted?: boolean
+  /** 网页版连不上服务，换桌面版（不受跨域限制）可能解决；界面可以顺带给出下载入口 */
+  suggestDesktop?: boolean
 }
 
 /** 模型输出不符合约定格式 */
@@ -43,11 +45,13 @@ export function describeError(err: unknown): FriendlyError {
   }
   if (err instanceof APIConnectionError) {
     // 桌面版经 Rust 端请求，不会遇到跨域拦截
+    const desktop = isDesktop()
     return {
       title: '无法连接到服务',
-      description: isDesktop()
+      description: desktop
         ? '请检查 Base URL 和网络'
-        : '请检查 Base URL 和网络。有些服务不允许网页直接访问（不支持跨域 CORS），这种服务请改用桌面版'
+        : '请检查 Base URL 和网络。有些服务不允许网页直接访问（不支持跨域 CORS），这种服务请改用桌面版',
+      suggestDesktop: !desktop
     }
   }
   if (err instanceof APIError) {

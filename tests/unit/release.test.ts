@@ -3,10 +3,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  formatInstallerSize,
   INSTALLER_NAME,
+  loadSiteRelease,
   MANIFEST_NAME,
-  fetchRelease,
   manifestSchema,
+  SITE_INSTALLER_URL
+} from '../../app/lib/release'
+import {
+  fetchRelease,
   packRelease,
   releaseAssetUrl,
   sha256Hex,
@@ -199,5 +204,42 @@ describe('fetchRelease', () => {
     expect((error as Error).message).toContain('已尝试 3 次')
     expect(((error as Error).cause as Error).message).toBe('HTTP 500')
     expect(fetchImpl).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('loadSiteRelease', () => {
+  it('读取站点 /download/ 下的 latest.json 并按清单格式校验', async () => {
+    const fetchImpl = vi.fn(async () => new Response(validManifest()))
+
+    await expect(loadSiteRelease(fetchImpl)).resolves.toMatchObject({ version: '0.1.0', size: installerBytes.byteLength })
+    expect(fetchImpl).toHaveBeenCalledWith('/download/latest.json', { cache: 'no-cache' })
+  })
+
+  it('站点还没有发布（404）时返回 null', async () => {
+    await expect(loadSiteRelease(async () => new Response(null, { status: 404 }))).resolves.toBeNull()
+  })
+
+  it('未知路径被回退成 index.html（状态码 200）时返回 null', async () => {
+    const html = '<!doctype html><html><body><div id="__nuxt"></div></body></html>'
+    await expect(loadSiteRelease(async () => new Response(html, { headers: { 'content-type': 'text/html' } }))).resolves.toBeNull()
+  })
+
+  it('清单格式不对或网络出错时返回 null', async () => {
+    await expect(loadSiteRelease(async () => new Response(JSON.stringify({ version: '0.1.0' })))).resolves.toBeNull()
+    await expect(loadSiteRelease(async () => new Response(validManifest({ file: 'other.exe' })))).resolves.toBeNull()
+    await expect(loadSiteRelease(async () => {
+      throw new TypeError('Failed to fetch')
+    })).resolves.toBeNull()
+  })
+})
+
+describe('站点下载地址与大小', () => {
+  it('安装包地址与 fetch 放进站点的位置一致', () => {
+    expect(SITE_INSTALLER_URL).toBe(`/download/${INSTALLER_NAME}`)
+  })
+
+  it('大小按 MB 显示一位小数', () => {
+    expect(formatInstallerSize(9 * 1024 * 1024)).toBe('9.0 MB')
+    expect(formatInstallerSize(8_900_000)).toBe('8.5 MB')
   })
 })
