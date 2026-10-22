@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { type DialogFilter, isDesktop, pickSavePath, writeBlob } from '~/lib/desktop'
 import type { ExportFormat, ExportResult } from '~/lib/image/export'
 import { defaultExportOptions, type ExportOptions, FORMAT_EXTENSIONS } from '~/lib/image/export-options'
+import { isRawFile } from '~/lib/image/import-formats'
 import { getBlob } from '~/lib/storage/db'
 import { useEditorStore } from '~/stores/editor'
 import { useImageWorker } from './useImageWorker'
@@ -96,6 +97,7 @@ export function useExport() {
     if (desktop && !savedPath) {
       return null
     }
+    if (savedPath) assertExportPath(savedPath)
     const result = await render(opts)
     if (savedPath) {
       await writeBlob(savedPath, result.blob)
@@ -118,7 +120,7 @@ export function useExport() {
       throw new Error('工程尚未打开')
     }
     const failure: { path?: string, error?: unknown } = {}
-    if (meta.filePath) {
+    if (meta.filePath && !isRawFile(meta.filePath)) {
       const result = await render(defaultExportOptions(meta.originalType, meta.filePath))
       try {
         await writeBlob(meta.filePath, result.blob)
@@ -136,6 +138,7 @@ export function useExport() {
       }
       return null
     }
+    assertExportPath(savedPath)
     const result = await render(defaultExportOptions(meta.originalType, savedPath))
     await writeBlob(savedPath, result.blob)
     await editor.setFilePath(savedPath)
@@ -143,6 +146,12 @@ export function useExport() {
   }
 
   return { exporting, progress, run, save }
+}
+
+function assertExportPath(path: string): void {
+  if (isRawFile(path)) {
+    throw new Error('编辑结果不能写入 RAW 文件，请选择 JPEG、PNG 或 WebP 文件名。')
+  }
 }
 
 function downloadBlob(blob: Blob, fileName: string): void {

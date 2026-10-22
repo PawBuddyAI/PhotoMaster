@@ -12,6 +12,10 @@ vi.mock('~/lib/image/canvas', () => ({
   canvasToBlob: vi.fn(async () => new Blob(['thumbnail'], { type: 'image/jpeg' }))
 }))
 
+vi.mock('~/lib/image/raw', () => ({
+  decodeRaw: vi.fn(async () => ({ blob: new Blob(['developed'], { type: 'image/png' }), cameraMake: 'Test', cameraModel: 'Camera' }))
+}))
+
 const DB_NAME = 'ai-photo-master'
 
 let storage: typeof import('~/lib/storage/db')
@@ -176,6 +180,34 @@ describe('第 2 版数据库升级', () => {
 })
 
 describe('工程读写', () => {
+  it('RAW 保留原件与参数，PNG 副本供编辑；来源路径不作为覆盖目标，清理补丁不删除原件', async () => {
+    const file = new File(['sensor-data'], '海边.ARW', { type: '' })
+    const id = await storage.createProject(file, undefined, 'D:\\海边.ARW')
+    const project = (await storage.getProject(id))!
+    expect(project.originalType).toBe('image/png')
+    expect(project).not.toHaveProperty('filePath')
+    expect(project.rawSource).toMatchObject({ name: '海边.ARW', filePath: 'D:\\海边.ARW', decoder: 'libraw-wasm@1.6.0', settings: { outputBps: 8, halfSize: false } })
+    expect(await (await storage.getBlob(project.originalBlobId)).text()).toBe('developed')
+    expect(await (await storage.getBlob(project.rawSource!.blobId)).text()).toBe('sensor-data')
+    const stale = await storage.putBlob(id, new Blob(['unused']))
+    expect(await storage.collectGarbage(id, project.originalBlobId, project.doc)).toBe(1)
+    await expect(storage.getBlob(stale)).rejects.toThrow('图像数据丢失')
+    expect(await (await storage.getBlob(project.rawSource!.blobId)).text()).toBe('sensor-data')
+    await storage.deleteProject(id)
+    await expect(storage.getBlob(project.rawSource!.blobId)).rejects.toThrow('图像数据丢失')
+  })
+
+  it('RAW 解码失败或取消不留下半成品工程', async () => {
+    const { decodeRaw } = await import('~/lib/image/raw')
+    vi.mocked(decodeRaw).mockRejectedValueOnce(new Error('不支持此机型'))
+    await expect(storage.createProject(new File(['bad'], 'broken.CR3'))).rejects.toThrow('不支持此机型')
+    const controller = new AbortController()
+    controller.abort()
+    await expect(storage.createProject(new File(['raw'], 'photo.NEF'), undefined, undefined, controller.signal)).rejects.toMatchObject({ name: 'AbortError' })
+    expect(await storage.listProjects()).toEqual([])
+    expect(await inspect(db => db.table('blobs').count())).toBe(0)
+  })
+
   it('新建工程同时写入元数据、空文档与原图', async () => {
     const id = await storage.createProject(photo('海边.jpg'))
 

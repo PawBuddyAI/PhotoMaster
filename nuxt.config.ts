@@ -49,6 +49,7 @@ export default defineNuxtConfig({
     worker: { format: 'es' },
     // 预构建运行时才被发现的依赖，避免开发时首次打开页面触发整页重载
     optimizeDeps: {
+      exclude: ['libraw-wasm'],
       include: [
         'vue-konva', 'konva', 'dexie', 'openai', 'openai/helpers/zod', 'zod', 'twgl.js', 'comlink', 'piexifjs',
         '@tauri-apps/api/core', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-fs', '@tauri-apps/plugin-http'

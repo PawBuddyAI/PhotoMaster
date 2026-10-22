@@ -30,6 +30,7 @@
     "comlink": "^4.4.2",
     "dexie": "^4.4.6",
     "konva": "^10.9.0",
+    "libraw-wasm": "1.6.0",
     "nuxt": "^4.6.2",
     "openai": "^7.39.0",
     "piexifjs": "^1.0.6",

@@ -170,6 +170,17 @@ export interface ProjectRecord {
   originalBlobId: string
   /** 原图 MIME 类型，导出时决定能否写回 EXIF */
   originalType: string
+  /** RAW 原件独立保留；originalBlobId 指向供现有编辑器使用的 PNG 显影副本。 */
+  rawSource?: {
+    blobId: string
+    name: string
+    type: string
+    filePath?: string
+    decoder: string
+    settings: import('libraw-wasm').LibRawSettings
+    cameraMake?: string
+    cameraModel?: string
+  }
   thumbnail: Blob
   /** 所属相册；不在任何相册中时没有这一项 */
   albumId?: string

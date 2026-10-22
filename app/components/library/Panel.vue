@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { isDesktop, pickImagePath, readFileAs } from '~/lib/desktop'
-import { baseName, FORMAT_EXTENSIONS, formatFromPath } from '~/lib/image/export-options'
+import { baseName, formatFromPath } from '~/lib/image/export-options'
+import { IMAGE_ACCEPT, IMPORT_EXTENSIONS, isRawFile } from '~/lib/image/import-formats'
 import { groupByAlbum, SORT_MODES, VIEW_MODES } from '~/lib/library/order'
-import { createProject, type ProjectSummary, SUPPORTED_IMAGE_TYPES } from '~/lib/storage/db'
+import { createProject, type ProjectSummary } from '~/lib/storage/db'
 import { useLibraryStore } from '~/stores/library'
 
 /**
@@ -31,6 +32,9 @@ const backdrop = useBackdrop()
 const drag = useProjectDrag()
 
 const importing = ref(false)
+const importLabel = ref('正在导入照片…')
+let importController: AbortController | null = null
+onBeforeUnmount(() => importController?.abort())
 const file = ref<File | null>(null)
 const pendingDelete = ref<ProjectSummary | null>(null)
 const uploadRef = ref<{ inputRef: HTMLInputElement | undefined } | null>(null)
@@ -65,14 +69,21 @@ const sortMenu = computed<DropdownMenuItem[]>(() => SORT_MODES.map(mode => ({
 
 /** filePath：桌面版从文件对话框导入时的原图位置，「保存」把结果写回这里；拖入与网页版没有 */
 async function importPhoto(photo: File, filePath?: string) {
+  if (importing.value) return
   importing.value = true
+  importLabel.value = isRawFile(photo.name) ? '正在解码 RAW，较大的照片需要一些时间…' : '正在导入照片…'
+  importController = new AbortController()
   try {
-    const id = await createProject(photo, props.albumId, filePath)
+    const id = await createProject(photo, props.albumId, filePath, importController.signal)
+    if (isRawFile(photo.name)) {
+      notify.info('RAW 已导入', '原文件已保留，当前编辑完整尺寸的 8 位 PNG 副本。')
+    }
     await router.push(`/editor/${id}`)
   } catch (err) {
-    notify.error(err)
+    if (!(err instanceof DOMException && err.name === 'AbortError')) notify.error(err)
   } finally {
     importing.value = false
+    importController = null
   }
 }
 
@@ -89,7 +100,8 @@ watch(file, async (selected) => {
  */
 async function importFromDisk() {
   try {
-    const path = await pickImagePath({ name: '照片', extensions: Object.values(FORMAT_EXTENSIONS).flat() })
+    if (importing.value) return
+    const path = await pickImagePath({ name: '照片', extensions: IMPORT_EXTENSIONS })
     if (path) {
       await importPhoto(await readFileAs(path, baseName(path), formatFromPath(path) ?? ''), path)
     }
@@ -156,12 +168,14 @@ async function confirmDelete() {
         <UFileUpload
           ref="uploadRef"
           v-model="file"
-          :accept="SUPPORTED_IMAGE_TYPES.join(',')"
+          :accept="IMAGE_ACCEPT"
           :disabled="importing"
+          :file-delete="!importing"
+          :file-image="!file || !isRawFile(file.name)"
           :dropzone="!drag.dragging.value"
           icon="i-lucide-image-plus"
           label="拖入照片，或点击选择"
-          description="支持 JPEG、PNG、WebP。照片只存在这台设备上，用到 AI 时才会上传。"
+          description="支持 JPEG、PNG、WebP 和相机 RAW（兼容性因机型而异）。照片只存在这台设备上，用到 AI 时才会上传。"
           class="w-full"
           :class="projects.length ? 'min-h-36' : 'min-h-56'"
           :ui="{
@@ -171,6 +185,23 @@ async function confirmDelete() {
             description: 'max-w-xl text-balance text-muted'
           }"
         />
+        <div
+          v-if="importing"
+          class="flex flex-wrap items-center gap-3"
+        >
+          <p
+            role="status"
+            class="text-sm text-muted"
+          >
+            {{ importLabel }}
+          </p>
+          <UButton
+            label="取消导入"
+            color="neutral"
+            variant="ghost"
+            @click="importController?.abort()"
+          />
+        </div>
 
         <!-- 图库为空时拖放区就是唯一的入口，不再重复一个「还没有工程」；空相册说明怎样把已有工程放进来（在相册里导入的照片会直接放进相册） -->
         <section

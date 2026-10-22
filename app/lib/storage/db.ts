@@ -1,5 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { canvasToBlob, decodeImage, scaleToFit } from '../image/canvas'
+import { isRawFile, SUPPORTED_IMAGE_TYPES } from '../image/import-formats'
+import { RAW_DECODER, RAW_SETTINGS } from '../image/raw-settings'
 import { newId } from '../id'
 import { cloneDoc, emptyDoc, referencedBlobIds } from '../project/doc'
 import type { AlbumRecord, BlobRecord, ProjectDoc, ProjectDocRecord, ProjectRecord } from '../types'
@@ -51,24 +53,46 @@ export type Project = ProjectRecord & Pick<ProjectDocRecord, 'doc' | 'updatedAt'
 
 export type ProjectSummary = Pick<Project, 'id' | 'name' | 'createdAt' | 'updatedAt' | 'width' | 'height' | 'thumbnail' | 'albumId' | 'order'>
 
-export const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+export { SUPPORTED_IMAGE_TYPES } from '../image/import-formats'
 
 /** 新建工程；传入 albumId 时直接放进该相册，传入 filePath 时记下原图在磁盘上的位置（桌面版） */
-export async function createProject(file: File, albumId?: string, filePath?: string): Promise<string> {
-  if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
-    throw new Error(`不支持的图片格式：${file.type || '未知'}，请使用 JPEG、PNG 或 WebP`)
+export async function createProject(file: File, albumId?: string, filePath?: string, signal?: AbortSignal): Promise<string> {
+  const raw = isRawFile(file.name)
+  if (!raw && !SUPPORTED_IMAGE_TYPES.includes(file.type)) {
+    throw new Error(`不支持的图片格式：${file.type || '未知'}，请使用 JPEG、PNG、WebP 或相机 RAW`)
   }
-  const bitmap = await decodeImage(file)
+  signal?.throwIfAborted()
+  const decoded = raw ? await (await import('../image/raw')).decodeRaw(file, signal) : undefined
+  const original = decoded?.blob ?? file
+  signal?.throwIfAborted()
+  const bitmap = await decodeImage(original)
   try {
     const thumbnail = await canvasToBlob(scaleToFit(bitmap, bitmap.width, bitmap.height, 480), 'image/jpeg', 0.85)
     const id = newId()
     const originalBlobId = newId()
+    const rawSource: ProjectRecord['rawSource'] = decoded
+      ? {
+          blobId: newId(), name: file.name, type: file.type,
+          decoder: RAW_DECODER, settings: structuredClone(RAW_SETTINGS),
+          cameraMake: decoded.cameraMake, cameraModel: decoded.cameraModel,
+          ...(filePath ? { filePath } : {})
+        }
+      : undefined
     const now = Date.now()
-    await db().transaction('rw', db().projects, db().docs, db().blobs, db().albums, async () => {
+    signal?.throwIfAborted()
+    await db().transaction('rw', db().projects, db().docs, db().blobs, db().albums, async (tx) => {
+      const abort = () => tx.abort()
+      signal?.addEventListener('abort', abort, { once: true })
+      tx.on('complete', () => signal?.removeEventListener('abort', abort))
+      tx.on('abort', () => signal?.removeEventListener('abort', abort))
+      signal?.throwIfAborted()
       if (albumId) {
         await requireAlbum(albumId)
       }
-      await db().blobs.add({ id: originalBlobId, projectId: id, blob: file })
+      await db().blobs.add({ id: originalBlobId, projectId: id, blob: original })
+      if (rawSource) {
+        await db().blobs.add({ id: rawSource.blobId, projectId: id, blob: file })
+      }
       await db().projects.add({
         id,
         name: file.name.replace(/\.[^.]+$/, '') || '未命名',
@@ -76,12 +100,17 @@ export async function createProject(file: File, albumId?: string, filePath?: str
         width: bitmap.width,
         height: bitmap.height,
         originalBlobId,
-        originalType: file.type,
+        originalType: original.type,
+        ...(rawSource ? { rawSource } : {}),
         thumbnail,
         ...(albumId ? { albumId } : {}),
-        ...(filePath ? { filePath } : {})
+        // RAW 只记录来源，不作为「保存」的覆盖目标。
+        ...(filePath && !raw ? { filePath } : {})
       })
       await db().docs.add({ id, doc: emptyDoc(), updatedAt: now })
+    }).catch((error: unknown) => {
+      signal?.throwIfAborted()
+      throw error
     })
     return id
   } finally {
@@ -242,6 +271,10 @@ export async function getBlob(id: string): Promise<Blob> {
 export async function collectGarbage(projectId: string, originalBlobId: string, doc: ProjectDoc): Promise<number> {
   const keep = referencedBlobIds(doc)
   keep.add(originalBlobId)
+  const project = await db().projects.get(projectId)
+  if (project?.rawSource) {
+    keep.add(project.rawSource.blobId)
+  }
   const records = await db().blobs.where('projectId').equals(projectId).primaryKeys()
   const stale = records.filter(id => !keep.has(id))
   if (stale.length) {

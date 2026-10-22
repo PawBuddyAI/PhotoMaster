@@ -1,0 +1,26 @@
+RAW decoder attribution and source availability
+
+PhotoMaster uses the unmodified libraw-wasm 1.6.0 npm distribution.
+The JavaScript wrapper declares the ISC license; author: ybouane, with
+contributors BeseBarni, lexluthor0304, gwennlbh and hrueger.
+Wrapper source and reproducible build scripts:
+https://github.com/ybouane/LibRaw-Wasm/tree/32fd36a9883a10c1632bc20073f1ea88cc60487a
+
+The pinned upstream build uses LibRaw 0.22.1 and Little CMS 2.19.1.
+LibRaw is available under LGPL 2.1 or CDDL 1.0; this distribution selects
+the CDDL 1.0 option. The copyright notices and CDDL license are provided
+alongside this file. The corresponding unmodified LibRaw source is at:
+https://github.com/LibRaw/LibRaw/tree/0.22.1
+
+Little CMS is MIT licensed. Its license is provided alongside this file.
+Source: https://github.com/mm2/Little-CMS/tree/lcms2.19.1
+
+The upstream Emscripten build also uses its libjpeg, libpng and zlib ports.
+Source and license references:
+https://github.com/emscripten-core/emscripten/tree/5.0.7/tools/ports
+https://www.ijg.org/files/README
+https://www.libpng.org/pub/png/src/libpng-LICENSE.txt
+https://www.zlib.net/zlib_license.html
+
+These third-party components retain their own licenses. They are not
+relicensed under PhotoMaster's Apache-2.0 license.
