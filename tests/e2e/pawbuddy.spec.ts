@@ -109,6 +109,7 @@ test('设置页：无效连接码给出提示，连接后显示账户、预设�
   await context.route(`${SITE}/purchase`, route => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>充值</title>' }))
   await page.goto('/settings')
 
+  const account = page.getByRole('region', { name: 'PawBuddy 账户' })
   const vision = page.getByRole('region', { name: '读图模型' })
   const image = page.getByRole('region', { name: '修图模型' })
   const visionModel = vision.getByRole('combobox', { name: '模型', exact: true })
@@ -116,9 +117,9 @@ test('设置页：无效连接码给出提示，连接后显示账户、预设�
   const reasoningEffort = vision.getByText('思考等级', { exact: true })
   const sameAsVision = image.getByText('沿用读图模型的连接配置')
   await expect(vision.getByLabel('Base URL')).toBeVisible()
-  await vision.getByRole('button', { name: '粘贴连接码' }).click()
-  const input = vision.getByRole('textbox', { name: '连接码' })
-  const submit = vision.getByRole('button', { name: '连接', exact: true })
+  await account.getByRole('button', { name: '粘贴连接码' }).click()
+  const input = account.getByRole('textbox', { name: '连接码' })
+  const submit = account.getByRole('button', { name: '连接', exact: true })
   await expect(submit).toBeDisabled()
   await input.fill('PB1.not-a-code')
   await submit.click()
@@ -127,7 +128,7 @@ test('设置页：无效连接码给出提示，连接后显示账户、预设�
 
   await input.fill(connectCode())
   await submit.click()
-  await expect(vision.getByText('已连接 me@example.com')).toBeVisible()
+  await expect(account.getByText('已连接 me@example.com')).toBeVisible()
   await expect(vision.getByLabel('Base URL')).toHaveCount(0)
   // 模型、思考等级由账户预设，修图只能沿用账户的连接：这几行都不显示，其余选项照常
   await expect(visionModel).toHaveCount(0)
@@ -140,20 +141,20 @@ test('设置页：无效连接码给出提示，连接后显示账户、预设�
 
   // 刷新后仍然不显示
   await page.reload()
-  await expect(vision.getByText('已连接 me@example.com')).toBeVisible()
+  await expect(account.getByText('已连接 me@example.com')).toBeVisible()
   await expect(visionModel).toHaveCount(0)
 
   const [purchase] = await Promise.all([
     context.waitForEvent('page'),
-    vision.getByRole('button', { name: '充值' }).click()
+    account.getByRole('button', { name: '充值' }).click()
   ])
   await expect(purchase).toHaveURL(`${SITE}/purchase`)
   await purchase.close()
 
-  await vision.getByRole('button', { name: '断开' }).click()
+  await account.getByRole('button', { name: '断开' }).click()
   await expect(page.getByText('已断开 PawBuddy 账户', { exact: true })).toBeVisible()
   await expect(vision.getByLabel('Base URL')).toHaveValue('https://api.openai.com/v1')
-  await expect(vision.getByRole('button', { name: '登录 PawBuddy' })).toBeVisible()
+  await expect(account.getByRole('button', { name: '登录 PawBuddy' })).toBeVisible()
   // 断开后模型与思考等级回到默认，几行重新显示，可以自己选
   await expect(visionModel).toHaveValue('gpt-6.1-sol')
   await expect(imageModel).toHaveValue('gpt-image-2.5-sunburst')

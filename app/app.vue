@@ -14,6 +14,7 @@ onMounted(loadDesktopRelease)
     :toaster="{ position: 'bottom-right', progress: false }"
   >
     <AppBackdrop :image="backdrop" />
+    <BalanceDialog />
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>

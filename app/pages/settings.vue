@@ -52,6 +52,13 @@ const sizeModeItems = [
     <template #body>
       <div class="mx-auto flex w-full max-w-3xl flex-col gap-10">
         <section
+          aria-label="PawBuddy 账户"
+          class="divide-y divide-default rounded-xl border border-default bg-default"
+        >
+          <SettingsPawBuddyAccount />
+        </section>
+
+        <section
           aria-labelledby="vision-heading"
           class="flex flex-col gap-3"
         >
@@ -79,7 +86,6 @@ const sizeModeItems = [
           </div>
           <div class="divide-y divide-default rounded-xl border border-default bg-default">
             <!-- 连上 PawBuddy 账户时接口、Key、模型与思考等级都由账户预设（PAWBUDDY_PRESET），这几行不显示；断开后恢复为手动填写 -->
-            <SettingsPawBuddyAccount />
             <template v-if="!settings.pawbuddy">
               <SettingsConnectionFields
                 v-model:base-url="settings.vision.baseURL"

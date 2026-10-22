@@ -3,7 +3,7 @@ import { isDesktop } from '~/lib/desktop'
 import { useSettingsStore } from '~/stores/settings'
 
 /**
- * PawBuddy 账户的设置行，放在读图连接配置的分组里，向导与设置页共用。
+ * PawBuddy 账户的设置行，向导与设置页共用；设置页中独立放在模型配置之前。
  * 未连接时推荐登录（网页授权，见 usePawBuddy），网站没有自动跳回时可以粘贴连接码；已连接时显示账户，可以充值或断开。
  */
 const settings = useSettingsStore()

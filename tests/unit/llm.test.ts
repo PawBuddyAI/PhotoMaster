@@ -1,4 +1,4 @@
-import { APIConnectionError } from 'openai'
+import { APIConnectionError, APIError } from 'openai'
 import { LengthFinishReasonError } from 'openai/error'
 import { describe, expect, it } from 'vitest'
 import { type AnalysisProgress, analyzeImage, extractAnalysisDraft, parseAnalysisJson } from '~/lib/llm/analyze'
@@ -469,6 +469,24 @@ describe('requestImageEdit', () => {
 })
 
 describe('describeError', () => {
+  it.each([
+    [403, { message: 'Insufficient account balance', type: 'billing_error' }],
+    [402, { message: 'Payment required', code: 'INSUFFICIENT_BALANCE' }],
+    [429, { message: '账户余额不足' }]
+  ])('余额不足（%s）提示充值', (status, body) => {
+    const err = APIError.generate(status, { error: body }, undefined, new Headers())
+    expect(describeError(err)).toMatchObject({ title: '账户余额不足', insufficientBalance: true })
+  })
+
+  it.each([
+    [403, 'Access denied', '没有访问权限'],
+    [429, 'Rate limit exceeded', '请求过于频繁或额度不足']
+  ])('其他 %s 不误报为余额不足', (status, message, title) => {
+    const err = APIError.generate(status, { error: { message } }, undefined, new Headers())
+    expect(describeError(err).title).toBe(title)
+    expect(describeError(err).insufficientBalance).toBeUndefined()
+  })
+
   it('内容审核拦截给出类别与阶段建议', async () => {
     const { fetchImpl } = mockFetch(() => json({
       error: {

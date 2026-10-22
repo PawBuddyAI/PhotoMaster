@@ -7,10 +7,15 @@ import { describeError } from '~/lib/llm/errors'
 export function useNotify() {
   const toast = useToast()
   const { download } = useDesktopRelease()
+  const balanceDialog = useBalanceDialog()
 
   function error(err: unknown): void {
     const friendly = describeError(err)
     if (friendly.aborted) {
+      return
+    }
+    if (friendly.insufficientBalance) {
+      balanceDialog.value = true
       return
     }
     const offerDesktop = friendly.suggestDesktop && download.value

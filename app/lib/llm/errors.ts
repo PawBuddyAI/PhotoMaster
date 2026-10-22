@@ -8,6 +8,8 @@ export interface FriendlyError {
   aborted?: boolean
   /** 网页版连不上服务，换桌面版（不受跨域限制）可能解决；界面可以顺带给出下载入口 */
   suggestDesktop?: boolean
+  /** 账户余额不足，界面提供充值入口 */
+  insufficientBalance?: boolean
 }
 
 /** 模型输出不符合约定格式 */
@@ -59,6 +61,17 @@ export function describeError(err: unknown): FriendlyError {
       return describeModeration((err.error as { moderation_details?: ModerationDetails } | undefined)?.moderation_details)
     }
     const detail = err.message || '未知错误'
+    if (
+      [402, 403, 429].includes(err.status ?? 0)
+      && (/^insufficient_(?:account_)?balance$/i.test(err.code ?? '')
+        || /insufficient (?:account )?balance|(?:account )?balance (?:is )?insufficient|余额不足/i.test(detail))
+    ) {
+      return {
+        title: '账户余额不足',
+        description: 'AI 服务账户余额不足，请充值后重试。',
+        insufficientBalance: true
+      }
+    }
     switch (err.status) {
       case 401:
         return { title: 'API Key 无效', description: '请在设置中检查 API Key 是否正确' }
