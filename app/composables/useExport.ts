@@ -35,7 +35,10 @@ const progress = ref(0)
 const FORMAT_NAMES: Record<ExportFormat, string> = {
   'image/jpeg': 'JPEG 图像',
   'image/png': 'PNG 图像',
-  'image/webp': 'WebP 图像'
+  'image/webp': 'WebP 图像',
+  'image/x-exr': 'OpenEXR 浮点图像',
+  'image/ultrahdr': 'Ultra HDR JPEG',
+  'image/png-hdr': 'HDR PNG（Rec.2020 PQ）'
 }
 
 /** 另存为对话框里的文件类型 */
@@ -77,6 +80,7 @@ export function useExport() {
         patches,
         layers,
         crop: doc.crop,
+        hdr: doc.hdr,
         format: opts.format,
         quality: opts.quality,
         keepExif: opts.keepExif

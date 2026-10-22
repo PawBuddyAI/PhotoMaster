@@ -152,6 +152,7 @@ export interface AnalysisResult {
 
 /** 可序列化的工程文档，撤销/重做以它为快照单位（不含任何 Blob） */
 export interface ProjectDoc {
+  hdr?: import('./image/hdr').HdrSettings
   layers: Layer[]
   crop: CropSpec | null
   analysis: AnalysisResult | null
@@ -170,7 +171,7 @@ export interface ProjectRecord {
   originalBlobId: string
   /** 原图 MIME 类型，导出时决定能否写回 EXIF */
   originalType: string
-  /** 16 位线性 sRGB 底图；缺省表示使用旧版 8 位管线，不自动改变已有工程外观。 */
+  /** 带版本头的线性底图：旧版 RGB16 sRGB / HDR Float32 Rec.2020；不自动转换旧工程。 */
   linearBlobId?: string
   /** RAW 原件独立保留；originalBlobId 指向供显示和 AI 使用的 PNG 副本。 */
   rawSource?: {

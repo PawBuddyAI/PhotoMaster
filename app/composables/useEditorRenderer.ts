@@ -6,6 +6,7 @@ import { rasterizeMask, rasterizeMaskFloat } from '~/lib/mask/rasterize'
 import { isFullMask, maskKey } from '~/lib/mask/spec'
 import { buildRenderLayers } from '~/lib/pipeline/layers'
 import { PhotoRenderer } from '~/lib/pipeline/renderer'
+import { HdrDisplay } from '~/lib/pipeline/hdr-display'
 import type { MaskSpec, PixelRect } from '~/lib/types'
 import { useEditorStore } from '~/stores/editor'
 import { PREVIEW_LONG_SIDE, useProjectAssets } from './useProjectAssets'
@@ -27,6 +28,44 @@ export function useEditorRenderer() {
   const assets = useProjectAssets()
 
   const displayCanvas = shallowRef<HTMLCanvasElement | null>(null)
+  const hdrCanvas = shallowRef<HTMLCanvasElement | null>(null)
+  const hdrStatus = ref('SDR 预览')
+  const dynamicRange = window.matchMedia('(dynamic-range: high)')
+  let hdrDisplay: HdrDisplay | null = null
+  let hdrVersion = 0
+  async function updateHdr(): Promise<void> {
+    const version = ++hdrVersion
+    hdrDisplay?.dispose()
+    hdrDisplay = null
+    hdrCanvas.value = null
+    if (!assets.isHdr.value) {
+      hdrStatus.value = 'SDR 工程'
+
+      return
+    }
+    hdrStatus.value = editor.doc.hdr?.preview === 'sdr' ? 'SDR 色调映射预览' : 'SDR 预览 · 当前屏幕或系统未开启 HDR'
+    if (editor.doc.hdr?.preview === 'sdr' || !dynamicRange.matches || disposed) return
+    try {
+      const next = await HdrDisplay.create(() => {
+        if (version !== hdrVersion) return
+        hdrVersion++
+        hdrCanvas.value = null
+        hdrDisplay = null
+        hdrStatus.value = 'SDR 预览 · HDR 设备已断开'
+        next.dispose()
+      })
+      if (disposed || version !== hdrVersion) {
+        next.dispose()
+
+        return
+      }
+      hdrDisplay = next
+      hdrStatus.value = 'HDR 预览 · Display P3'
+      schedule()
+    } catch {
+      if (version === hdrVersion) hdrStatus.value = 'SDR 预览 · 当前环境不支持 HDR 画布'
+    }
+  }
   const originalPreview = shallowRef<AnyCanvas | null>(null)
   const overlayCanvas = shallowRef<HTMLCanvasElement | null>(null)
   const frame = ref(0)
@@ -68,7 +107,7 @@ export function useEditorRenderer() {
 
     originalPreview.value = composeBase(original, [], fullRegion, previewW, previewH)
     const canvas = document.createElement('canvas')
-    renderer = new PhotoRenderer(canvas, !!assets.linearPreview.value)
+    renderer = new PhotoRenderer(canvas, !!assets.linearPreview.value, assets.isHdr.value)
     displayCanvas.value = canvas
     const overlay = document.createElement('canvas')
     overlay.width = maskW
@@ -76,6 +115,7 @@ export function useEditorRenderer() {
     overlayCanvas.value = overlay
     baseKey = null
     ready.value = true
+    void updateHdr()
     schedule()
     updateOverlay()
   }
@@ -105,7 +145,7 @@ export function useEditorRenderer() {
     if (renderer.isContextLost()) {
       // GPU 上下文丢失（驱动重置、显存回收）时换一块新画布重建渲染器
       const canvas = document.createElement('canvas')
-      renderer = new PhotoRenderer(canvas, !!assets.linearPreview.value)
+      renderer = new PhotoRenderer(canvas, !!assets.linearPreview.value, assets.isHdr.value)
       displayCanvas.value = canvas
       baseKey = null
     }
@@ -130,6 +170,18 @@ export function useEditorRenderer() {
     const renderLayers = buildRenderLayers(adjustLayers, imageW, imageH, fullRegion, maskW, maskH, 'preview', rasterCached)
     renderer.process(renderLayers, Math.max(previewW, previewH))
     renderer.present()
+    if (hdrDisplay) {
+      try {
+        hdrDisplay.present(renderer.readLinearPixels(), previewW, previewH)
+        hdrCanvas.value = hdrDisplay.canvas
+      } catch {
+        hdrVersion++
+        hdrDisplay.dispose()
+        hdrDisplay = null
+        hdrCanvas.value = null
+        hdrStatus.value = 'SDR 预览 · HDR 输出失败'
+      }
+    }
     frame.value++
   }
 
@@ -202,6 +254,8 @@ export function useEditorRenderer() {
   }
 
   watch(() => editor.layers, schedule, { deep: true })
+  watch(() => editor.doc.hdr?.preview, updateHdr)
+  dynamicRange.addEventListener('change', updateHdr)
   watch(
     () => [editor.hoverMask, editor.selectedLayer?.mask, editor.showMaskOverlay, editor.tool, ready.value],
     updateOverlay,
@@ -210,6 +264,11 @@ export function useEditorRenderer() {
 
   function dispose(): void {
     disposed = true
+    hdrVersion++
+    dynamicRange.removeEventListener('change', updateHdr)
+    hdrDisplay?.dispose()
+    hdrDisplay = null
+    hdrCanvas.value = null
     if (rafId) {
       cancelAnimationFrame(rafId)
     }
@@ -223,6 +282,8 @@ export function useEditorRenderer() {
 
   return {
     displayCanvas,
+    hdrCanvas,
+    hdrStatus,
     originalPreview,
     overlayCanvas,
     overlayVisible,

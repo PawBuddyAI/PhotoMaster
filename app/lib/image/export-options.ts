@@ -13,7 +13,10 @@ export const DEFAULT_EXPORT_QUALITY = 0.92
 export const FORMAT_EXTENSIONS: Record<ExportFormat, string[]> = {
   'image/jpeg': ['jpg', 'jpeg'],
   'image/png': ['png'],
-  'image/webp': ['webp']
+  'image/webp': ['webp'],
+  'image/x-exr': ['exr'],
+  'image/ultrahdr': ['jpg', 'jpeg'],
+  'image/png-hdr': ['png']
 }
 
 /** 路径最后一段（Windows 的 \ 与 / 都算分隔符） */

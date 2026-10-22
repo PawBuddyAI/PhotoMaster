@@ -1,5 +1,5 @@
 /** 自行生成的未压缩 Bayer DNG：无需下载照片，测试走真实 LibRaw 解码。 */
-export function makeDng(orientation = 1): Buffer {
+export function makeDng(orientation = 1, options: { neutral?: number[], black?: number, white?: number } = {}): Buffer {
   const width = 128
   const height = 96
   type Entry = { tag: number, type: number, count: number, bytes: Buffer }
@@ -42,10 +42,10 @@ export function makeDng(orientation = 1): Buffer {
   add(50708, 2, 'PhotoMaster Synthetic DNG')
   add(50710, 1, [0, 1, 2])
   add(50711, 3, [1])
-  add(50714, 5, [0])
-  add(50717, 4, [65535])
+  add(50714, 5, [options.black ?? 0])
+  add(50717, 4, [options.white ?? 65535])
   add(50721, 10, [1, 0, 0, 0, 1, 0, 0, 0, 1])
-  add(50728, 5, [1, 1, 1])
+  add(50728, 5, options.neutral ?? [1, 1, 1])
   add(50778, 3, [21])
   entries.sort((a, b) => a.tag - b.tag)
   let offset = 8 + 2 + entries.length * 12 + 4

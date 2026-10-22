@@ -3,11 +3,14 @@ import type { PixelRect } from '../types'
 import { RAW_MAX_PIXELS } from './raw-settings'
 import { createCanvas, get2d } from './canvas'
 import type { PatchSource } from './compose'
+import { rec2020ToSrgb } from './hdr'
 
 /** 持久化格式 v1：16 字节头 + RGB unsigned 16-bit little-endian，线性 sRGB。 */
 const MAGIC = 0x314c3652 // R6L1
+const FLOAT_MAGIC = 0x324c3352 // R3L2: RGB Float32 little endian, linear Rec.2020
 const HEADER = 16
 export const LINEAR_RGB16_TYPE = 'application/x-photomaster-rgb16'
+export const LINEAR_RGB32_TYPE = 'application/x-photomaster-rgb32'
 export interface LinearImage { data: Float32Array<ArrayBuffer>, width: number, height: number }
 
 export function linearToSrgb(value: number): number {
@@ -46,20 +49,51 @@ export function packRawLinear(image: RawImageData): Blob {
 }
 
 export async function linearSize(blob: Blob): Promise<{ width: number, height: number }> {
+  const { width, height } = await linearInfo(blob)
+  return { width, height }
+}
+
+export function packFloatLinear(width: number, height: number, sample: (pixel: number) => readonly number[]): Blob {
+  checkSize(width, height)
+  const header = new ArrayBuffer(HEADER)
+  const view = new DataView(header)
+  view.setUint32(0, FLOAT_MAGIC, true)
+  view.setUint32(4, width, true)
+  view.setUint32(8, height, true)
+  view.setUint32(12, 2020, true)
+  const parts: BlobPart[] = [header]
+  for (let first = 0; first < width * height; first += 65536) {
+    const count = Math.min(65536, width * height - first)
+    const data = new DataView(new ArrayBuffer(count * 12))
+    for (let p = 0; p < count; p++) {
+      const rgb = sample(first + p)
+      for (let c = 0; c < 3; c++) {
+        if (!Number.isFinite(Math.fround(rgb[c]!))) throw new Error('HDR 底图含有无效像素。')
+        data.setFloat32(p * 12 + c * 4, rgb[c]!, true)
+      }
+    }
+    parts.push(data.buffer)
+  }
+  return new Blob(parts, { type: LINEAR_RGB32_TYPE })
+}
+
+export async function linearInfo(blob: Blob): Promise<{ width: number, height: number, hdr: boolean, stride: number }> {
   if (blob.size < HEADER) throw new Error('高位深底图数据不完整。')
   const view = new DataView(await blob.slice(0, HEADER).arrayBuffer())
   const width = view.getUint32(4, true)
   const height = view.getUint32(8, true)
   checkSize(width, height)
-  if (view.getUint32(0, true) !== MAGIC || view.getUint32(12, true) !== 3 || blob.size !== HEADER + width * height * 6) {
+  const hdr = view.getUint32(0, true) === FLOAT_MAGIC
+  const stride = hdr ? 12 : 6
+  if ((!hdr && view.getUint32(0, true) !== MAGIC) || view.getUint32(12, true) !== (hdr ? 2020 : 3) || blob.size !== HEADER + width * height * stride) {
     throw new Error('高位深底图格式无效或数据不完整。')
   }
-  return { width, height }
+  return { width, height, hdr, stride }
 }
 
 /** 分条读取并在线性空间面积重采样；原尺寸输出逐样本保真，预览不会先经过 8 位画布。 */
 export async function readLinearRegion(blob: Blob, region: PixelRect, outW: number, outH: number): Promise<LinearImage> {
-  const { width, height } = await linearSize(blob)
+  const { width, height, hdr, stride } = await linearInfo(blob)
   checkSize(outW, outH)
   if (![region.x, region.y, region.w, region.h].every(Number.isInteger)
     || region.x < 0 || region.y < 0 || region.w <= 0 || region.h <= 0
@@ -75,8 +109,8 @@ export async function readLinearRegion(blob: Blob, region: PixelRect, outW: numb
     const last = Math.min(outH, first + batchRows)
     const rowStart = Math.floor(first * sy)
     const rowEnd = Math.min(region.h, Math.ceil(last * sy))
-    const start = HEADER + (region.y + rowStart) * width * 6
-    const rows = new DataView(await blob.slice(start, HEADER + (region.y + rowEnd) * width * 6).arrayBuffer())
+    const start = HEADER + (region.y + rowStart) * width * stride
+    const rows = new DataView(await blob.slice(start, HEADER + (region.y + rowEnd) * width * stride).arrayBuffer())
     for (let y = first; y < last; y++) {
       const y0 = y * sy
       const y1 = Math.min(region.h, (y + 1) * sy)
@@ -87,9 +121,13 @@ export async function readLinearRegion(blob: Blob, region: PixelRect, outW: numb
         for (let iy = Math.floor(y0); iy < Math.ceil(y1); iy++) {
           const wy = Math.min(y1, iy + 1) - Math.max(y0, iy)
           for (let ix = Math.floor(x0); ix < Math.ceil(x1); ix++) {
-            const weight = wy * (Math.min(x1, ix + 1) - Math.max(x0, ix)) / (sx * sy * 65535)
-            const src = ((iy - rowStart) * width + region.x + ix) * 6
-            for (let c = 0; c < 3; c++) data[dest + c] = data[dest + c]! + rows.getUint16(src + c * 2, true) * weight
+            const weight = wy * (Math.min(x1, ix + 1) - Math.max(x0, ix)) / (sx * sy)
+            const src = ((iy - rowStart) * width + region.x + ix) * stride
+            const rgb = hdr ? rec2020ToSrgb(rows.getFloat32(src, true), rows.getFloat32(src + 4, true), rows.getFloat32(src + 8, true)) : [rows.getUint16(src, true) / 65535, rows.getUint16(src + 2, true) / 65535, rows.getUint16(src + 4, true) / 65535]
+            for (let c = 0; c < 3; c++) {
+              if (!Number.isFinite(rgb[c])) throw new Error('HDR 底图含有无效像素。')
+              data[dest + c] = data[dest + c]! + rgb[c]! * weight
+            }
           }
         }
         data[dest + 3] = 1

@@ -180,13 +180,29 @@ describe('第 2 版数据库升级', () => {
 })
 
 describe('工程读写', () => {
+  it('HDR 副本重新显影原件，旧文档和原件保持不变', async () => {
+    const id = await storage.createProject(new File(['raw-original'], 'old.dng'))
+    const previous = (await storage.getProject(id))!
+    previous.doc.hdr = { preview: 'sdr', referenceWhite: 100, peakNits: 600 }
+    await storage.saveProjectDoc(id, previous.doc)
+    const copy = await storage.createHdrCopy(id)
+    const next = (await storage.getProject(copy))!
+    expect(copy).not.toBe(id)
+    expect(next.name).toBe('old HDR')
+    expect(next.doc.hdr).toBeUndefined()
+    expect((await storage.getProject(id))!.doc).toEqual(previous.doc)
+    expect(await (await storage.getBlob(next.rawSource!.blobId)).text()).toBe('raw-original')
+    await storage.deleteProject(copy)
+    expect(await (await storage.getBlob(previous.rawSource!.blobId)).text()).toBe('raw-original')
+  })
+
   it('RAW 保留原件、16 位底图与显示副本；清理补丁不删除底图，删除工程一并释放', async () => {
     const file = new File(['sensor-data'], '海边.ARW', { type: '' })
     const id = await storage.createProject(file, undefined, 'D:\\海边.ARW')
     const project = (await storage.getProject(id))!
     expect(project.originalType).toBe('image/png')
     expect(project).not.toHaveProperty('filePath')
-    expect(project.rawSource).toMatchObject({ name: '海边.ARW', filePath: 'D:\\海边.ARW', decoder: 'libraw-wasm@1.6.0', settings: { outputBps: 16, halfSize: false, gamm: [1, 1], noAutoBright: true } })
+    expect(project.rawSource).toMatchObject({ name: '海边.ARW', filePath: 'D:\\海边.ARW', decoder: 'libraw-wasm@1.6.0', settings: { outputBps: 16, halfSize: false, gamm: [1, 1, 0, 0, 0, 0], noAutoBright: true, noAutoScale: true, outputColor: 0 } })
     expect(await (await storage.getBlob(project.linearBlobId!)).text()).toBe('linear16')
     expect(await (await storage.getBlob(project.originalBlobId)).text()).toBe('developed')
     expect(await (await storage.getBlob(project.rawSource!.blobId)).text()).toBe('sensor-data')

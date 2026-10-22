@@ -150,6 +150,17 @@ export async function getProject(id: string): Promise<Project | undefined> {
   })
 }
 
+/** 显式从保存的 RAW 原件创建 HDR 副本；旧工程和旧调色不变。 */
+export async function createHdrCopy(id: string): Promise<string> {
+  const project = await getProject(id)
+  if (!project?.rawSource) throw new Error('工程未保留 RAW 原件，请重新导入原始 RAW。')
+  const source = project.rawSource
+  const raw = await getBlob(source.blobId)
+  const copy = await createProject(new File([raw], source.name, { type: source.type }), project.albumId)
+  await renameProject(copy, `${project.name} HDR`)
+  return copy
+}
+
 /**
  * 写入工程文档并刷新修改时间。页面卸载时浏览器不等异步回调，因此只发出一个 put 并立即 commit()：
  * 写入在本轮任务内就完整交给数据库，随后页面被销毁也会提交。先读后写（update）要等读请求的回调

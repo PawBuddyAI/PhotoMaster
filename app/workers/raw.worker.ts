@@ -1,6 +1,8 @@
 import LibRaw from 'libraw-wasm'
 import { RAW_MAX_PIXELS, RAW_SETTINGS, type RawDecoded } from '../lib/image/raw-settings'
-import { linearToSrgb, packRawLinear } from '../lib/image/high-depth'
+import { linearToSrgb, packFloatLinear } from '../lib/image/high-depth'
+import { mapRgb, rec2020ToSrgb } from '../lib/image/hdr'
+import { rawColorTransform } from '../lib/image/raw-color'
 
 // LibRaw 自身的 Worker 解码；本 Worker 负责像素转换和 PNG 编码，避免阻塞界面。
 self.onmessage = async ({ data: file }: MessageEvent<File>) => {
@@ -21,17 +23,18 @@ self.onmessage = async ({ data: file }: MessageEvent<File>) => {
       || image.data.length !== image.width * image.height * image.colors) {
       throw new Error('RAW 解码结果不完整。')
     }
+    const full = await decoder.metadata(true)
+    if (!full?.color_data) throw new Error('无法读取 RAW 色彩元数据。')
+    const transform = rawColorTransform(full.color_data, image.colors)
     // imageData 已跨线程传回独立样本，生成副本前释放 LibRaw 的 WASM 堆。
     decoder.dispose()
-    const linear = packRawLinear(image)
+    const linear = packFloatLinear(image.width, image.height, pixel => transform(image.data, pixel * image.colors))
     const rgba = new Uint8ClampedArray(image.width * image.height * 4)
-    const displayLut = Uint8ClampedArray.from({ length: 65536 }, (_, i) => Math.round(linearToSrgb(i / 65535) * 255))
     for (let pixel = 0; pixel < image.width * image.height; pixel++) {
       const src = pixel * image.colors
       const dst = pixel * 4
-      rgba[dst] = displayLut[image.data[src]!]!
-      rgba[dst + 1] = displayLut[image.data[src + (image.colors === 1 ? 0 : 1)]!]!
-      rgba[dst + 2] = displayLut[image.data[src + (image.colors === 1 ? 0 : 2)]!]!
+      const rgb = mapRgb(rec2020ToSrgb(...transform(image.data, src)))
+      for (let c = 0; c < 3; c++) rgba[dst + c] = Math.round(linearToSrgb(rgb[c]!) * 255)
       rgba[dst + 3] = 255
     }
     const canvas = new OffscreenCanvas(image.width, image.height)

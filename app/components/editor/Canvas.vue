@@ -41,6 +41,21 @@ const crop = computed(() => editor.doc.crop)
 const cropMode = computed(() => editor.tool === 'crop')
 const cropDraft = computed(() => crop.value ?? defaultCrop())
 const comparing = computed(() => editor.compareOriginal)
+const hdrHost = ref<HTMLDivElement | null>(null)
+const hdrVisible = computed(() => !!props.view.hdrCanvas.value && !comparing.value)
+watch([hdrHost, () => props.view.hdrCanvas.value], ([host, canvas]) => {
+  if (host && canvas) {
+    host.replaceChildren(canvas)
+
+    canvas.style.width = '100%'
+
+    canvas.style.height = '100%'
+  }
+}, { flush: 'post' })
+const hdrClip = computed(() => {
+  const c = crop.value?.rect
+  return !cropMode.value && c ? `inset(${c.y * H.value}px ${(1 - c.x - c.w) * W.value}px ${(1 - c.y - c.h) * H.value}px ${c.x * W.value}px)` : undefined
+})
 
 /** 让描边、手柄在任意缩放下保持固定的屏幕尺寸 */
 const px = (n: number) => n / vp.scale
@@ -197,7 +212,8 @@ const photoConfig = computed(() => {
     image: comparing.value ? props.view.originalPreview.value : props.view.displayCanvas.value,
     width: W.value,
     height: H.value,
-    name: 'photo'
+    name: 'photo',
+    opacity: hdrVisible.value ? 0 : 1
   }
 })
 const overlayConfig = computed(() => ({
@@ -609,6 +625,25 @@ function onCropChange(e: KonvaEventObject<Event>) {
     :style="{ cursor }"
     @pointerleave="pointer = null"
   >
+    <div
+      v-show="hdrVisible"
+      class="pointer-events-none absolute top-0 left-0 origin-top-left"
+      :style="{ width: `${W}px`, height: `${H}px`, transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.scale})`, clipPath: hdrClip }"
+      aria-hidden="true"
+    >
+      <div
+        ref="hdrHost"
+        class="size-full"
+        :style="{ transform: `rotate(${crop?.angle ?? 0}deg)` }"
+      />
+    </div>
+    <div
+      v-if="useProjectAssets().isHdr.value"
+      class="pointer-events-none absolute top-3 left-3 z-10 rounded bg-black/60 px-2 py-1 text-xs text-white"
+      role="status"
+    >
+      {{ comparing ? '原图 · SDR 参考' : view.hdrStatus.value }}
+    </div>
     <!-- 照片第一次落到画布上时合焦：这是打开工程时唯一的一段编排动效 -->
     <v-stage
       v-if="view.ready.value && size.width > 0"

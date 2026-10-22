@@ -4,6 +4,7 @@ import type { PatchSource } from '~/lib/image/compose'
 import { getBlob } from '~/lib/storage/db'
 import type { Layer } from '~/lib/types'
 import type { LinearImage } from '~/lib/image/high-depth'
+import { linearInfo } from '~/lib/image/high-depth'
 import { useImageWorker } from './useImageWorker'
 
 export const PREVIEW_LONG_SIDE = 2048
@@ -17,6 +18,7 @@ const original = shallowRef<ImageBitmap | null>(null)
 const originalBlob = shallowRef<Blob | null>(null)
 const linearBlob = shallowRef<Blob | null>(null)
 const linearPreview = shallowRef<LinearImage | null>(null)
+const isHdr = shallowRef(false)
 const patchCache = new Map<string, Promise<ImageBitmap>>()
 let loadVersion = 0
 
@@ -29,12 +31,14 @@ async function load(id: string, originalBlobId: string, linearBlobId?: string): 
   const blob = await getBlob(originalBlobId)
   const master = linearBlobId ? await getBlob(linearBlobId) : null
   const preview = master ? await useImageWorker().linearPreview(master, PREVIEW_LONG_SIDE) : null
+  const hdr = master ? (await linearInfo(master)).hdr : false
   const bitmap = await decodeImage(blob)
   if (version !== loadVersion) {
     bitmap.close()
     throw new DOMException('工程加载已取消', 'AbortError')
   }
   original.value = bitmap
+  isHdr.value = hdr
   originalBlob.value = blob
   linearPreview.value = preview
   linearBlob.value = master
@@ -48,6 +52,7 @@ function release(): void {
   originalBlob.value = null
   linearBlob.value = null
   linearPreview.value = null
+  isHdr.value = false
   projectId.value = null
   for (const pending of patchCache.values()) {
     pending.then(bitmap => bitmap.close(), () => undefined)
@@ -80,5 +85,5 @@ function requireOriginal(): ImageBitmap {
 }
 
 export function useProjectAssets() {
-  return { original, originalBlob, linearBlob, linearPreview, load, release, patchBitmap, patchSources, requireOriginal }
+  return { original, originalBlob, linearBlob, linearPreview, isHdr, load, release, patchBitmap, patchSources, requireOriginal }
 }

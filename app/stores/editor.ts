@@ -389,6 +389,7 @@ export const useEditorStore = defineStore('editor', () => {
     updatePrompt,
     setGenerativeResult,
     setCrop,
+    setHdr: (hdr: import('../lib/image/hdr').HdrSettings) => commit((d) => { d.hdr = { ...hdr } }),
     setAnalysis,
     adoptSuggestion,
     rename,

@@ -33,6 +33,11 @@ const drag = useProjectDrag()
 
 const importing = ref(false)
 const importLabel = ref('正在导入照片…')
+const importIsRaw = ref(false)
+const importTitle = computed(() => importIsRaw.value ? '正在解码 RAW' : '正在导入照片')
+const importDescription = computed(() => importIsRaw.value
+  ? '较大的照片需要一些时间，请保持此页面打开。'
+  : '正在准备照片，请稍候。')
 let importController: AbortController | null = null
 onBeforeUnmount(() => importController?.abort())
 const file = ref<File | null>(null)
@@ -71,18 +76,20 @@ const sortMenu = computed<DropdownMenuItem[]>(() => SORT_MODES.map(mode => ({
 async function importPhoto(photo: File, filePath?: string) {
   if (importing.value) return
   importing.value = true
-  importLabel.value = isRawFile(photo.name) ? '正在解码 RAW，较大的照片需要一些时间…' : '正在导入照片…'
+  importIsRaw.value = isRawFile(photo.name)
+  importLabel.value = importIsRaw.value ? '正在解码 RAW，较大的照片需要一些时间…' : '正在导入照片…'
   importController = new AbortController()
   try {
     const id = await createProject(photo, props.albumId, filePath, importController.signal)
     if (isRawFile(photo.name)) {
-      notify.info('RAW 已导入', '原文件已保留，使用 16 位线性底图调色，导出 PNG 可保留 16 位。')
+      notify.info('RAW 已导入', '原文件已保留，使用浮点 HDR 底图调色。可导出 Ultra HDR JPEG、HDR PNG 或 EXR。')
     }
     await router.push(`/editor/${id}`)
   } catch (err) {
     if (!(err instanceof DOMException && err.name === 'AbortError')) notify.error(err)
   } finally {
     importing.value = false
+    importIsRaw.value = false
     importController = null
   }
 }
@@ -185,23 +192,50 @@ async function confirmDelete() {
             description: 'max-w-xl text-balance text-muted'
           }"
         />
-        <div
-          v-if="importing"
-          class="flex flex-wrap items-center gap-3"
+
+        <UModal
+          :open="importing"
+          :title="importTitle"
+          :description="importDescription"
+          :close="false"
+          :dismissible="false"
+          :ui="{ content: 'max-w-md' }"
         >
-          <p
-            role="status"
-            class="text-sm text-muted"
-          >
-            {{ importLabel }}
-          </p>
-          <UButton
-            label="取消导入"
-            color="neutral"
-            variant="ghost"
-            @click="importController?.abort()"
-          />
-        </div>
+          <template #body>
+            <div class="space-y-4">
+              <div class="flex items-start gap-3">
+                <UIcon
+                  name="i-lucide-loader-circle"
+                  class="mt-0.5 size-5 shrink-0 animate-spin text-primary"
+                  aria-hidden="true"
+                />
+                <p
+                  role="status"
+                  aria-live="polite"
+                  class="text-sm text-muted"
+                >
+                  {{ importLabel }}
+                </p>
+              </div>
+              <UProgress
+                :model-value="null"
+                animation="carousel"
+                size="sm"
+                aria-label="导入进度"
+              />
+            </div>
+          </template>
+          <template #footer>
+            <div class="flex justify-end">
+              <UButton
+                label="取消导入"
+                color="neutral"
+                variant="ghost"
+                @click="importController?.abort()"
+              />
+            </div>
+          </template>
+        </UModal>
 
         <!-- 图库为空时拖放区就是唯一的入口，不再重复一个「还没有工程」；空相册说明怎样把已有工程放进来（在相册里导入的照片会直接放进相册） -->
         <section

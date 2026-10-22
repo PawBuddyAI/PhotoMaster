@@ -1,13 +1,14 @@
 import { inflateSync } from 'node:zlib'
 
 /** 独立解码测试输出，同时校验每个 PNG chunk 的 CRC、行过滤和样本字节序。 */
-export function readPng16(bytes: Uint8Array): { width: number, height: number, pixels: Uint16Array } {
+export function readPng16(bytes: Uint8Array, pq = false): { width: number, height: number, pixels: Uint16Array } {
   const buffer = Buffer.from(bytes)
   if (!buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) throw new Error('PNG signature')
   let width = 0
   let height = 0
   let ended = false
   let srgb = false
+  let cicp = false
   const compressed: Buffer[] = []
   for (let offset = 8; offset < buffer.length;) {
     const length = buffer.readUInt32BE(offset)
@@ -25,11 +26,12 @@ export function readPng16(bytes: Uint8Array): { width: number, height: number, p
       if (data[8] !== 16 || data[9] !== 2 || data[12] !== 0) throw new Error('Expected RGB16 non-interlaced PNG')
     }
     if (name === 'sRGB') srgb = true
+    if (name === 'cICP') cicp = data.equals(Buffer.from([9, 16, 0, 1]))
     if (name === 'IDAT') compressed.push(data)
     if (name === 'IEND') ended = true
     offset += length + 12
   }
-  if (!ended || !srgb) throw new Error('PNG missing end or color metadata')
+  if (!ended || (pq ? !cicp || srgb : !srgb || cicp)) throw new Error('PNG missing end or color metadata')
   const rows = inflateSync(Buffer.concat(compressed))
   if (rows.length !== height * (width * 6 + 1)) throw new Error('PNG size')
   const pixels = new Uint16Array(width * height * 3)

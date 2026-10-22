@@ -99,6 +99,7 @@ uniform highp sampler2D uBlurLarge;
 uniform highp sampler2D uBlurSmall;
 uniform bool uUseMask;
 uniform float uExposure;
+uniform bool uHdr;
 uniform float uContrast;
 uniform float uHighlights;
 uniform float uShadows;
@@ -117,7 +118,8 @@ vec3 linearToOklab(vec3 c) {
   float l = 0.4122214708 * c.r + 0.5363325363 * c.g + 0.0514459929 * c.b;
   float m = 0.2119034982 * c.r + 0.6806995451 * c.g + 0.1073969566 * c.b;
   float s = 0.0883024619 * c.r + 0.2817188376 * c.g + 0.6299787005 * c.b;
-  vec3 lms = pow(max(vec3(l, m, s), 0.0), vec3(1.0 / 3.0));
+  vec3 rawLms = vec3(l, m, s);
+  vec3 lms = uHdr ? sign(rawLms) * pow(abs(rawLms), vec3(1.0 / 3.0)) : pow(max(rawLms, 0.0), vec3(1.0 / 3.0));
   return vec3(
     0.2104542553 * lms.x + 0.7936177850 * lms.y - 0.0040720468 * lms.z,
     1.9779984951 * lms.x - 2.4285922050 * lms.y + 0.4505937099 * lms.z,
@@ -157,6 +159,17 @@ void main() {
 
   float lum = max(luminance(c), 1e-6);
   float p = perceptual(lum);
+  if (uHdr) {
+    // 参考白以上仍有高光权重，曝光域对比度不会把 HDR 压回 0–1。
+    float ev = log2(lum / 0.18);
+    float shadow = 1.0 - smoothstep(-4.0, 1.0, ev);
+    float highlight = smoothstep(0.0, 4.0, ev);
+    ev = ev * exp2(uContrast / 200.0)
+      + uShadows / 100.0 * shadow * 2.0 + uHighlights / 100.0 * highlight * 2.0
+      + uWhites / 100.0 * smoothstep(2.0, 5.0, ev)
+      + uBlacks / 100.0 * (1.0 - smoothstep(-6.0, -2.0, ev));
+    p = perceptual(0.18 * exp2(clamp(ev, -30.0, 30.0)));
+  } else {
 
   // 黑白场
   float bp = -uBlacks / 100.0 * 0.12;
@@ -172,11 +185,12 @@ void main() {
   // 对比度：只叠加曲线的增量，保留超出 1 的高光信息
   pc = clamp(p, 0.0, 1.0);
   p += contrastCurve(pc, exp2(uContrast / 100.0 * 1.2)) - pc;
+  }
 
   // 清晰度与锐化：输入感知亮度减去其模糊版本得到细节层
   float pIn = perceptual(luminance(src));
   if (uClarity != 0.0) {
-    float mid = 1.0 - pow(abs(2.0 * clamp(p, 0.0, 1.0) - 1.0), 2.0);
+    float mid = uHdr ? 1.0 : 1.0 - pow(abs(2.0 * clamp(p, 0.0, 1.0) - 1.0), 2.0);
     p += uClarity / 100.0 * 0.8 * (pIn - texture(uBlurLarge, vUv).r) * mid;
   }
   if (uSharpen != 0.0) {
@@ -187,7 +201,7 @@ void main() {
 
   // 饱和度与自然饱和度（OKLab 色度）
   if (uSaturation != 0.0 || uVibrance != 0.0) {
-    vec3 lab = linearToOklab(max(c, 0.0));
+    vec3 lab = linearToOklab(uHdr ? c : max(c, 0.0));
     float chroma = length(lab.yz);
     float vib = 1.0 + uVibrance / 100.0 * (1.0 - smoothstep(0.0, 0.25, chroma));
     lab.yz *= (1.0 + uSaturation / 100.0) * vib;
@@ -211,6 +225,8 @@ uniform mat3 uOutToUv;
 uniform vec2 uOutSize;
 uniform bool uFlipY;
 uniform bool uHighPrecision;
+uniform bool uHdr;
+uniform bool uOutputLinear;
 out vec4 outColor;
 ${COMMON}
 // 16 位输出使用浮点插值权重，避免硬件纹理过滤的子像素精度限制影响分块旋转边缘。
@@ -231,6 +247,19 @@ void main() {
   vec2 outPx = vec2(vUv.x, uFlipY ? 1.0 - vUv.y : vUv.y) * uOutSize;
   vec2 uv = (uOutToUv * vec3(outPx, 1.0)).xy;
   vec3 c = sampleSource(uv);
+  if (uOutputLinear) { outColor = vec4(c, 1.0); return; }
+  if (uHdr) {
+    float y = max(luminance(c), 0.0);
+    float mapped = y <= 0.5 ? y : 1.0 - 0.5 * exp(-(y - 0.5) / 0.5);
+    c *= mapped / max(y, 1e-8);
+    float saturation = 1.0;
+    for (int i = 0; i < 3; i++) {
+      float d = c[i] - mapped;
+      if (d > 0.0) saturation = min(saturation, (1.0 - mapped) / d);
+      if (d < 0.0) saturation = min(saturation, -mapped / d);
+    }
+    c = mix(vec3(mapped), c, clamp(saturation, 0.0, 1.0));
+  }
   outColor = vec4(linearToSrgb(clamp(c, 0.0, 1.0)), 1.0);
 }
 `

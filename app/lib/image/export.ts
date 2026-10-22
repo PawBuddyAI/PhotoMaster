@@ -5,11 +5,14 @@ import type { CropSpec, PixelRect } from '../types'
 import { canvasToBlob, createCanvas, decodeImage, get2d } from './canvas'
 import { composeBase, type PatchSource } from './compose'
 import { insertExif, prepareExportExif } from './exif'
-import { composeLinear, linearSize, readLinearRegion } from './high-depth'
+import { composeLinear, linearInfo, readLinearRegion } from './high-depth'
+import { normalizeHdr, type HdrSettings } from './hdr'
+import { encodeExr } from './exr'
+import { encodeUltraHdr, pqBands } from './hdr-export'
 import { encodePng16 } from './png16'
 import { rasterizeMaskFloat } from '../mask/rasterize'
 
-export type ExportFormat = 'image/jpeg' | 'image/png' | 'image/webp'
+export type ExportFormat = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/x-exr' | 'image/ultrahdr' | 'image/png-hdr'
 
 export interface ExportPatch {
   blob: Blob
@@ -21,8 +24,9 @@ export interface ExportPatch {
 
 export interface ExportInput {
   original: Blob
-  /** RAW 16 位线性底图；original 只供 EXIF / AI / 显示兼容。 */
+  /** RAW 高精度线性底图；original 只供 EXIF / AI / 显示兼容。 */
   linear?: Blob
+  hdr?: HdrSettings
   patches: ExportPatch[]
   /** 已启用的调整图层，按渲染顺序 */
   layers: AdjustInput[]
@@ -55,7 +59,11 @@ export async function renderExport(input: ExportInput, onProgress?: (done: numbe
   const decodedPatches: ImageBitmap[] = []
   try {
     original = input.linear ? undefined : await decodeImage(input.original)
-    const { width: imageW, height: imageH } = input.linear ? await linearSize(input.linear) : original!
+    const info = input.linear ? await linearInfo(input.linear) : undefined
+    const { width: imageW, height: imageH } = info ?? original!
+    const floatOutput = ['image/x-exr', 'image/ultrahdr', 'image/png-hdr'].includes(input.format)
+    if (floatOutput && !info?.hdr) throw new Error('HDR 导出需要浮点 HDR 工程，请重新导入原始 RAW。')
+    const settings = normalizeHdr(input.hdr)
     // 顺序解码，任何一步失败时 finally 都能释放之前已加载的位图。
     for (const p of input.patches) {
       const image = await decodeImage(p.blob)
@@ -66,7 +74,7 @@ export async function renderExport(input: ExportInput, onProgress?: (done: numbe
     const affine = outputToSourceAffine(input.crop, imageW, imageH)
     const longSide = Math.max(imageW, imageH)
     const pad = blurPadding(longSide) + 2
-    renderer = new PhotoRenderer(createCanvas(1, 1), !!input.linear)
+    renderer = new PhotoRenderer(createCanvas(1, 1), !!input.linear, !!info?.hdr)
     const gpu = renderer
     // 块加上两侧边距和对齐余量后不能超过纹理上限
     const rotationScale = Math.max(Math.abs(affine[0]) + Math.abs(affine[1]), Math.abs(affine[3]) + Math.abs(affine[4]))
@@ -78,13 +86,14 @@ export async function renderExport(input: ExportInput, onProgress?: (done: numbe
     const total = tilesX * tilesY
 
     const highDepthOutput = !!input.linear && input.format === 'image/png'
-    const output = highDepthOutput ? undefined : createCanvas(out.w, out.h)
+    const output = highDepthOutput || floatOutput ? undefined : createCanvas(out.w, out.h)
     const outCtx = output ? get2d(output) : undefined
     let done = 0
-    async function* renderBands(): AsyncGenerator<Uint16Array> {
+    async function* renderBands(): AsyncGenerator<Uint16Array | Float32Array> {
       for (let ty = 0; ty < out.h; ty += tileSize) {
         const bandH = Math.min(tileSize, out.h - ty)
-        const band = highDepthOutput ? new Uint16Array(out.w * bandH * 3) : undefined
+        const channels = floatOutput ? 4 : 3
+        const band = floatOutput ? new Float32Array(out.w * bandH * 4) : highDepthOutput ? new Uint16Array(out.w * bandH * 3) : undefined
         for (let tx = 0; tx < out.w; tx += tileSize) {
           const tile: PixelRect = { x: tx, y: ty, w: Math.min(tileSize, out.w - tx), h: bandH }
           const region = sourceRegionForTile(affine, tile, pad, imageW, imageH)
@@ -99,8 +108,8 @@ export async function renderExport(input: ExportInput, onProgress?: (done: numbe
           gpu.process(layers, longSide)
           const transform = tileAffine(affine, tile, region)
           if (band) {
-            const pixels = gpu.readPixels16(tile.w, tile.h, transform)
-            for (let y = 0; y < tile.h; y++) band.set(pixels.subarray(y * tile.w * 3, (y + 1) * tile.w * 3), (y * out.w + tx) * 3)
+            const pixels = floatOutput ? gpu.readLinearPixels(tile.w, tile.h, transform) : gpu.readPixels16(tile.w, tile.h, transform)
+            for (let y = 0; y < tile.h; y++) band.set(pixels.subarray(y * tile.w * channels, (y + 1) * tile.w * channels), (y * out.w + tx) * channels)
           } else {
             outCtx!.putImageData(new ImageData(gpu.readPixels(tile.w, tile.h, transform), tile.w, tile.h), tile.x, tile.y)
           }
@@ -111,8 +120,15 @@ export async function renderExport(input: ExportInput, onProgress?: (done: numbe
       }
     }
     let blob: Blob
-    if (highDepthOutput) {
-      blob = await encodePng16(out.w, out.h, renderBands())
+    if (floatOutput) {
+      const bands = renderBands() as AsyncIterable<Float32Array>
+      blob = input.format === 'image/x-exr'
+        ? await encodeExr(out.w, out.h, bands, settings.referenceWhite)
+        : input.format === 'image/png-hdr'
+          ? await encodePng16(out.w, out.h, pqBands(bands, settings), true)
+          : await encodeUltraHdr(out.w, out.h, bands, settings, input.quality)
+    } else if (highDepthOutput) {
+      blob = await encodePng16(out.w, out.h, renderBands() as AsyncIterable<Uint16Array>)
     } else {
       for await (const _band of renderBands()) { /* 8 位结果直接写入输出画布 */ }
       blob = await canvasToBlob(output!, input.format, input.quality)

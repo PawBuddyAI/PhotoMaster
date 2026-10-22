@@ -29,7 +29,7 @@ test('RAW 真实解码、方向校正、原件保留、重开和全尺寸导出'
     const linear = await read<{ blob: Blob }>('blobs', project!.linearBlobId)
     const view = new DataView(await linear.blob.arrayBuffer())
     const levels = new Set<number>()
-    for (let i = 16; i < view.byteLength; i += 6) levels.add(view.getUint16(i, true))
+    for (let i = 16; i < view.byteLength; i += 12) levels.add(view.getFloat32(i, true))
     const bitmap = await createImageBitmap(developed.blob)
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
     const ctx = canvas.getContext('2d')!
@@ -50,7 +50,7 @@ test('RAW 真实解码、方向校正、原件保留、重开和全尺寸导出'
   await dialog.getByRole('combobox').click()
   await page.getByRole('option', { name: 'PNG（16 位，无损）' }).click()
   const downloadEvent = page.waitForEvent('download')
-  await dialog.getByRole('button', { name: /导出/ }).click()
+  await dialog.getByRole('button', { name: '导出', exact: true }).click()
   const download = await downloadEvent
   const exported = await readFile((await download.path())!)
   expect(exported.length).toBeGreaterThan(100)
@@ -74,24 +74,27 @@ test('损坏 RAW 显示可恢复错误，之后仍可导入', async ({ page }) =
   await page.waitForURL(/\/editor\//)
 })
 
-test('取消解码可再次导入，不留下工程', async ({ page }) => {
+test('RAW 解码弹窗在桌面和窄屏显示，取消后可再次导入', async ({ page }, testInfo) => {
   await page.goto('/')
-  // 阻止解码 Worker 加载，保证取消发生在解码完成前。
-  let release!: () => void
-  const blocked = new Promise<void>((resolve) => {
-    release = resolve
-  })
+  // 待机 Worker 保持解码中状态，避免悬挂网络请求影响测试退出。
   await page.route(/raw\.worker/, async (route) => {
-    await blocked
-    await route.abort().catch(() => {})
+    await route.fulfill({ contentType: 'text/javascript', body: 'self.onmessage = () => {}' })
   })
   await page.locator('input[type=file]').setInputFiles({ name: 'cancel.dng', mimeType: '', buffer: makeDng() })
-  const cancel = page.getByRole('button', { name: '取消导入' })
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toHaveAttribute('data-state', 'open')
+  await expect(dialog).toContainText('正在解码 RAW')
+  const cancel = dialog.getByRole('button', { name: '取消导入' })
   await expect(cancel).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('raw-import-desktop.png'), animations: 'disabled' })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(cancel).toBeInViewport()
+  await page.screenshot({ path: testInfo.outputPath('raw-import-mobile.png'), animations: 'disabled' })
   await cancel.click()
   await expect(page.getByRole('button', { name: '导入照片', exact: true })).toBeEnabled()
   await expect(cancel).toBeHidden()
-  release()
   await page.unroute(/raw\.worker/)
   await page.locator('input[type=file]').setInputFiles({ name: 'retry.dng', mimeType: '', buffer: makeDng() })
   await page.waitForURL(/\/editor\//)

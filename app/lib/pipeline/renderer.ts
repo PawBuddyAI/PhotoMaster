@@ -61,7 +61,7 @@ export class PhotoRenderer {
   private width = 0
   private height = 0
 
-  constructor(canvas: HTMLCanvasElement | OffscreenCanvas, private readonly highPrecision = false) {
+  constructor(canvas: HTMLCanvasElement | OffscreenCanvas, private readonly highPrecision = false, private readonly hdr = false) {
     const gl = canvas.getContext('webgl2', {
       alpha: false,
       antialias: false,
@@ -302,6 +302,22 @@ export class PhotoRenderer {
     return pixels
   }
 
+  /** 未做色调映射的扩展线性 sRGB；保留负色域分量和参考白以上的亮度。 */
+  readLinearPixels(outW = this.width, outH = this.height, outToSource: Affine = [1, 0, 0, 0, 1, 0]): Float32Array<ArrayBuffer> {
+    if (!this.highPrecision) throw new Error('浮点读取需要高精度渲染器。')
+    const [a, b, c, d, e, f] = outToSource
+    this.draw(this.programs.encode, this.fbo('output-linear', outW, outH), {
+      uSource: this.requireResult().attachments[0],
+      uOutToUv: new Float32Array([a / this.width, d / this.height, 0, b / this.width, e / this.height, 0, c / this.width, f / this.height, 1]),
+      uOutSize: [outW, outH], uFlipY: 0, uHighPrecision: 1, uOutputLinear: 1
+    })
+    const pixels = new Float32Array(outW * outH * 4)
+    const gl = this.gl
+    gl.readPixels(0, 0, outW, outH, gl.RGBA, gl.FLOAT, pixels)
+    if (gl.getError() !== gl.NO_ERROR || gl.isContextLost()) throw new Error('HDR 像素读取失败。')
+    return pixels
+  }
+
   dispose(): void {
     const gl = this.gl
     for (const fbo of this.fbos.values()) {
@@ -339,7 +355,7 @@ export class PhotoRenderer {
     }
     gl.useProgram(program.program)
     twgl.setBuffersAndAttributes(this.tgl, program, this.quad)
-    twgl.setUniforms(program, uniforms)
+    twgl.setUniforms(program, { uHdr: this.hdr ? 1 : 0, uOutputLinear: 0, ...uniforms })
     twgl.drawBufferInfo(this.tgl, this.quad, gl.TRIANGLES, 3)
   }
 

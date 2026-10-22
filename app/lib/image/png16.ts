@@ -17,7 +17,7 @@ function chunk(name: string, data: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuf
 }
 
 /** 按输出条带顺序输入 RGB16，只保留一条带和压缩后的数据，避免整图额外展开。 */
-export async function encodePng16(width: number, height: number, bands: AsyncIterable<Uint16Array>): Promise<Blob> {
+export async function encodePng16(width: number, height: number, bands: AsyncIterable<Uint16Array>, pq = false): Promise<Blob> {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) throw new Error('PNG 尺寸无效。')
   const header = new Uint8Array(13)
   const view = new DataView(header.buffer)
@@ -25,7 +25,8 @@ export async function encodePng16(width: number, height: number, bands: AsyncIte
   view.setUint32(4, height)
   header[8] = 16
   header[9] = 2 // truecolor RGB
-  const parts: BlobPart[] = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header), chunk('sRGB', new Uint8Array([0]))]
+  const parts: BlobPart[] = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header),
+    pq ? chunk('cICP', new Uint8Array([9, 16, 0, 1])) : chunk('sRGB', new Uint8Array([0]))]
   const stream = new CompressionStream('deflate')
   const writer = stream.writable.getWriter()
   // 必须并行读取，避免压缩流背压阻塞写入。

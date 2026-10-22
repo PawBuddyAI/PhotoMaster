@@ -1,0 +1,5 @@
+PhotoMaster uses @monogrid/gainmap-js 3.7.2 (MIT, Copyright (c) 2023 MONOGRID).
+The libultrahdr subpath provides the JavaScript JPEG/R, XMP, ISO metadata and MPF packager.
+The package is used unmodified; it does not introduce a native libultrahdr binary.
+Source: https://github.com/MONOGRID/gainmap-js
+License: LICENSE-MIT.txt in this directory.
