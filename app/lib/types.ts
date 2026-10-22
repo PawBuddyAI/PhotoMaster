@@ -170,7 +170,9 @@ export interface ProjectRecord {
   originalBlobId: string
   /** 原图 MIME 类型，导出时决定能否写回 EXIF */
   originalType: string
-  /** RAW 原件独立保留；originalBlobId 指向供现有编辑器使用的 PNG 显影副本。 */
+  /** 16 位线性 sRGB 底图；缺省表示使用旧版 8 位管线，不自动改变已有工程外观。 */
+  linearBlobId?: string
+  /** RAW 原件独立保留；originalBlobId 指向供显示和 AI 使用的 PNG 副本。 */
   rawSource?: {
     blobId: string
     name: string

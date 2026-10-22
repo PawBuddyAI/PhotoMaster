@@ -56,6 +56,8 @@ export function useExport() {
     if (!editor.project || !original) {
       throw new Error('工程尚未打开')
     }
+    const linear = useProjectAssets().linearBlob.value
+    if (editor.project.linearBlobId && !linear) throw new Error('高位深底图尚未加载，请重新打开工程。')
     exporting.value = true
     progress.value = 0
     try {
@@ -71,6 +73,7 @@ export function useExport() {
 
       return await useImageWorker().renderExport({
         original,
+        linear: linear ?? undefined,
         patches,
         layers,
         crop: doc.crop,

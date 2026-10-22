@@ -22,7 +22,7 @@ export function buildRenderLayers(
   maskW: number,
   maskH: number,
   keyPrefix: string,
-  rasterize: (spec: MaskSpec) => Uint8Array = spec => rasterizeMask(spec, imageW, imageH, region, maskW, maskH)
+  rasterize: (spec: MaskSpec) => Uint8Array | Float32Array = spec => rasterizeMask(spec, imageW, imageH, region, maskW, maskH)
 ): RenderLayer[] {
   const result: RenderLayer[] = []
   for (const layer of layers) {

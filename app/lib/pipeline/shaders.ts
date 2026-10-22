@@ -27,15 +27,17 @@ float perceptual(float l) {
 }
 `
 
-/** 8 位 sRGB 源图 → 线性 RGB */
+/** sRGB 显示源转线性；高位深线性源直接拷贝，避免重复 gamma。 */
 export const DECODE_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
-uniform sampler2D uSource;
+uniform highp sampler2D uSource;
+uniform bool uLinear;
 out vec4 outColor;
 ${COMMON}
 void main() {
-  outColor = vec4(srgbToLinear(texture(uSource, vUv).rgb), 1.0);
+  vec3 c = texture(uSource, vUv).rgb;
+  outColor = vec4(uLinear ? c : srgbToLinear(c), 1.0);
 }
 `
 
@@ -43,7 +45,7 @@ void main() {
 export const LUMA_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
-uniform sampler2D uSource;
+uniform highp sampler2D uSource;
 out vec4 outColor;
 ${COMMON}
 void main() {
@@ -55,7 +57,7 @@ void main() {
 export const DOWNSAMPLE_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
-uniform sampler2D uSource;
+uniform highp sampler2D uSource;
 out vec4 outColor;
 void main() {
   outColor = texture(uSource, vUv);
@@ -68,7 +70,7 @@ export const MAX_BLUR_RADIUS = 16
 export const BLUR_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
-uniform sampler2D uSource;
+uniform highp sampler2D uSource;
 uniform vec2 uStep;
 uniform int uRadius;
 uniform float uWeights[${MAX_BLUR_RADIUS + 1}];
@@ -91,10 +93,10 @@ void main() {
 export const ADJUST_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
-uniform sampler2D uSource;
-uniform sampler2D uMask;
-uniform sampler2D uBlurLarge;
-uniform sampler2D uBlurSmall;
+uniform highp sampler2D uSource;
+uniform highp sampler2D uMask;
+uniform highp sampler2D uBlurLarge;
+uniform highp sampler2D uBlurSmall;
 uniform bool uUseMask;
 uniform float uExposure;
 uniform float uContrast;
@@ -204,16 +206,31 @@ void main() {
 export const ENCODE_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
-uniform sampler2D uSource;
+uniform highp sampler2D uSource;
 uniform mat3 uOutToUv;
 uniform vec2 uOutSize;
 uniform bool uFlipY;
+uniform bool uHighPrecision;
 out vec4 outColor;
 ${COMMON}
+// 16 位输出使用浮点插值权重，避免硬件纹理过滤的子像素精度限制影响分块旋转边缘。
+vec3 sampleSource(vec2 uv) {
+  if (!uHighPrecision) return texture(uSource, uv).rgb;
+  ivec2 size = textureSize(uSource, 0);
+  vec2 p = uv * vec2(size) - 0.5;
+  ivec2 lo = ivec2(floor(p));
+  vec2 f = fract(p);
+  ivec2 hi = size - 1;
+  vec3 a = texelFetch(uSource, clamp(lo, ivec2(0), hi), 0).rgb;
+  vec3 b = texelFetch(uSource, clamp(lo + ivec2(1, 0), ivec2(0), hi), 0).rgb;
+  vec3 c = texelFetch(uSource, clamp(lo + ivec2(0, 1), ivec2(0), hi), 0).rgb;
+  vec3 d = texelFetch(uSource, clamp(lo + ivec2(1, 1), ivec2(0), hi), 0).rgb;
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
 void main() {
   vec2 outPx = vec2(vUv.x, uFlipY ? 1.0 - vUv.y : vUv.y) * uOutSize;
   vec2 uv = (uOutToUv * vec3(outPx, 1.0)).xy;
-  vec3 c = texture(uSource, uv).rgb;
+  vec3 c = sampleSource(uv);
   outColor = vec4(linearToSrgb(clamp(c, 0.0, 1.0)), 1.0);
 }
 `

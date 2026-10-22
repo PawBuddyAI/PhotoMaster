@@ -5,6 +5,9 @@ import type { CropSpec, PixelRect } from '../types'
 import { canvasToBlob, createCanvas, decodeImage, get2d } from './canvas'
 import { composeBase, type PatchSource } from './compose'
 import { insertExif, prepareExportExif } from './exif'
+import { composeLinear, linearSize, readLinearRegion } from './high-depth'
+import { encodePng16 } from './png16'
+import { rasterizeMaskFloat } from '../mask/rasterize'
 
 export type ExportFormat = 'image/jpeg' | 'image/png' | 'image/webp'
 
@@ -18,6 +21,8 @@ export interface ExportPatch {
 
 export interface ExportInput {
   original: Blob
+  /** RAW 16 位线性底图；original 只供 EXIF / AI / 显示兼容。 */
+  linear?: Blob
   patches: ExportPatch[]
   /** 已启用的调整图层，按渲染顺序 */
   layers: AdjustInput[]
@@ -44,45 +49,74 @@ const TILE_ALIGN = 64
  * 显存占用只与块大小有关，与原图尺寸无关。
  */
 export async function renderExport(input: ExportInput, onProgress?: (done: number, total: number) => void): Promise<ExportResult> {
-  const original = await decodeImage(input.original)
-  const imageW = original.width
-  const imageH = original.height
-  const patchBitmaps = await Promise.all(input.patches.map(async p => ({ ...p, image: await decodeImage(p.blob) })))
-  const patches: PatchSource[] = patchBitmaps.map(p => ({ image: p.image, x: p.x, y: p.y, w: p.w, h: p.h }))
-
-  const out = cropOutputSize(input.crop, imageW, imageH)
-  const affine = outputToSourceAffine(input.crop, imageW, imageH)
-  const longSide = Math.max(imageW, imageH)
-  const pad = blurPadding(longSide) + 2
-
-  const renderer = new PhotoRenderer(createCanvas(1, 1))
+  let original: ImageBitmap | undefined
+  let renderer: PhotoRenderer | undefined
+  const patches: PatchSource[] = []
+  const decodedPatches: ImageBitmap[] = []
   try {
+    original = input.linear ? undefined : await decodeImage(input.original)
+    const { width: imageW, height: imageH } = input.linear ? await linearSize(input.linear) : original!
+    // 顺序解码，任何一步失败时 finally 都能释放之前已加载的位图。
+    for (const p of input.patches) {
+      const image = await decodeImage(p.blob)
+      decodedPatches.push(image)
+      patches.push({ image, x: p.x, y: p.y, w: p.w, h: p.h })
+    }
+    const out = cropOutputSize(input.crop, imageW, imageH)
+    const affine = outputToSourceAffine(input.crop, imageW, imageH)
+    const longSide = Math.max(imageW, imageH)
+    const pad = blurPadding(longSide) + 2
+    renderer = new PhotoRenderer(createCanvas(1, 1), !!input.linear)
+    const gpu = renderer
     // 块加上两侧边距和对齐余量后不能超过纹理上限
-    const maxTile = Math.floor((renderer.maxTextureSize - 2 * pad - 2 * TILE_ALIGN) / TILE_ALIGN) * TILE_ALIGN
-    const tileSize = Math.max(TILE_ALIGN, Math.min(input.tileSize ?? 2048, maxTile))
+    const rotationScale = Math.max(Math.abs(affine[0]) + Math.abs(affine[1]), Math.abs(affine[3]) + Math.abs(affine[4]))
+    const maxTile = Math.floor((gpu.maxTextureSize - 2 * pad - 2 * TILE_ALIGN) / rotationScale / TILE_ALIGN) * TILE_ALIGN
+    if (maxTile < TILE_ALIGN) throw new Error('图像尺寸超过当前 GPU 的分块处理能力。')
+    const tileSize = Math.max(TILE_ALIGN, Math.floor(Math.min(input.tileSize ?? (input.linear ? 1024 : 2048), maxTile)))
     const tilesX = Math.ceil(out.w / tileSize)
     const tilesY = Math.ceil(out.h / tileSize)
     const total = tilesX * tilesY
 
-    const output = createCanvas(out.w, out.h)
-    const outCtx = get2d(output)
+    const highDepthOutput = !!input.linear && input.format === 'image/png'
+    const output = highDepthOutput ? undefined : createCanvas(out.w, out.h)
+    const outCtx = output ? get2d(output) : undefined
     let done = 0
-    for (let ty = 0; ty < out.h; ty += tileSize) {
-      for (let tx = 0; tx < out.w; tx += tileSize) {
-        const tile: PixelRect = { x: tx, y: ty, w: Math.min(tileSize, out.w - tx), h: Math.min(tileSize, out.h - ty) }
-        const region = sourceRegionForTile(affine, tile, pad, imageW, imageH)
-        const base = composeBase(original, patches, region, region.w, region.h)
-        const layers = buildRenderLayers(input.layers, imageW, imageH, region, region.w, region.h, `tile-${tx}-${ty}`)
-        renderer.setSource(base, region.w, region.h)
-        renderer.process(layers, longSide)
-        const pixels = renderer.readPixels(tile.w, tile.h, tileAffine(affine, tile, region))
-        outCtx.putImageData(new ImageData(pixels, tile.w, tile.h), tile.x, tile.y)
-        done++
-        onProgress?.(done, total)
+    async function* renderBands(): AsyncGenerator<Uint16Array> {
+      for (let ty = 0; ty < out.h; ty += tileSize) {
+        const bandH = Math.min(tileSize, out.h - ty)
+        const band = highDepthOutput ? new Uint16Array(out.w * bandH * 3) : undefined
+        for (let tx = 0; tx < out.w; tx += tileSize) {
+          const tile: PixelRect = { x: tx, y: ty, w: Math.min(tileSize, out.w - tx), h: bandH }
+          const region = sourceRegionForTile(affine, tile, pad, imageW, imageH)
+          if (input.linear) {
+            const base = composeLinear(await readLinearRegion(input.linear, region, region.w, region.h), patches, region)
+            gpu.setLinearSource(base.data, base.width, base.height)
+          } else {
+            gpu.setSource(composeBase(original!, patches, region, region.w, region.h), region.w, region.h)
+          }
+          const layers = buildRenderLayers(input.layers, imageW, imageH, region, region.w, region.h, `tile-${tx}-${ty}`,
+            input.linear ? spec => rasterizeMaskFloat(spec, imageW, imageH, region, region.w, region.h) : undefined)
+          gpu.process(layers, longSide)
+          const transform = tileAffine(affine, tile, region)
+          if (band) {
+            const pixels = gpu.readPixels16(tile.w, tile.h, transform)
+            for (let y = 0; y < tile.h; y++) band.set(pixels.subarray(y * tile.w * 3, (y + 1) * tile.w * 3), (y * out.w + tx) * 3)
+          } else {
+            outCtx!.putImageData(new ImageData(gpu.readPixels(tile.w, tile.h, transform), tile.w, tile.h), tile.x, tile.y)
+          }
+          done++
+          onProgress?.(done, total)
+        }
+        if (band) yield band
       }
     }
-
-    let blob = await canvasToBlob(output, input.format, input.quality)
+    let blob: Blob
+    if (highDepthOutput) {
+      blob = await encodePng16(out.w, out.h, renderBands())
+    } else {
+      for await (const _band of renderBands()) { /* 8 位结果直接写入输出画布 */ }
+      blob = await canvasToBlob(output!, input.format, input.quality)
+    }
     if (input.keepExif && input.format === 'image/jpeg') {
       const exif = await prepareExportExif(input.original, out.w, out.h)
       if (exif) {
@@ -91,9 +125,9 @@ export async function renderExport(input: ExportInput, onProgress?: (done: numbe
     }
     return { blob, width: out.w, height: out.h }
   } finally {
-    renderer.dispose()
-    original.close()
-    patchBitmaps.forEach(p => p.image.close())
+    renderer?.dispose()
+    original?.close()
+    decodedPatches.forEach(image => image.close())
   }
 }
 

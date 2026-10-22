@@ -13,7 +13,7 @@ vi.mock('~/lib/image/canvas', () => ({
 }))
 
 vi.mock('~/lib/image/raw', () => ({
-  decodeRaw: vi.fn(async () => ({ blob: new Blob(['developed'], { type: 'image/png' }), cameraMake: 'Test', cameraModel: 'Camera' }))
+  decodeRaw: vi.fn(async () => ({ blob: new Blob(['developed'], { type: 'image/png' }), linear: new Blob(['linear16']), cameraMake: 'Test', cameraModel: 'Camera' }))
 }))
 
 const DB_NAME = 'ai-photo-master'
@@ -180,20 +180,23 @@ describe('第 2 版数据库升级', () => {
 })
 
 describe('工程读写', () => {
-  it('RAW 保留原件与参数，PNG 副本供编辑；来源路径不作为覆盖目标，清理补丁不删除原件', async () => {
+  it('RAW 保留原件、16 位底图与显示副本；清理补丁不删除底图，删除工程一并释放', async () => {
     const file = new File(['sensor-data'], '海边.ARW', { type: '' })
     const id = await storage.createProject(file, undefined, 'D:\\海边.ARW')
     const project = (await storage.getProject(id))!
     expect(project.originalType).toBe('image/png')
     expect(project).not.toHaveProperty('filePath')
-    expect(project.rawSource).toMatchObject({ name: '海边.ARW', filePath: 'D:\\海边.ARW', decoder: 'libraw-wasm@1.6.0', settings: { outputBps: 8, halfSize: false } })
+    expect(project.rawSource).toMatchObject({ name: '海边.ARW', filePath: 'D:\\海边.ARW', decoder: 'libraw-wasm@1.6.0', settings: { outputBps: 16, halfSize: false, gamm: [1, 1], noAutoBright: true } })
+    expect(await (await storage.getBlob(project.linearBlobId!)).text()).toBe('linear16')
     expect(await (await storage.getBlob(project.originalBlobId)).text()).toBe('developed')
     expect(await (await storage.getBlob(project.rawSource!.blobId)).text()).toBe('sensor-data')
     const stale = await storage.putBlob(id, new Blob(['unused']))
     expect(await storage.collectGarbage(id, project.originalBlobId, project.doc)).toBe(1)
     await expect(storage.getBlob(stale)).rejects.toThrow('图像数据丢失')
+    expect(await (await storage.getBlob(project.linearBlobId!)).text()).toBe('linear16')
     expect(await (await storage.getBlob(project.rawSource!.blobId)).text()).toBe('sensor-data')
     await storage.deleteProject(id)
+    await expect(storage.getBlob(project.linearBlobId!)).rejects.toThrow('图像数据丢失')
     await expect(storage.getBlob(project.rawSource!.blobId)).rejects.toThrow('图像数据丢失')
   })
 

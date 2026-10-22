@@ -13,6 +13,19 @@ export function rasterizeMask(
   outW: number,
   outH: number
 ): Uint8Array {
+  const values = rasterizeMaskFloat(spec, imageW, imageH, region, outW, outH)
+  return Uint8Array.from(values, value => Math.round(value * 255))
+}
+
+/** RAW 调色的蒙版保留浮点覆盖率，避免平滑渐变先被量化成 256 级。 */
+export function rasterizeMaskFloat(
+  spec: MaskSpec,
+  imageW: number,
+  imageH: number,
+  region: PixelRect,
+  outW: number,
+  outH: number
+): Float32Array {
   const values = new Float32Array(outW * outH)
   const ctx: RasterContext = {
     imageW,
@@ -35,12 +48,11 @@ export function rasterizeMask(
   }
 
   const density = Math.min(1, Math.max(0, spec.density))
-  const out = new Uint8Array(values.length)
   for (let i = 0; i < values.length; i++) {
     const v = values[i]! * density
-    out[i] = v <= 0 ? 0 : v >= 1 ? 255 : Math.round(v * 255)
+    values[i] = Math.min(1, Math.max(0, v))
   }
-  return out
+  return values
 }
 
 interface RasterContext {

@@ -1,24 +1,26 @@
 import type { LibRawSettings } from 'libraw-wasm'
 
 export const RAW_DECODER = 'libraw-wasm@1.6.0'
-/** 第一阶段：按拍摄白平衡显影为完整尺寸 8 位 sRGB，原始传感器数据另行保留。 */
+/** 完整尺寸 16 位线性 sRGB；在编辑管线的输出端才应用 sRGB 传递曲线。 */
 export const RAW_SETTINGS = {
   halfSize: false,
   useCameraWb: true,
   useCameraMatrix: 1,
   outputColor: 1,
-  outputBps: 8,
+  outputBps: 16,
+  noAutoBright: true,
   userFlip: -1,
   userQual: 3,
-  // 明确 sRGB 曲线，和现有渲染器的 sRGB → 线性解码一致。
-  gamm: [1 / 2.4, 12.92]
+  gamm: [1, 1]
 } satisfies LibRawSettings
 
 export const RAW_MAX_BYTES = 200 * 1024 * 1024
 export const RAW_MAX_PIXELS = 60_000_000
 
 export interface RawDecoded {
+  /** 8 位显示 / AI 副本，不作为 RAW 调色的像素源。 */
   blob: Blob
+  linear: Blob
   cameraMake?: string
   cameraModel?: string
 }

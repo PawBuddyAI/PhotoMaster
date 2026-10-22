@@ -16,7 +16,7 @@ import {
 export interface MaskTexture {
   /** 内容键：键不变时复用已上传的纹理 */
   key: string
-  data: Uint8Array
+  data: Uint8Array | Float32Array
   width: number
   height: number
   /** 蒙版全为 0 时整层跳过 */
@@ -61,7 +61,7 @@ export class PhotoRenderer {
   private width = 0
   private height = 0
 
-  constructor(canvas: HTMLCanvasElement | OffscreenCanvas) {
+  constructor(canvas: HTMLCanvasElement | OffscreenCanvas, private readonly highPrecision = false) {
     const gl = canvas.getContext('webgl2', {
       alpha: false,
       antialias: false,
@@ -78,10 +78,13 @@ export class PhotoRenderer {
     this.tgl = gl as unknown as WebGLRenderingContext
 
     const hasFloatTarget = !!gl.getExtension('EXT_color_buffer_float')
+    if (highPrecision && (!hasFloatTarget || !gl.getExtension('OES_texture_float_linear'))) {
+      throw new Error('当前设备不支持 RAW 高精度浮点调色，请开启硬件加速或换用支持的浏览器 / 设备。')
+    }
     this.floatAttachment = {
-      internalFormat: hasFloatTarget ? gl.RGBA16F : gl.RGBA8,
+      internalFormat: highPrecision ? gl.RGBA32F : hasFloatTarget ? gl.RGBA16F : gl.RGBA8,
       format: gl.RGBA,
-      type: hasFloatTarget ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE,
+      type: highPrecision ? gl.FLOAT : hasFloatTarget ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE,
       min: gl.LINEAR,
       mag: gl.LINEAR,
       wrap: gl.CLAMP_TO_EDGE
@@ -143,7 +146,26 @@ export class PhotoRenderer {
     this.width = width
     this.height = height
     const base = this.fbo('base', width, height)
-    this.draw(this.programs.decode, base, { uSource: this.sourceTexture })
+    this.draw(this.programs.decode, base, { uSource: this.sourceTexture, uLinear: 0 })
+    this.result = base
+  }
+
+  /** RAW 数据以 Float32 上传，RGBA32F 中间缓冲保留 16 位源的低位及超出 1 的调整结果。 */
+  setLinearSource(data: Float32Array, width: number, height: number): void {
+    if (!this.highPrecision) throw new Error('高位深底图需要高精度渲染器。')
+    if (data.length !== width * height * 4 || width > this.maxTextureSize || height > this.maxTextureSize) {
+      throw new Error('高位深底图尺寸无效或超过 GPU 纹理上限。')
+    }
+    const gl = this.gl
+    if (this.sourceTexture) gl.deleteTexture(this.sourceTexture)
+    this.sourceTexture = twgl.createTexture(this.tgl, {
+      src: data, width, height, internalFormat: gl.RGBA32F, format: gl.RGBA, type: gl.FLOAT,
+      min: gl.NEAREST, mag: gl.NEAREST, wrap: gl.CLAMP_TO_EDGE, auto: false
+    })
+    this.width = width
+    this.height = height
+    const base = this.fbo('base', width, height)
+    this.draw(this.programs.decode, base, { uSource: this.sourceTexture, uLinear: 1 })
     this.result = base
   }
 
@@ -218,6 +240,7 @@ export class PhotoRenderer {
       uSource: result.attachments[0],
       uOutToUv: scaleMatrix(1 / this.width, 1 / this.height),
       uOutSize: [this.width, this.height],
+      uHighPrecision: this.highPrecision ? 1 : 0,
       uFlipY: 1
     })
   }
@@ -246,11 +269,37 @@ export class PhotoRenderer {
       uSource: result.attachments[0],
       uOutToUv: matrix,
       uOutSize: [outW, outH],
+      uHighPrecision: this.highPrecision ? 1 : 0,
       uFlipY: 0
     })
     const pixels = new Uint8Array(outW * outH * 4)
     gl.readPixels(0, 0, outW, outH, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
     return new Uint8ClampedArray(pixels.buffer)
+  }
+
+  /** 在浮点目标完成裁剪、插值和 sRGB 编码，最后量化为 16 位 RGB。 */
+  readPixels16(outW: number, outH: number, outToSource: Affine = [1, 0, 0, 0, 1, 0]): Uint16Array<ArrayBuffer> {
+    if (!this.highPrecision) throw new Error('16 位导出需要高精度渲染器。')
+    const gl = this.gl
+    const target = this.fbo('output16', outW, outH)
+    const [a, b, c, d, e, f] = outToSource
+    const sw = this.width
+    const sh = this.height
+    this.draw(this.programs.encode, target, {
+      uSource: this.requireResult().attachments[0],
+      uOutToUv: new Float32Array([a / sw, d / sh, 0, b / sw, e / sh, 0, c / sw, f / sh, 1]),
+      uOutSize: [outW, outH], uFlipY: 0, uHighPrecision: 1
+    })
+    const floats = new Float32Array(outW * outH * 4)
+    gl.readPixels(0, 0, outW, outH, gl.RGBA, gl.FLOAT, floats)
+    if (gl.getError() !== gl.NO_ERROR || gl.isContextLost()) throw new Error('高位深像素读取失败，请重试。')
+    const pixels = new Uint16Array(outW * outH * 3)
+    for (let p = 0; p < outW * outH; p++) {
+      for (let channel = 0; channel < 3; channel++) {
+        pixels[p * 3 + channel] = Math.round(Math.min(1, Math.max(0, floats[p * 4 + channel]!)) * 65535)
+      }
+    }
+    return pixels
   }
 
   dispose(): void {
@@ -304,6 +353,10 @@ export class PhotoRenderer {
       deleteFbo(this.gl, existing)
     }
     const fbo = twgl.createFramebufferInfo(this.tgl, [attachment], width, height)
+    if (this.gl.checkFramebufferStatus(this.gl.FRAMEBUFFER) !== this.gl.FRAMEBUFFER_COMPLETE) {
+      deleteFbo(this.gl, fbo)
+      throw new Error('无法分配调色缓冲，请关闭其他占用显存的应用后重试。')
+    }
     this.fbos.set(name, fbo)
     return fbo
   }
@@ -314,13 +367,14 @@ export class PhotoRenderer {
       return cached
     }
     const gl = this.gl
+    const floating = mask.data instanceof Float32Array
     const texture = twgl.createTexture(this.tgl, {
       src: mask.data,
       width: mask.width,
       height: mask.height,
-      internalFormat: gl.R8,
+      internalFormat: floating ? gl.R32F : gl.R8,
       format: gl.RED,
-      type: gl.UNSIGNED_BYTE,
+      type: floating ? gl.FLOAT : gl.UNSIGNED_BYTE,
       min: gl.LINEAR,
       mag: gl.LINEAR,
       wrap: gl.CLAMP_TO_EDGE,

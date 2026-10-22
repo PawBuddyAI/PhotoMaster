@@ -1,5 +1,6 @@
 import LibRaw from 'libraw-wasm'
 import { RAW_MAX_PIXELS, RAW_SETTINGS, type RawDecoded } from '../lib/image/raw-settings'
+import { linearToSrgb, packRawLinear } from '../lib/image/high-depth'
 
 // LibRaw 自身的 Worker 解码；本 Worker 负责像素转换和 PNG 编码，避免阻塞界面。
 self.onmessage = async ({ data: file }: MessageEvent<File>) => {
@@ -15,18 +16,22 @@ self.onmessage = async ({ data: file }: MessageEvent<File>) => {
       return
     }
     const image = await decoder.imageData()
-    if (!image || image.bits !== 8 || ![1, 3, 4].includes(image.colors)
+    if (!image || image.bits !== 16 || !(image.data instanceof Uint16Array) || ![1, 3, 4].includes(image.colors)
       || image.width <= 0 || image.height <= 0 || image.width * image.height > RAW_MAX_PIXELS
       || image.data.length !== image.width * image.height * image.colors) {
       throw new Error('RAW 解码结果不完整。')
     }
+    // imageData 已跨线程传回独立样本，生成副本前释放 LibRaw 的 WASM 堆。
+    decoder.dispose()
+    const linear = packRawLinear(image)
     const rgba = new Uint8ClampedArray(image.width * image.height * 4)
+    const displayLut = Uint8ClampedArray.from({ length: 65536 }, (_, i) => Math.round(linearToSrgb(i / 65535) * 255))
     for (let pixel = 0; pixel < image.width * image.height; pixel++) {
       const src = pixel * image.colors
       const dst = pixel * 4
-      rgba[dst] = image.data[src]!
-      rgba[dst + 1] = image.data[src + (image.colors === 1 ? 0 : 1)]!
-      rgba[dst + 2] = image.data[src + (image.colors === 1 ? 0 : 2)]!
+      rgba[dst] = displayLut[image.data[src]!]!
+      rgba[dst + 1] = displayLut[image.data[src + (image.colors === 1 ? 0 : 1)]!]!
+      rgba[dst + 2] = displayLut[image.data[src + (image.colors === 1 ? 0 : 2)]!]!
       rgba[dst + 3] = 255
     }
     const canvas = new OffscreenCanvas(image.width, image.height)
@@ -37,6 +42,7 @@ self.onmessage = async ({ data: file }: MessageEvent<File>) => {
     ctx.putImageData(new ImageData(rgba, image.width, image.height), 0, 0)
     const result: RawDecoded = {
       blob: await canvas.convertToBlob({ type: 'image/png' }),
+      linear,
       cameraMake: metadata.camera_make,
       cameraModel: metadata.camera_model
     }

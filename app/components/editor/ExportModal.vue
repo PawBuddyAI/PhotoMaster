@@ -13,11 +13,11 @@ const format = ref<ExportFormat>('image/jpeg')
 const quality = ref(DEFAULT_EXPORT_QUALITY)
 const keepExif = ref(true)
 
-const formatItems = [
+const formatItems = computed(() => [
   { label: 'JPEG', value: 'image/jpeg' },
-  { label: 'PNG（无损）', value: 'image/png' },
+  { label: editor.project?.linearBlobId ? 'PNG（16 位，无损）' : 'PNG（无损）', value: 'image/png' },
   { label: 'WebP', value: 'image/webp' }
-]
+])
 
 const meta = computed(() => editor.project)
 const outputSize = computed(() => meta.value ? cropOutputSize(editor.doc.crop, meta.value.width, meta.value.height) : null)

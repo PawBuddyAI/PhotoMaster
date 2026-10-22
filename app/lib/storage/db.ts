@@ -70,6 +70,7 @@ export async function createProject(file: File, albumId?: string, filePath?: str
     const thumbnail = await canvasToBlob(scaleToFit(bitmap, bitmap.width, bitmap.height, 480), 'image/jpeg', 0.85)
     const id = newId()
     const originalBlobId = newId()
+    const linearBlobId = decoded ? newId() : undefined
     const rawSource: ProjectRecord['rawSource'] = decoded
       ? {
           blobId: newId(), name: file.name, type: file.type,
@@ -90,6 +91,9 @@ export async function createProject(file: File, albumId?: string, filePath?: str
         await requireAlbum(albumId)
       }
       await db().blobs.add({ id: originalBlobId, projectId: id, blob: original })
+      if (decoded && linearBlobId) {
+        await db().blobs.add({ id: linearBlobId, projectId: id, blob: decoded.linear })
+      }
       if (rawSource) {
         await db().blobs.add({ id: rawSource.blobId, projectId: id, blob: file })
       }
@@ -100,6 +104,7 @@ export async function createProject(file: File, albumId?: string, filePath?: str
         width: bitmap.width,
         height: bitmap.height,
         originalBlobId,
+        ...(linearBlobId ? { linearBlobId } : {}),
         originalType: original.type,
         ...(rawSource ? { rawSource } : {}),
         thumbnail,
@@ -272,6 +277,7 @@ export async function collectGarbage(projectId: string, originalBlobId: string, 
   const keep = referencedBlobIds(doc)
   keep.add(originalBlobId)
   const project = await db().projects.get(projectId)
+  if (project?.linearBlobId) keep.add(project.linearBlobId)
   if (project?.rawSource) {
     keep.add(project.rawSource.blobId)
   }

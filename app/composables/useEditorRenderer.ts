@@ -1,16 +1,15 @@
 import { onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { type AnyCanvas, get2d } from '~/lib/image/canvas'
 import { composeBase } from '~/lib/image/compose'
-import { rasterizeMask } from '~/lib/mask/rasterize'
+import { composeLinear } from '~/lib/image/high-depth'
+import { rasterizeMask, rasterizeMaskFloat } from '~/lib/mask/rasterize'
 import { isFullMask, maskKey } from '~/lib/mask/spec'
 import { buildRenderLayers } from '~/lib/pipeline/layers'
 import { PhotoRenderer } from '~/lib/pipeline/renderer'
 import type { MaskSpec, PixelRect } from '~/lib/types'
 import { useEditorStore } from '~/stores/editor'
-import { useProjectAssets } from './useProjectAssets'
+import { PREVIEW_LONG_SIDE, useProjectAssets } from './useProjectAssets'
 
-/** 预览渲染的长边上限 */
-export const PREVIEW_LONG_SIDE = 2048
 /** 预览蒙版的长边上限：蒙版多为平滑过渡，较低分辨率线性放大即可，换取拖动区域时的流畅度 */
 const MASK_LONG_SIDE = 1024
 const MASK_CACHE_LIMIT = 48
@@ -49,7 +48,7 @@ export function useEditorRenderer() {
   let rendering = false
   let pending = false
   let disposed = false
-  const maskCache = new Map<string, Uint8Array>()
+  const maskCache = new Map<string, Uint8Array | Float32Array>()
 
   function init(): void {
     const meta = editor.project
@@ -69,7 +68,7 @@ export function useEditorRenderer() {
 
     originalPreview.value = composeBase(original, [], fullRegion, previewW, previewH)
     const canvas = document.createElement('canvas')
-    renderer = new PhotoRenderer(canvas)
+    renderer = new PhotoRenderer(canvas, !!assets.linearPreview.value)
     displayCanvas.value = canvas
     const overlay = document.createElement('canvas')
     overlay.width = maskW
@@ -81,7 +80,7 @@ export function useEditorRenderer() {
     updateOverlay()
   }
 
-  function rasterCached(spec: MaskSpec): Uint8Array {
+  function rasterCached(spec: MaskSpec): Uint8Array | Float32Array {
     const key = maskKey(spec)
     const hit = maskCache.get(key)
     if (hit) {
@@ -90,9 +89,10 @@ export function useEditorRenderer() {
       maskCache.set(key, hit)
       return hit
     }
-    const data = rasterizeMask(spec, imageW, imageH, fullRegion, maskW, maskH)
+    const rasterize = assets.linearPreview.value ? rasterizeMaskFloat : rasterizeMask
+    const data = rasterize(spec, imageW, imageH, fullRegion, maskW, maskH)
     maskCache.set(key, data)
-    if (maskCache.size > MASK_CACHE_LIMIT) {
+    if (maskCache.size > (data instanceof Float32Array ? MASK_CACHE_LIMIT / 4 : MASK_CACHE_LIMIT)) {
       maskCache.delete(maskCache.keys().next().value!)
     }
     return data
@@ -105,7 +105,7 @@ export function useEditorRenderer() {
     if (renderer.isContextLost()) {
       // GPU 上下文丢失（驱动重置、显存回收）时换一块新画布重建渲染器
       const canvas = document.createElement('canvas')
-      renderer = new PhotoRenderer(canvas)
+      renderer = new PhotoRenderer(canvas, !!assets.linearPreview.value)
       displayCanvas.value = canvas
       baseKey = null
     }
@@ -117,8 +117,13 @@ export function useEditorRenderer() {
       if (disposed || !renderer) {
         return
       }
-      const base = composeBase(assets.requireOriginal(), patches, fullRegion, previewW, previewH)
-      renderer.setSource(base, previewW, previewH)
+      if (assets.linearPreview.value) {
+        const base = composeLinear(assets.linearPreview.value, patches, fullRegion)
+        renderer.setLinearSource(base.data, base.width, base.height)
+      } else {
+        const base = composeBase(assets.requireOriginal(), patches, fullRegion, previewW, previewH)
+        renderer.setSource(base, previewW, previewH)
+      }
       baseKey = nextBaseKey
     }
     const adjustLayers = editor.layers.flatMap(l => l.kind === 'adjust' && l.enabled ? [l] : [])
@@ -183,12 +188,13 @@ export function useEditorRenderer() {
     const ctx = get2d(canvas)
     const image = ctx.createImageData(maskW, maskH)
     const [r, g, b] = OVERLAY_COLOR
+    const alphaScale = (data instanceof Float32Array ? 255 : 1) * OVERLAY_ALPHA
     for (let i = 0; i < data.length; i++) {
       const p = i * 4
       image.data[p] = r
       image.data[p + 1] = g
       image.data[p + 2] = b
-      image.data[p + 3] = data[i]! * OVERLAY_ALPHA
+      image.data[p + 3] = data[i]! * alphaScale
     }
     ctx.putImageData(image, 0, 0)
     overlayVisible.value = true

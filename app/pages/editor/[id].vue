@@ -122,7 +122,7 @@ watch(() => editor.project?.thumbnail, (thumbnail) => {
 onMounted(async () => {
   try {
     await editor.open(projectId.value)
-    await assets.load(projectId.value, editor.project!.originalBlobId)
+    await assets.load(projectId.value, editor.project!.originalBlobId, editor.project!.linearBlobId)
     view.init()
   } catch (err) {
     loadError.value = err instanceof Error ? err.message : String(err)

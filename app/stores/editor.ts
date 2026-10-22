@@ -30,7 +30,7 @@ import type {
 
 export type EditorTool = 'move' | 'brush' | 'erase' | 'crop'
 
-export type ProjectMeta = Pick<ProjectRecord, 'id' | 'name' | 'width' | 'height' | 'originalBlobId' | 'originalType' | 'thumbnail' | 'filePath'>
+export type ProjectMeta = Pick<ProjectRecord, 'id' | 'name' | 'width' | 'height' | 'originalBlobId' | 'originalType' | 'thumbnail' | 'filePath' | 'linearBlobId'>
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'error'
 
@@ -80,6 +80,7 @@ export const useEditorStore = defineStore('editor', () => {
       width: record.width,
       height: record.height,
       originalBlobId: record.originalBlobId,
+      linearBlobId: record.linearBlobId,
       originalType: record.originalType,
       thumbnail: record.thumbnail,
       filePath: record.filePath

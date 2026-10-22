@@ -76,7 +76,7 @@ async function importPhoto(photo: File, filePath?: string) {
   try {
     const id = await createProject(photo, props.albumId, filePath, importController.signal)
     if (isRawFile(photo.name)) {
-      notify.info('RAW 已导入', '原文件已保留，当前编辑完整尺寸的 8 位 PNG 副本。')
+      notify.info('RAW 已导入', '原文件已保留，使用 16 位线性底图调色，导出 PNG 可保留 16 位。')
     }
     await router.push(`/editor/${id}`)
   } catch (err) {

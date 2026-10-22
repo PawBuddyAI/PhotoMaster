@@ -3,6 +3,10 @@ import { decodeImage } from '~/lib/image/canvas'
 import type { PatchSource } from '~/lib/image/compose'
 import { getBlob } from '~/lib/storage/db'
 import type { Layer } from '~/lib/types'
+import type { LinearImage } from '~/lib/image/high-depth'
+import { useImageWorker } from './useImageWorker'
+
+export const PREVIEW_LONG_SIDE = 2048
 
 /**
  * 当前工程的大体积资源（解码后的原图与补丁位图）。
@@ -11,23 +15,39 @@ import type { Layer } from '~/lib/types'
 const projectId = shallowRef<string | null>(null)
 const original = shallowRef<ImageBitmap | null>(null)
 const originalBlob = shallowRef<Blob | null>(null)
+const linearBlob = shallowRef<Blob | null>(null)
+const linearPreview = shallowRef<LinearImage | null>(null)
 const patchCache = new Map<string, Promise<ImageBitmap>>()
+let loadVersion = 0
 
-async function load(id: string, originalBlobId: string): Promise<void> {
+async function load(id: string, originalBlobId: string, linearBlobId?: string): Promise<void> {
   if (projectId.value === id && original.value) {
     return
   }
   release()
+  const version = loadVersion
   const blob = await getBlob(originalBlobId)
-  original.value = await decodeImage(blob)
+  const master = linearBlobId ? await getBlob(linearBlobId) : null
+  const preview = master ? await useImageWorker().linearPreview(master, PREVIEW_LONG_SIDE) : null
+  const bitmap = await decodeImage(blob)
+  if (version !== loadVersion) {
+    bitmap.close()
+    throw new DOMException('工程加载已取消', 'AbortError')
+  }
+  original.value = bitmap
   originalBlob.value = blob
+  linearPreview.value = preview
+  linearBlob.value = master
   projectId.value = id
 }
 
 function release(): void {
+  loadVersion++
   original.value?.close()
   original.value = null
   originalBlob.value = null
+  linearBlob.value = null
+  linearPreview.value = null
   projectId.value = null
   for (const pending of patchCache.values()) {
     pending.then(bitmap => bitmap.close(), () => undefined)
@@ -60,5 +80,5 @@ function requireOriginal(): ImageBitmap {
 }
 
 export function useProjectAssets() {
-  return { original, originalBlob, load, release, patchBitmap, patchSources, requireOriginal }
+  return { original, originalBlob, linearBlob, linearPreview, load, release, patchBitmap, patchSources, requireOriginal }
 }
