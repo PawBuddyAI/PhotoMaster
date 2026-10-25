@@ -1,6 +1,7 @@
 import { defaultAdjustParams, sanitizeAdjustParams } from '../adjust/params'
 import { newId } from '../id'
 import { normalizeHdr } from '../image/hdr'
+import { normalizeRawDevelop } from '../image/raw-develop'
 import { createMaskSpec } from '../mask/spec'
 import type {
   AdjustmentLayer,
@@ -38,7 +39,8 @@ export function normalizeDoc(doc: Partial<ProjectDoc> | undefined): ProjectDoc {
     crop: doc.crop ?? null,
     analysis: doc.analysis ?? null,
     adopted: doc.adopted ?? [],
-    ...(doc.hdr ? { hdr: normalizeHdr(doc.hdr) } : {})
+    ...(doc.hdr ? { hdr: normalizeHdr(doc.hdr) } : {}),
+    ...(doc.raw ? { raw: normalizeRawDevelop(doc.raw) } : {})
   }
 }
 

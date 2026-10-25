@@ -11,6 +11,10 @@ import { encodeExr } from './exr'
 import { encodeUltraHdr, pqBands } from './hdr-export'
 import { encodePng16 } from './png16'
 import { rasterizeMaskFloat } from '../mask/rasterize'
+import type { RawLook } from './raw-look'
+import { NOISE_PADDING, noiseThresholds, type NoiseProfile } from './raw-noise'
+import { buildRawExif, exifTiffBytes, type RawExif } from './raw-exif'
+import { RAW_EXIF_FORMATS } from './export-options'
 
 export type ExportFormat = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/x-exr' | 'image/ultrahdr' | 'image/png-hdr'
 
@@ -35,6 +39,12 @@ export interface ExportInput {
   /** 0–1，仅 JPEG/WebP 有效 */
   quality: number
   keepExif: boolean
+  /** RAW 风格（出口施加）；null 不施加 */
+  look?: RawLook | null
+  /** RAW 降噪（全分辨率） */
+  noise?: { profile: NoiseProfile, luminance: number, color: number } | null
+  /** RAW 工程从原件读出的拍摄信息；keepExif 时写入 JPEG / Ultra HDR / PNG */
+  rawExif?: RawExif | null
   tileSize?: number
 }
 
@@ -73,9 +83,13 @@ export async function renderExport(input: ExportInput, onProgress?: (done: numbe
     const out = cropOutputSize(input.crop, imageW, imageH)
     const affine = outputToSourceAffine(input.crop, imageW, imageH)
     const longSide = Math.max(imageW, imageH)
-    const pad = blurPadding(longSide) + 2
     renderer = new PhotoRenderer(createCanvas(1, 1), !!input.linear, !!info?.hdr)
     const gpu = renderer
+    gpu.setLook(input.look ?? null)
+    const noise = input.noise ? noiseThresholds(input.noise.profile, input.noise.luminance, input.noise.color, 1) : null
+    gpu.setNoiseReduction(noise)
+    // 块内的降噪与模糊都要读到块外的像素：边距是两者之和
+    const pad = blurPadding(longSide) + 2 + (noise ? NOISE_PADDING : 0)
     // 块加上两侧边距和对齐余量后不能超过纹理上限
     const rotationScale = Math.max(Math.abs(affine[0]) + Math.abs(affine[1]), Math.abs(affine[3]) + Math.abs(affine[4]))
     const maxTile = Math.floor((gpu.maxTextureSize - 2 * pad - 2 * TILE_ALIGN) / rotationScale / TILE_ALIGN) * TILE_ALIGN
@@ -119,25 +133,26 @@ export async function renderExport(input: ExportInput, onProgress?: (done: numbe
         if (band) yield band
       }
     }
+    // RAW 工程的拍摄信息来自原件（JPEG / Ultra HDR / PNG）；普通照片只有 JPEG 原图存成 JPEG 时可保留
+    const exif = !input.keepExif
+      ? null
+      : input.rawExif
+        ? RAW_EXIF_FORMATS.includes(input.format) ? buildRawExif(input.rawExif, out.w, out.h, input.format === 'image/png-hdr') : null
+        : input.format === 'image/jpeg' ? await prepareExportExif(input.original, out.w, out.h) : null
     let blob: Blob
     if (floatOutput) {
       const bands = renderBands() as AsyncIterable<Float32Array>
       blob = input.format === 'image/x-exr'
         ? await encodeExr(out.w, out.h, bands, settings.referenceWhite)
         : input.format === 'image/png-hdr'
-          ? await encodePng16(out.w, out.h, pqBands(bands, settings), true)
-          : await encodeUltraHdr(out.w, out.h, bands, settings, input.quality)
+          ? await encodePng16(out.w, out.h, pqBands(bands, settings), true, exif ? exifTiffBytes(exif) : undefined)
+          : await encodeUltraHdr(out.w, out.h, bands, settings, input.quality, exif ?? undefined)
     } else if (highDepthOutput) {
-      blob = await encodePng16(out.w, out.h, renderBands() as AsyncIterable<Uint16Array>)
+      blob = await encodePng16(out.w, out.h, renderBands() as AsyncIterable<Uint16Array>, false, exif ? exifTiffBytes(exif) : undefined)
     } else {
       for await (const _band of renderBands()) { /* 8 位结果直接写入输出画布 */ }
       blob = await canvasToBlob(output!, input.format, input.quality)
-    }
-    if (input.keepExif && input.format === 'image/jpeg') {
-      const exif = await prepareExportExif(input.original, out.w, out.h)
-      if (exif) {
-        blob = await insertExif(blob, exif)
-      }
+      if (exif && input.format === 'image/jpeg') blob = await insertExif(blob, exif)
     }
     return { blob, width: out.w, height: out.h }
   } finally {

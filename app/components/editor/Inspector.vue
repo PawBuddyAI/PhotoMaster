@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useEditorStore } from '~/stores/editor'
+import { RAW_BASE_ID, useEditorStore } from '~/stores/editor'
 import { useInpaintStore } from '~/stores/inpaint'
 
 const editor = useEditorStore()
@@ -13,7 +13,7 @@ const regionLocked = computed(() => {
 })
 
 /** 检查器当前展示的对象；它变化时内容淡入，提示「这是另一个对象了」 */
-const subject = computed(() => editor.tool === 'crop' ? 'crop' : layer.value?.id ?? 'empty')
+const subject = computed(() => editor.tool === 'crop' ? 'crop' : editor.selectedLayerId === RAW_BASE_ID ? RAW_BASE_ID : layer.value?.id ?? 'empty')
 
 function unlockRegion() {
   if (layer.value?.kind === 'generative') {
@@ -34,6 +34,8 @@ function unlockRegion() {
         </h3>
         <EditorCropPanel />
       </template>
+
+      <EditorRawPanel v-else-if="subject === RAW_BASE_ID" />
 
       <template v-else-if="layer">
         <div class="space-y-1">

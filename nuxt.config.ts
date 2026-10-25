@@ -51,7 +51,7 @@ export default defineNuxtConfig({
     optimizeDeps: {
       exclude: ['libraw-wasm'],
       include: [
-        'vue-konva', 'konva', 'dexie', 'openai', 'openai/helpers/zod', 'zod', 'twgl.js', 'comlink', 'piexifjs',
+        'vue-konva', 'konva', 'dexie', 'openai', 'openai/helpers/zod', 'zod', 'twgl.js', 'comlink', 'piexifjs', 'utif2',
         '@tauri-apps/api/core', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-fs', '@tauri-apps/plugin-http'
       ]
     },

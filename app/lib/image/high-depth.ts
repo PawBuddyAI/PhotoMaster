@@ -21,6 +21,15 @@ export function srgbToLinear(value: number): number {
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
 }
 
+const SRGB8_STEPS = 65535
+let srgb8: Uint8Array | null = null
+
+/** 线性 0–1 → 8 位 sRGB 码值（查 65536 级表，与 Math.round(linearToSrgb(v) * 255) 相差不超过 1）；逐像素大循环用 */
+export function linearToSrgb8(value: number): number {
+  srgb8 ??= Uint8Array.from({ length: SRGB8_STEPS + 1 }, (_, i) => Math.round(linearToSrgb(i / SRGB8_STEPS) * 255))
+  return srgb8[Math.round(Math.min(1, Math.max(0, value)) * SRGB8_STEPS)]!
+}
+
 function checkSize(width: number, height: number): void {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0 || width * height > RAW_MAX_PIXELS) {
     throw new Error(`高位深图像尺寸无效或超过 ${RAW_MAX_PIXELS_LABEL}。`)
@@ -53,7 +62,7 @@ export async function linearSize(blob: Blob): Promise<{ width: number, height: n
   return { width, height }
 }
 
-export function packFloatLinear(width: number, height: number, sample: (pixel: number) => readonly number[]): Blob {
+export function packFloatLinear(width: number, height: number, sample: (pixel: number) => ArrayLike<number>): Blob {
   checkSize(width, height)
   const header = new ArrayBuffer(HEADER)
   const view = new DataView(header)

@@ -12,8 +12,23 @@ vi.mock('~/lib/image/canvas', () => ({
   canvasToBlob: vi.fn(async () => new Blob(['thumbnail'], { type: 'image/jpeg' }))
 }))
 
+/** 噪点很轻的分析结果：默认只开颜色降噪 */
+const RAW_PROFILE = {
+  camera: { gains: [0.5], chroma: [1.2] },
+  baselineExposure: 0,
+  noise: { luma: [[0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001]], chroma: [[0.002, 0.002, 0.002, 0.002, 0.002, 0.002, 0.002]] }
+}
+
 vi.mock('~/lib/image/raw', () => ({
-  decodeRaw: vi.fn(async () => ({ blob: new Blob(['developed'], { type: 'image/png' }), linear: new Blob(['linear16']), cameraMake: 'Test', cameraModel: 'Camera' }))
+  decodeRaw: vi.fn(async () => ({
+    blob: new Blob(['developed'], { type: 'image/png' }),
+    linear: new Blob(['linear16']),
+    thumbnail: new Blob(['styled-thumbnail'], { type: 'image/jpeg' }),
+    profile: RAW_PROFILE,
+    corrections: ['DefaultCrop', 'GainMap'],
+    cameraMake: 'Test',
+    cameraModel: 'Camera'
+  }))
 }))
 
 const DB_NAME = 'ai-photo-master'
@@ -196,6 +211,21 @@ describe('工程读写', () => {
     expect(await (await storage.getBlob(previous.rawSource!.blobId)).text()).toBe('raw-original')
   })
 
+  it('旧 RAW 工程补算的分析结果写回记录，不改文档与修改时间', async () => {
+    const id = await storage.createProject(new File(['raw-original'], 'old.dng'))
+    const before = (await storage.getProject(id))!
+    const profile = { ...RAW_PROFILE, camera: null }
+    vi.setSystemTime(5000)
+    await storage.setProjectRawProfile(id, profile)
+    const after = (await storage.getProject(id))!
+    expect(after.rawSource!.profile).toEqual(profile)
+    expect(after.rawSource!.blobId).toBe(before.rawSource!.blobId)
+    expect(after.doc).toEqual(before.doc)
+    expect(after.updatedAt).toBe(before.updatedAt)
+    const plain = await storage.createProject(new File(['jpeg'], 'a.jpg', { type: 'image/jpeg' }))
+    await expect(storage.setProjectRawProfile(plain, profile)).rejects.toThrow('RAW 原件')
+  })
+
   it('RAW 保留原件、16 位底图与显示副本；清理补丁不删除底图，删除工程一并释放', async () => {
     const file = new File(['sensor-data'], '海边.ARW', { type: '' })
     const id = await storage.createProject(file, undefined, 'D:\\海边.ARW')
@@ -206,6 +236,10 @@ describe('工程读写', () => {
     expect(await (await storage.getBlob(project.linearBlobId!)).text()).toBe('linear16')
     expect(await (await storage.getBlob(project.originalBlobId)).text()).toBe('developed')
     expect(await (await storage.getBlob(project.rawSource!.blobId)).text()).toBe('sensor-data')
+    // 分析结果与解码阶段的校正记在工程记录里；文档带上默认风格与降噪，缩略图用带风格的版本
+    expect(project.rawSource).toMatchObject({ profile: RAW_PROFILE, corrections: ['DefaultCrop', 'GainMap'] })
+    expect(project.doc.raw).toEqual({ look: 'camera', noise: { luminance: 0, color: 25 } })
+    expect(await project.thumbnail.text()).toBe('styled-thumbnail')
     const stale = await storage.putBlob(id, new Blob(['unused']))
     expect(await storage.collectGarbage(id, project.originalBlobId, project.doc)).toBe(1)
     await expect(storage.getBlob(stale)).rejects.toThrow('图像数据丢失')

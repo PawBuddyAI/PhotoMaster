@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { cropOutputSize } from '~/lib/geometry/crop'
 import type { ExportFormat } from '~/lib/image/export'
-import { DEFAULT_EXPORT_QUALITY } from '~/lib/image/export-options'
+import { canKeepExif, DEFAULT_EXPORT_QUALITY } from '~/lib/image/export-options'
 import { normalizeHdr } from '~/lib/image/hdr'
 import { createHdrCopy, getProject } from '~/lib/storage/db'
 import { useEditorStore } from '~/stores/editor'
@@ -56,11 +56,11 @@ const formatItems = computed(() => [
 
 const meta = computed(() => editor.project)
 const outputSize = computed(() => meta.value ? cropOutputSize(editor.doc.crop, meta.value.width, meta.value.height) : null)
-const canKeepExif = computed(() => format.value === 'image/jpeg' && meta.value?.originalType === 'image/jpeg')
+const exifAvailable = computed(() => !!meta.value && canKeepExif(format.value, meta.value.originalType, meta.value.raw))
 
 async function start() {
   try {
-    const result = await run({ format: format.value, quality: quality.value, keepExif: keepExif.value && canKeepExif.value })
+    const result = await run({ format: format.value, quality: quality.value, keepExif: keepExif.value && exifAvailable.value })
     // 桌面版在另存为对话框中取消：保持弹窗打开，不提示
     if (!result) {
       return
@@ -156,11 +156,11 @@ async function start() {
           </p>
         </div>
         <USwitch
-          v-if="canKeepExif"
+          v-if="exifAvailable"
           v-model="keepExif"
           label="保留 EXIF 信息"
-          :description="canKeepExif ? '相机型号、拍摄参数等（方向会重置为正常）' : '仅 JPEG 原图导出为 JPEG 时可保留'"
-          :disabled="!canKeepExif || exporting"
+          :description="meta?.raw ? '拍摄时间、位置、相机和镜头、拍摄参数（从 RAW 原件读取）' : '相机型号、拍摄参数等（方向会重置为正常）'"
+          :disabled="exporting"
         />
         <p
           v-if="outputSize"

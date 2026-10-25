@@ -1,5 +1,17 @@
 import { inflateSync } from 'node:zlib'
 
+/** 按顺序列出 PNG 的所有块（不校验 CRC，校验由 readPng16 负责） */
+export function pngChunks(bytes: Uint8Array): Array<{ name: string, data: Buffer }> {
+  const buffer = Buffer.from(bytes)
+  const chunks: Array<{ name: string, data: Buffer }> = []
+  for (let offset = 8; offset + 8 <= buffer.length;) {
+    const length = buffer.readUInt32BE(offset)
+    chunks.push({ name: buffer.toString('ascii', offset + 4, offset + 8), data: buffer.subarray(offset + 8, offset + 8 + length) })
+    offset += length + 12
+  }
+  return chunks
+}
+
 /** 独立解码测试输出，同时校验每个 PNG chunk 的 CRC、行过滤和样本字节序。 */
 export function readPng16(bytes: Uint8Array, pq = false): { width: number, height: number, pixels: Uint16Array } {
   const buffer = Buffer.from(bytes)

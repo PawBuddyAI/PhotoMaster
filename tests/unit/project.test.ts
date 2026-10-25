@@ -84,6 +84,11 @@ describe('工程文档', () => {
     const layer = doc.layers[0]!
     expect(layer.kind === 'adjust' && layer.params.exposure).toBe(5)
   })
+
+  it('旧工程没有 RAW 基础设置时不补（保持原来的外观）；有的规范化到合法范围', () => {
+    expect(normalizeDoc({ layers: [] })).not.toHaveProperty('raw')
+    expect(normalizeDoc({ layers: [], raw: { look: 'camera', noise: { luminance: 250, color: 25 } } }).raw).toEqual({ look: 'camera', noise: { luminance: 100, color: 25 } })
+  })
 })
 
 describe('调整参数', () => {

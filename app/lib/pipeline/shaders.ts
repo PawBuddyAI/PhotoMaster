@@ -1,3 +1,6 @@
+import { CHROMA_POINTS, LOOK_MAX_EV, LOOK_MIN_EV, LOOK_POINTS, LOOK_STEPS_PER_EV } from '../image/raw-look'
+import { NOISE_BIN_CENTERS } from '../image/raw-noise'
+
 /**
  * 调色管线着色器（GLSL ES 3.0）。
  * 约定：中间纹理均为线性 RGB；纹理第 0 行对应图像第一行（顶部），只在输出到画布时翻转。
@@ -24,6 +27,32 @@ float luminance(vec3 c) {
 }
 float perceptual(float l) {
   return pow(max(l, 1e-6), 1.0 / 2.2);
+}
+`
+
+/** OKLab 互转：立方根保留符号，扩展线性值与负色域分量都能往返（与 raw-look.ts 一致） */
+const OKLAB_SIGNED = `
+vec3 oklabFromLinear(vec3 c) {
+  vec3 lms = vec3(
+    0.4122214708 * c.r + 0.5363325363 * c.g + 0.0514459929 * c.b,
+    0.2119034982 * c.r + 0.6806995451 * c.g + 0.1073969566 * c.b,
+    0.0883024619 * c.r + 0.2817188376 * c.g + 0.6299787005 * c.b);
+  lms = sign(lms) * pow(abs(lms), vec3(1.0 / 3.0));
+  return vec3(
+    0.2104542553 * lms.x + 0.7936177850 * lms.y - 0.0040720468 * lms.z,
+    1.9779984951 * lms.x - 2.4285922050 * lms.y + 0.4505937099 * lms.z,
+    0.0259040371 * lms.x + 0.7827717662 * lms.y - 0.8086757660 * lms.z);
+}
+vec3 linearFromOklab(vec3 c) {
+  vec3 lms = vec3(
+    c.x + 0.3963377774 * c.y + 0.2158037573 * c.z,
+    c.x - 0.1055613458 * c.y - 0.0638541728 * c.z,
+    c.x - 0.0894841775 * c.y - 1.2914855480 * c.z);
+  lms = lms * lms * lms;
+  return vec3(
+    4.0767416621 * lms.x - 3.3077115913 * lms.y + 0.2309699292 * lms.z,
+    -1.2684380046 * lms.x + 2.6097574011 * lms.y - 0.3413193965 * lms.z,
+    -0.0041960863 * lms.x - 0.7034186147 * lms.y + 1.7076147010 * lms.z);
 }
 `
 
@@ -213,9 +242,89 @@ void main() {
 }
 `
 
+/** 降噪：线性 RGB → OKLab（L 为亮度，a / b 为色度） */
+export const TO_LAB_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform highp sampler2D uSource;
+out vec4 outColor;
+${OKLAB_SIGNED}
+void main() {
+  outColor = vec4(oklabFromLinear(texture(uSource, vUv).rgb), 1.0);
+}
+`
+
+/** à-trous B3 样条平滑的一个方向；uStep 为整数像素间隔（2^层号），边界复制 */
+export const ATROUS_FRAG = `#version 300 es
+precision highp float;
+uniform highp sampler2D uSource;
+uniform ivec2 uStep;
+out vec4 outColor;
+void main() {
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  ivec2 hi = textureSize(uSource, 0) - 1;
+  vec4 c = 0.375 * texelFetch(uSource, p, 0)
+    + 0.25 * (texelFetch(uSource, clamp(p + uStep, ivec2(0), hi), 0) + texelFetch(uSource, clamp(p - uStep, ivec2(0), hi), 0))
+    + 0.0625 * (texelFetch(uSource, clamp(p + 2 * uStep, ivec2(0), hi), 0) + texelFetch(uSource, clamp(p - 2 * uStep, ivec2(0), hi), 0));
+  outColor = c;
+}
+`
+
+const NOISE_BINS = NOISE_BIN_CENTERS.length
+
+/**
+ * 一层细节（本层 − 下一层）的软阈值并累加。阈值按下一层（已平滑）的亮度在各箱之间线性插值；
+ * 色度把 a / b 当作一个向量收缩长度，不改变色相方向。
+ */
+export const DETAIL_FRAG = `#version 300 es
+precision highp float;
+uniform highp sampler2D uFine;
+uniform highp sampler2D uCoarse;
+uniform highp sampler2D uAcc;
+uniform bool uFirst;
+uniform float uBins[${NOISE_BINS}];
+uniform float uLuma[${NOISE_BINS}];
+uniform float uChroma[${NOISE_BINS}];
+out vec4 outColor;
+float threshold(float table[${NOISE_BINS}], float l) {
+  if (l <= uBins[0]) return table[0];
+  for (int i = 1; i < ${NOISE_BINS}; i++) {
+    if (l <= uBins[i]) return mix(table[i - 1], table[i], (l - uBins[i - 1]) / (uBins[i] - uBins[i - 1]));
+  }
+  return table[${NOISE_BINS - 1}];
+}
+void main() {
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  vec3 coarse = texelFetch(uCoarse, p, 0).rgb;
+  vec3 d = texelFetch(uFine, p, 0).rgb - coarse;
+  float tl = threshold(uLuma, coarse.x);
+  float tc = threshold(uChroma, coarse.x);
+  float dl = sign(d.x) * max(abs(d.x) - tl, 0.0);
+  float m = length(d.yz);
+  vec2 dab = m > 0.0 ? d.yz * (max(m - tc, 0.0) / m) : vec2(0.0);
+  vec3 acc = uFirst ? vec3(0.0) : texelFetch(uAcc, p, 0).rgb;
+  outColor = vec4(acc + vec3(dl, dab), 1.0);
+}
+`
+
+/** 最粗一层加上收缩后的各层细节，回到线性 RGB */
+export const FROM_LAB_FRAG = `#version 300 es
+precision highp float;
+uniform highp sampler2D uCoarse;
+uniform highp sampler2D uAcc;
+out vec4 outColor;
+${OKLAB_SIGNED}
+void main() {
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  outColor = vec4(linearFromOklab(texelFetch(uCoarse, p, 0).rgb + texelFetch(uAcc, p, 0).rgb), 1.0);
+}
+`
+
 /**
  * 输出编码：按 uOutToUv（输出像素中心 → 源纹理 uv）重采样，实现裁剪与旋转，然后转回 8 位 sRGB。
  * uFlipY 用于直接画到画布（画布第 0 行在底部）。
+ * RAW 风格（uLook）在全部调整之后、肩部与线性输出之前施加：按 log2 亮度查增益表（与 raw-look.ts 的 applyLook 一致），
+ * 再按 OKLab 缩放色度。SDR 与 HDR 输出因此共用同一份风格。
  */
 export const ENCODE_FRAG = `#version 300 es
 precision highp float;
@@ -227,8 +336,30 @@ uniform bool uFlipY;
 uniform bool uHighPrecision;
 uniform bool uHdr;
 uniform bool uOutputLinear;
+uniform bool uLook;
+uniform highp sampler2D uLookLut;
+uniform bool uLookChromaOn;
+uniform float uLookChroma[${CHROMA_POINTS}];
 out vec4 outColor;
 ${COMMON}
+${OKLAB_SIGNED}
+vec3 applyLook(vec3 c) {
+  float y = luminance(c);
+  float ev = y > 0.0 ? log2(y) : ${LOOK_MIN_EV.toFixed(1)};
+  float t = (clamp(ev, ${LOOK_MIN_EV.toFixed(1)}, ${LOOK_MAX_EV.toFixed(1)}) - ${LOOK_MIN_EV.toFixed(1)}) * ${LOOK_STEPS_PER_EV.toFixed(1)};
+  int i = min(${LOOK_POINTS - 2}, int(floor(t)));
+  float f = t - float(i);
+  float gain = mix(texelFetch(uLookLut, ivec2(i, 0), 0).r, texelFetch(uLookLut, ivec2(i + 1, 0), 0).r, f);
+  c *= exp2(gain);
+  if (uLookChromaOn) {
+    vec3 lab = oklabFromLinear(c);
+    float k = clamp(lab.x, 0.0, 1.0) * ${(CHROMA_POINTS - 1).toFixed(1)};
+    int j = min(${CHROMA_POINTS - 2}, int(floor(k)));
+    lab.yz *= mix(uLookChroma[j], uLookChroma[j + 1], k - float(j));
+    c = linearFromOklab(lab);
+  }
+  return c;
+}
 // 16 位输出使用浮点插值权重，避免硬件纹理过滤的子像素精度限制影响分块旋转边缘。
 vec3 sampleSource(vec2 uv) {
   if (!uHighPrecision) return texture(uSource, uv).rgb;
@@ -247,6 +378,7 @@ void main() {
   vec2 outPx = vec2(vUv.x, uFlipY ? 1.0 - vUv.y : vUv.y) * uOutSize;
   vec2 uv = (uOutToUv * vec3(outPx, 1.0)).xy;
   vec3 c = sampleSource(uv);
+  if (uLook) c = applyLook(c);
   if (uOutputLinear) { outColor = vec4(c, 1.0); return; }
   if (uHdr) {
     float y = max(luminance(c), 0.0);

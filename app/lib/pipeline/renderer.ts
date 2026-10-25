@@ -2,15 +2,21 @@ import * as twgl from 'twgl.js'
 import { isIdentityParams } from '../adjust/params'
 import type { Affine } from '../geometry/crop'
 import type { AdjustParams } from '../types'
+import { CHROMA_POINTS, LOOK_POINTS, type RawLook } from '../image/raw-look'
+import { NOISE_BIN_CENTERS, NOISE_LEVELS, type NoiseThresholds } from '../image/raw-noise'
 import {
   ADJUST_FRAG,
+  ATROUS_FRAG,
   BLUR_FRAG,
   DECODE_FRAG,
+  DETAIL_FRAG,
   DOWNSAMPLE_FRAG,
   ENCODE_FRAG,
+  FROM_LAB_FRAG,
   FULLSCREEN_VERT,
   LUMA_FRAG,
-  MAX_BLUR_RADIUS
+  MAX_BLUR_RADIUS,
+  TO_LAB_FRAG
 } from './shaders'
 
 export interface MaskTexture {
@@ -34,6 +40,8 @@ export const CLARITY_SIGMA_RATIO = 0.012
 /** 锐化模糊半径（相对整图长边），下限 0.5 像素 */
 export const SHARPEN_SIGMA_RATIO = 0.00035
 
+const UNIT_CHROMA = new Float32Array(CHROMA_POINTS).fill(1)
+
 /** 分块渲染时为保证模糊结果一致所需的边距（像素） */
 export function blurPadding(imageLongSide: number): number {
   return Math.ceil(3 * (CLARITY_SIGMA_RATIO * imageLongSide + Math.max(0.5, SHARPEN_SIGMA_RATIO * imageLongSide))) + 4
@@ -51,7 +59,14 @@ export class PhotoRenderer {
   private readonly tgl: WebGLRenderingContext
   private readonly canvas: HTMLCanvasElement | OffscreenCanvas
   private readonly quad: twgl.BufferInfo
-  private readonly programs: Record<'decode' | 'luma' | 'downsample' | 'blur' | 'adjust' | 'encode', twgl.ProgramInfo>
+  private readonly programs: Record<'decode' | 'luma' | 'downsample' | 'blur' | 'adjust' | 'encode' | 'toLab' | 'atrous' | 'detail' | 'fromLab', twgl.ProgramInfo>
+  /** RAW 风格的增益表（R32F，LOOK_POINTS × 1）；null 表示不施加 */
+  private lookTexture: WebGLTexture | null = null
+  /** 色度曲线；全为 1 时为 null，着色器跳过 OKLab 往返 */
+  private lookChroma: Float32Array | null = null
+  private noise: NoiseThresholds | null = null
+  /** 降噪结果对应当前底图与阈值；底图或阈值变化时置为 false */
+  private denoiseValid = false
   private readonly floatAttachment: twgl.AttachmentOptions
   private readonly fbos = new Map<string, Fbo>()
   private readonly maskTextures = new Map<string, WebGLTexture>()
@@ -102,7 +117,11 @@ export class PhotoRenderer {
       downsample: create(DOWNSAMPLE_FRAG),
       blur: create(BLUR_FRAG),
       adjust: create(ADJUST_FRAG),
-      encode: create(ENCODE_FRAG)
+      encode: create(ENCODE_FRAG),
+      toLab: create(TO_LAB_FRAG),
+      atrous: create(ATROUS_FRAG),
+      detail: create(DETAIL_FRAG),
+      fromLab: create(FROM_LAB_FRAG)
     }
     this.quad = twgl.createBufferInfoFromArrays(this.tgl, {
       position: { numComponents: 2, data: [-1, -1, 3, -1, -1, 3] }
@@ -148,6 +167,7 @@ export class PhotoRenderer {
     const base = this.fbo('base', width, height)
     this.draw(this.programs.decode, base, { uSource: this.sourceTexture, uLinear: 0 })
     this.result = base
+    this.denoiseValid = false
   }
 
   /** RAW 数据以 Float32 上传，RGBA32F 中间缓冲保留 16 位源的低位及超出 1 的调整结果。 */
@@ -167,6 +187,40 @@ export class PhotoRenderer {
     const base = this.fbo('base', width, height)
     this.draw(this.programs.decode, base, { uSource: this.sourceTexture, uLinear: 1 })
     this.result = base
+    this.denoiseValid = false
+  }
+
+  /** RAW 风格：在所有调整之后的出口施加；只有浮点 HDR 渲染器（RAW 工程）支持 */
+  setLook(look: RawLook | null): void {
+    const gl = this.gl
+    if (this.lookTexture) gl.deleteTexture(this.lookTexture)
+    this.lookTexture = null
+    this.lookChroma = null
+    if (!look || !this.hdr) return
+    if (look.gains.length !== LOOK_POINTS || look.chroma.length !== CHROMA_POINTS) throw new Error('RAW 风格数据无效。')
+    this.lookTexture = twgl.createTexture(this.tgl, {
+      src: Float32Array.from(look.gains), width: LOOK_POINTS, height: 1, internalFormat: gl.R32F, format: gl.RED, type: gl.FLOAT,
+      min: gl.NEAREST, mag: gl.NEAREST, wrap: gl.CLAMP_TO_EDGE, auto: false
+    })
+    this.lookChroma = look.chroma.every(v => v === 1) ? null : Float32Array.from(look.chroma)
+  }
+
+  /** RAW 降噪阈值（按当前渲染比例算好）；null 关闭。在所有调整图层之前对底图施加，结果缓存到底图或阈值变化 */
+  setNoiseReduction(thresholds: NoiseThresholds | null): void {
+    if (!this.highPrecision) thresholds = null
+    const same = thresholds && this.noise
+      && thresholds.luma.every((v, i) => v === this.noise!.luma[i]) && thresholds.chroma.every((v, i) => v === this.noise!.chroma[i])
+    if (same || (!thresholds && !this.noise)) return
+    this.noise = thresholds
+    this.denoiseValid = false
+    if (!thresholds) {
+      for (const [name, fbo] of this.fbos) {
+        if (name.startsWith('nr-')) {
+          deleteFbo(this.gl, fbo)
+          this.fbos.delete(name)
+        }
+      }
+    }
   }
 
   /**
@@ -178,7 +232,7 @@ export class PhotoRenderer {
       throw new Error('尚未设置底图')
     }
     const usedMasks = new Set<string>()
-    let input = this.fbo('base', this.width, this.height)
+    let input = this.denoisedBase()
     let flip = false
     for (const layer of layers) {
       if (isIdentityParams(layer.params) || layer.mask?.empty) {
@@ -333,9 +387,45 @@ export class PhotoRenderer {
       this.sourceTexture = null
     }
     gl.deleteTexture(this.dummyTexture)
+    if (this.lookTexture) gl.deleteTexture(this.lookTexture)
+    this.lookTexture = null
     for (const program of Object.values(this.programs)) {
       gl.deleteProgram(program.program)
     }
+  }
+
+  /**
+   * à-trous 小波降噪（OKLab）：逐层平滑，细节软阈值后累加，最后加回最粗一层。
+   * 共 NOISE_LEVELS 层，每层三遍（横向、纵向平滑与阈值累加）；平滑缓冲与累加缓冲各两块轮换，
+   * 横向平滑的中间结果所用的 nr-tmp 最后存放降噪结果，直到底图或阈值变化才重算。
+   */
+  private denoisedBase(): Fbo {
+    const base = this.fbo('base', this.width, this.height)
+    if (!this.noise) return base
+    const out = this.fbo('nr-tmp', this.width, this.height)
+    if (this.denoiseValid) return out
+    const bins = NOISE_BIN_CENTERS.length
+    let fine = this.fbo('nr-lab-a', this.width, this.height)
+    let coarse = this.fbo('nr-lab-b', this.width, this.height)
+    let acc = this.fbo('nr-acc-a', this.width, this.height)
+    let accNext = this.fbo('nr-acc-b', this.width, this.height)
+    this.draw(this.programs.toLab, fine, { uSource: base.attachments[0] })
+    for (let level = 0; level < NOISE_LEVELS; level++) {
+      const step = 2 ** level
+      this.draw(this.programs.atrous, out, { uSource: fine.attachments[0], uStep: [step, 0] })
+      this.draw(this.programs.atrous, coarse, { uSource: out.attachments[0], uStep: [0, step] })
+      this.draw(this.programs.detail, accNext, {
+        uFine: fine.attachments[0], uCoarse: coarse.attachments[0], uAcc: acc.attachments[0], uFirst: level === 0 ? 1 : 0,
+        uBins: NOISE_BIN_CENTERS,
+        uLuma: this.noise.luma.subarray(level * bins, (level + 1) * bins),
+        uChroma: this.noise.chroma.subarray(level * bins, (level + 1) * bins)
+      });
+      [fine, coarse] = [coarse, fine];
+      [acc, accNext] = [accNext, acc]
+    }
+    this.draw(this.programs.fromLab, out, { uCoarse: fine.attachments[0], uAcc: acc.attachments[0] })
+    this.denoiseValid = true
+    return out
   }
 
   private requireResult(): Fbo {
@@ -355,7 +445,15 @@ export class PhotoRenderer {
     }
     gl.useProgram(program.program)
     twgl.setBuffersAndAttributes(this.tgl, program, this.quad)
-    twgl.setUniforms(program, { uHdr: this.hdr ? 1 : 0, uOutputLinear: 0, ...uniforms })
+    twgl.setUniforms(program, {
+      uHdr: this.hdr ? 1 : 0,
+      uOutputLinear: 0,
+      uLook: this.lookTexture ? 1 : 0,
+      uLookLut: this.lookTexture ?? this.dummyTexture,
+      uLookChromaOn: this.lookChroma ? 1 : 0,
+      uLookChroma: this.lookChroma ?? UNIT_CHROMA,
+      ...uniforms
+    })
     twgl.drawBufferInfo(this.tgl, this.quad, gl.TRIANGLES, 3)
   }
 

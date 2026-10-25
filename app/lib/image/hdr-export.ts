@@ -1,4 +1,5 @@
 import { canvasToBlob, createCanvas, get2d } from './canvas'
+import { insertExif } from './exif'
 import { linearToSrgb } from './high-depth'
 import { mapRgb, nitsToPq, srgbToRec2020, type HdrSettings } from './hdr'
 
@@ -13,8 +14,11 @@ export async function* pqBands(bands: AsyncIterable<Float32Array>, settings: Hdr
   }
 }
 
-/** JPEG/R 双层：兼容 SDR 的基础 JPEG + RGB 对数增益图，交给 libultrahdr 写 XMP / MPF。 */
-export async function encodeUltraHdr(width: number, height: number, bands: AsyncIterable<Float32Array>, settings: HdrSettings, quality: number): Promise<Blob> {
+/**
+ * JPEG/R 双层：兼容 SDR 的基础 JPEG + RGB 对数增益图，交给 libultrahdr 写 XMP / MPF。
+ * exif（piexif 格式）先插进基础 JPEG，组装时会被挪到首段并据此计算 MPF 偏移。
+ */
+export async function encodeUltraHdr(width: number, height: number, bands: AsyncIterable<Float32Array>, settings: HdrSettings, quality: number, exif?: string): Promise<Blob> {
   const ceiling = settings.peakNits / settings.referenceWhite
   // Conservative fixed bounds cover all tone-mapped RGB ratios, including gamut compression.
   const min = -8
@@ -45,13 +49,16 @@ export async function encodeUltraHdr(width: number, height: number, bands: Async
     y += rows
   }
   if (y !== height) throw new Error('Ultra HDR 像素数量不匹配。')
-  const compress = async (canvas: typeof sdr) => ({
-    data: new Uint8Array(await (await canvasToBlob(canvas, 'image/jpeg', quality)).arrayBuffer()),
-    mimeType: 'image/jpeg' as const, width, height
-  })
+  const compress = async (canvas: typeof sdr, metadata?: string) => {
+    const blob = await canvasToBlob(canvas, 'image/jpeg', quality)
+    return {
+      data: new Uint8Array(await (metadata ? await insertExif(blob, metadata) : blob).arrayBuffer()),
+      mimeType: 'image/jpeg' as const, width, height
+    }
+  }
   const { encodeJPEGMetadata } = await import('@monogrid/gainmap-js/libultrahdr')
   const jpeg = encodeJPEGMetadata({
-    sdr: await compress(sdr), gainMap: await compress(gain),
+    sdr: await compress(sdr, exif), gainMap: await compress(gain),
     gamma: [1, 1, 1], gainMapMin: [min, min, min], gainMapMax: [max, max, max],
     hdrCapacityMin: 0, hdrCapacityMax: Math.max(0.01, Math.log2(ceiling)),
     offsetSdr: [1 / 64, 1 / 64, 1 / 64], offsetHdr: [1 / 64, 1 / 64, 1 / 64]

@@ -4,7 +4,10 @@ import { type DialogFilter, isDesktop, pickSavePath, writeBlob } from '~/lib/des
 import type { ExportFormat, ExportResult } from '~/lib/image/export'
 import { defaultExportOptions, type ExportOptions, FORMAT_EXTENSIONS } from '~/lib/image/export-options'
 import { isRawFile } from '~/lib/image/import-formats'
-import { getBlob } from '~/lib/storage/db'
+import { normalizeRawDevelop, resolveLook } from '~/lib/image/raw-develop'
+import { type RawExif, rawExifFromMetadata } from '~/lib/image/raw-exif'
+import { readRawMetadata } from '~/lib/image/raw-meta'
+import { getBlob, getProject } from '~/lib/storage/db'
 import { useEditorStore } from '~/stores/editor'
 import { useImageWorker } from './useImageWorker'
 import { useProjectAssets } from './useProjectAssets'
@@ -21,6 +24,18 @@ export interface SaveOutcome extends ExportResult {
   overwrote: boolean
   /** 工程记着的位置写不进去、改存到了 savedPath 时，这里是原来的位置 */
   failedPath?: string
+}
+
+/** RAW 工程的拍摄信息：每次导出从保存的原件现读（旧工程同样适用）；读不出时不写 EXIF，不影响导出 */
+async function readProjectRawExif(id: string): Promise<RawExif | null> {
+  const source = (await getProject(id))?.rawSource
+  if (!source) return null
+  try {
+    return rawExifFromMetadata((await readRawMetadata(await getBlob(source.blobId))).metadata)
+  } catch (error) {
+    console.warn('RAW EXIF unavailable', error)
+    return null
+  }
 }
 
 /** 完成提示里的一行摘要：输出尺寸与文件大小 */
@@ -73,6 +88,10 @@ export function useExport() {
           : []).map(async r => ({ blob: await getBlob(r.blobId), x: r.x, y: r.y, w: r.w, h: r.h })))
       const layers = doc.layers.flatMap(layer =>
         layer.kind === 'adjust' && layer.enabled ? [{ params: layer.params, mask: layer.mask }] : [])
+      const hdrMaster = useProjectAssets().isHdr.value
+      const develop = normalizeRawDevelop(doc.raw)
+      const profile = editor.project.rawProfile
+      const rawExif = opts.keepExif && editor.project.raw ? await readProjectRawExif(editor.project.id) : null
 
       return await useImageWorker().renderExport({
         original,
@@ -83,7 +102,10 @@ export function useExport() {
         hdr: doc.hdr,
         format: opts.format,
         quality: opts.quality,
-        keepExif: opts.keepExif
+        keepExif: opts.keepExif,
+        look: hdrMaster ? resolveLook(develop, profile) : null,
+        noise: hdrMaster && profile ? { profile: profile.noise, ...develop.noise } : null,
+        rawExif
       }, Comlink.proxy((done: number, total: number) => {
         progress.value = done / total
       }))
@@ -128,7 +150,7 @@ export function useExport() {
     }
     const failure: { path?: string, error?: unknown } = {}
     if (meta.filePath && !isRawFile(meta.filePath)) {
-      const result = await render(defaultExportOptions(meta.originalType, meta.filePath))
+      const result = await render(defaultExportOptions(meta.originalType, meta.filePath, meta.raw))
       try {
         await writeBlob(meta.filePath, result.blob)
         return { ...result, savedPath: meta.filePath, overwrote: true }
@@ -146,7 +168,7 @@ export function useExport() {
       return null
     }
     assertExportPath(savedPath)
-    const result = await render(defaultExportOptions(meta.originalType, savedPath))
+    const result = await render(defaultExportOptions(meta.originalType, savedPath, meta.raw))
     await writeBlob(savedPath, result.blob)
     await editor.setFilePath(savedPath)
     return { ...result, savedPath, overwrote: false, ...(failure.path ? { failedPath: failure.path } : {}) }

@@ -1,12 +1,22 @@
 <script setup lang="ts">
 import type { ContextMenuItem } from '@nuxt/ui'
 import { pinLeaving } from '~/lib/motion'
+import { normalizeRawDevelop } from '~/lib/image/raw-develop'
 import type { Layer } from '~/lib/types'
-import { useEditorStore } from '~/stores/editor'
+import { RAW_BASE_ID, useEditorStore } from '~/stores/editor'
 import { useInpaintStore } from '~/stores/inpaint'
 
 const editor = useEditorStore()
 const inpaint = useInpaintStore()
+const { isHdr } = useProjectAssets()
+
+/** 浮点主数据的 RAW 工程才有「RAW 基础」（旧版 16 位工程的出口没有风格与降噪） */
+const hasRawBase = computed(() => !!editor.project?.raw && isHdr.value)
+const rawSummary = computed(() => {
+  const develop = normalizeRawDevelop(editor.doc.raw)
+  const style = { camera: '相机直出', standard: '标准', none: '不加处理' }[develop.look]
+  return develop.noise.luminance || develop.noise.color ? `${style} · 降噪` : style
+})
 
 /** 列表从上到下显示“最后施加 → 最先施加”，与图层叠放顺序一致 */
 const displayLayers = computed(() => [...editor.layers].reverse())
@@ -225,6 +235,33 @@ function statusOf(layer: Layer): { label: string, color: 'neutral' | 'success' |
         </UContextMenu>
       </li>
     </TransitionGroup>
+
+    <!-- RAW 工程的基础处理固定在最底层：最先施加，不能删除或移动 -->
+    <div
+      v-if="hasRawBase"
+      tabindex="0"
+      role="button"
+      :aria-current="editor.selectedLayerId === RAW_BASE_ID ? 'true' : undefined"
+      class="flex items-center gap-2 rounded-lg px-2 py-1.5 outline-primary/60 transition-colors duration-200 ease-out focus-visible:outline-2"
+      :class="editor.selectedLayerId === RAW_BASE_ID ? 'bg-(--mac-selected)' : 'hover:bg-elevated'"
+      @click="editor.selectedLayerId = RAW_BASE_ID"
+      @keydown.enter.self.prevent="editor.selectedLayerId = RAW_BASE_ID"
+      @keydown.space.self.prevent="editor.selectedLayerId = RAW_BASE_ID"
+    >
+      <UIcon
+        name="i-lucide-aperture"
+        class="size-4 shrink-0"
+        :class="editor.selectedLayerId === RAW_BASE_ID ? 'text-primary' : 'text-muted'"
+      />
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm text-highlighted">
+          RAW 基础
+        </p>
+        <p class="truncate text-[11px] text-muted">
+          {{ rawSummary }}
+        </p>
+      </div>
+    </div>
     <p
       v-if="displayLayers.length"
       class="text-xs text-muted"

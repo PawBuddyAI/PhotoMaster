@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { canvasToBlob, decodeImage, scaleToFit } from '../image/canvas'
 import { isRawFile, SUPPORTED_IMAGE_TYPES } from '../image/import-formats'
+import { defaultRawDevelop, type RawProfile } from '../image/raw-develop'
 import { RAW_DECODER, RAW_SETTINGS } from '../image/raw-settings'
 import { newId } from '../id'
 import { cloneDoc, emptyDoc, referencedBlobIds } from '../project/doc'
@@ -67,7 +68,7 @@ export async function createProject(file: File, albumId?: string, filePath?: str
   signal?.throwIfAborted()
   const bitmap = await decodeImage(original)
   try {
-    const thumbnail = await canvasToBlob(scaleToFit(bitmap, bitmap.width, bitmap.height, 480), 'image/jpeg', 0.85)
+    const thumbnail = decoded?.thumbnail ?? await canvasToBlob(scaleToFit(bitmap, bitmap.width, bitmap.height, 480), 'image/jpeg', 0.85)
     const id = newId()
     const originalBlobId = newId()
     const linearBlobId = decoded ? newId() : undefined
@@ -76,6 +77,7 @@ export async function createProject(file: File, albumId?: string, filePath?: str
           blobId: newId(), name: file.name, type: file.type,
           decoder: RAW_DECODER, settings: structuredClone(RAW_SETTINGS),
           cameraMake: decoded.cameraMake, cameraModel: decoded.cameraModel,
+          profile: decoded.profile, corrections: decoded.corrections,
           ...(filePath ? { filePath } : {})
         }
       : undefined
@@ -112,7 +114,8 @@ export async function createProject(file: File, albumId?: string, filePath?: str
         // RAW 只记录来源，不作为「保存」的覆盖目标。
         ...(filePath && !raw ? { filePath } : {})
       })
-      await db().docs.add({ id, doc: emptyDoc(), updatedAt: now })
+      // 新导入的 RAW 带默认风格与降噪；旧工程没有 raw 这一项，外观保持原样
+      await db().docs.add({ id, doc: decoded ? { ...emptyDoc(), raw: defaultRawDevelop(decoded.profile) } : emptyDoc(), updatedAt: now })
     }).catch((error: unknown) => {
       signal?.throwIfAborted()
       throw error
@@ -179,6 +182,15 @@ export async function renameProject(id: string, name: string): Promise<void> {
   await db().transaction('rw', db().projects, db().docs, async () => {
     await db().projects.update(id, { name })
     await db().docs.update(id, { updatedAt: Date.now() })
+  })
+}
+
+/** 旧 RAW 工程补算的分析结果写回 rawSource；不改修改时间 */
+export async function setProjectRawProfile(id: string, profile: RawProfile): Promise<void> {
+  await db().transaction('rw', db().projects, async () => {
+    const record = await db().projects.get(id)
+    if (!record?.rawSource) throw new Error('工程未保留 RAW 原件，请重新导入原始 RAW。')
+    await db().projects.update(id, { rawSource: { ...record.rawSource, profile } })
   })
 }
 

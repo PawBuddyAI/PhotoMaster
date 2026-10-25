@@ -2,6 +2,9 @@ import { onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { type AnyCanvas, get2d } from '~/lib/image/canvas'
 import { composeBase } from '~/lib/image/compose'
 import { composeLinear } from '~/lib/image/high-depth'
+import { normalizeRawDevelop, resolveLook } from '~/lib/image/raw-develop'
+import { type RawLook, renderSdr } from '~/lib/image/raw-look'
+import { noiseThresholds } from '~/lib/image/raw-noise'
 import { rasterizeMask, rasterizeMaskFloat } from '~/lib/mask/rasterize'
 import { isFullMask, maskKey } from '~/lib/mask/spec'
 import { buildRenderLayers } from '~/lib/pipeline/layers'
@@ -91,7 +94,7 @@ export function useEditorRenderer() {
 
   function init(): void {
     const meta = editor.project
-    const original = assets.requireOriginal()
+    assets.requireOriginal()
     if (!meta) {
       throw new Error('工程尚未打开')
     }
@@ -105,9 +108,10 @@ export function useEditorRenderer() {
     maskW = Math.max(1, Math.round(previewW * maskScale))
     maskH = Math.max(1, Math.round(previewH * maskScale))
 
-    originalPreview.value = composeBase(original, [], fullRegion, previewW, previewH)
+    updateOriginalPreview()
     const canvas = document.createElement('canvas')
     renderer = new PhotoRenderer(canvas, !!assets.linearPreview.value, assets.isHdr.value)
+    applyRawDevelop()
     displayCanvas.value = canvas
     const overlay = document.createElement('canvas')
     overlay.width = maskW
@@ -118,6 +122,36 @@ export function useEditorRenderer() {
     void updateHdr()
     schedule()
     updateOverlay()
+  }
+
+  /** 当前工程的 RAW 风格；非 RAW、旧版 16 位底图或「不加处理」时为 null */
+  function currentLook(): RawLook | null {
+    return assets.isHdr.value ? resolveLook(normalizeRawDevelop(editor.doc.raw), editor.project?.rawProfile) : null
+  }
+
+  /** 风格与降噪交给渲染器；降噪阈值按预览缩小的比例换算，预览近似导出效果 */
+  function applyRawDevelop(): void {
+    if (!renderer) return
+    const develop = normalizeRawDevelop(editor.doc.raw)
+    const profile = editor.project?.rawProfile
+    renderer.setLook(currentLook())
+    renderer.setNoiseReduction(assets.isHdr.value && profile
+      ? noiseThresholds(profile.noise, develop.noise.luminance, develop.noise.color, Math.max(previewW, previewH) / Math.max(imageW, imageH))
+      : null)
+  }
+
+  /** 「按住对比原图」：RAW 工程显示只带风格、不带任何图层的效果（与 GPU 出口同一套计算），其余显示原图 */
+  function updateOriginalPreview(): void {
+    const linear = assets.linearPreview.value
+    if (!linear || !assets.isHdr.value) {
+      originalPreview.value = composeBase(assets.requireOriginal(), [], fullRegion, previewW, previewH)
+      return
+    }
+    const canvas = document.createElement('canvas')
+    canvas.width = linear.width
+    canvas.height = linear.height
+    get2d(canvas).putImageData(new ImageData(renderSdr(linear, currentLook()), linear.width, linear.height), 0, 0)
+    originalPreview.value = canvas
   }
 
   function rasterCached(spec: MaskSpec): Uint8Array | Float32Array {
@@ -146,6 +180,7 @@ export function useEditorRenderer() {
       // GPU 上下文丢失（驱动重置、显存回收）时换一块新画布重建渲染器
       const canvas = document.createElement('canvas')
       renderer = new PhotoRenderer(canvas, !!assets.linearPreview.value, assets.isHdr.value)
+      applyRawDevelop()
       displayCanvas.value = canvas
       baseKey = null
     }
@@ -254,6 +289,12 @@ export function useEditorRenderer() {
   }
 
   watch(() => editor.layers, schedule, { deep: true })
+  watch(() => [editor.doc.raw, editor.project?.rawProfile], () => {
+    if (!ready.value) return
+    applyRawDevelop()
+    updateOriginalPreview()
+    schedule()
+  }, { deep: true })
   watch(() => editor.doc.hdr?.preview, updateHdr)
   dynamicRange.addEventListener('change', updateHdr)
   watch(

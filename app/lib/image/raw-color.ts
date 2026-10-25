@@ -1,5 +1,5 @@
 import type { ColorData } from 'libraw-wasm'
-import { srgbToRec2020, type Rgb } from './hdr'
+import { srgbToRec2020, srgbToRec2020Into, type Rgb } from './hdr'
 import { RawImportError } from './raw-errors'
 
 /**
@@ -20,15 +20,19 @@ function clipWeight(level: number): number {
  * 饱和的通道只知道「至少这么亮」：白平衡后 R / B 乘上增益会高于被截住的 G，过曝处偏粉紫。
  * 这里按中性假设把饱和通道补到同一像素最亮的通道——全饱和像素成为中性白且不低于最亮通道，
  * 只有主导通道饱和的彩色高光保持原色，未饱和的超白分量照常保留。
+ * gains 是 DNG 暗角 / 色彩阴影校正的逐通道增益：饱和判断仍按增益前的原始值（饱和是传感器的属性）。
+ * 传入 out 时结果写进 out 并返回它（逐像素大循环复用同一个数组，不产生临时对象）。
  */
-export function rawColorTransform(color: ColorData, channels: number): (samples: ArrayLike<number>, offset: number) => Rgb {
+export function rawColorTransform(color: ColorData, channels: number): (samples: ArrayLike<number>, offset: number, gains?: ArrayLike<number>, out?: Float64Array) => Rgb {
   if (!color || !Number.isFinite(color.maximum) || color.maximum <= 0) {
     throw new RawImportError('这张 RAW 缺少白电平信息，无法还原亮度。')
   }
   const white = color.maximum
-  if (channels === 1) return (samples, offset) => {
-    const v = samples[offset]! / white
-    return [v, v, v]
+  if (channels === 1) return (samples, offset, gains, out) => {
+    const v = samples[offset]! / white * (gains ? gains[0]! : 1)
+    if (!out) return [v, v, v]
+    out.fill(v)
+    return out as unknown as Rgb
   }
   if (channels !== 3) throw new RawImportError('这台相机使用四色传感器，暂不支持。')
   const matrix = color.rgb_cam
@@ -44,21 +48,22 @@ export function rawColorTransform(color: ColorData, channels: number): (samples:
   const [m00, m01, m02] = matrix[0]!
   const [m10, m11, m12] = matrix[1]!
   const [m20, m21, m22] = matrix[2]!
-  return (samples, offset) => {
+  return (samples, offset, gains, out) => {
     const sr = samples[offset]!
     const sg = samples[offset + 1]!
     const sb = samples[offset + 2]!
-    let r = sr * g0!
-    let g = sg * g1!
-    let b = sb * g2!
+    let r = sr * g0! * (gains ? gains[0]! : 1)
+    let g = sg * g1! * (gains ? gains[1]! : 1)
+    let b = sb * g2! * (gains ? gains[2]! : 1)
     const peak = Math.max(r, g, b)
     r += clipWeight(sr / white) * (peak - r)
     g += clipWeight(sg / white) * (peak - g)
     b += clipWeight(sb / white) * (peak - b)
-    return srgbToRec2020(
-      m00! * r + m01! * g + m02! * b,
-      m10! * r + m11! * g + m12! * b,
-      m20! * r + m21! * g + m22! * b
-    )
+    const lr = m00! * r + m01! * g + m02! * b
+    const lg = m10! * r + m11! * g + m12! * b
+    const lb = m20! * r + m21! * g + m22! * b
+    if (!out) return srgbToRec2020(lr, lg, lb)
+    srgbToRec2020Into(lr, lg, lb, out)
+    return out as unknown as Rgb
   }
 }

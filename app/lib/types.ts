@@ -153,6 +153,8 @@ export interface AnalysisResult {
 /** 可序列化的工程文档，撤销/重做以它为快照单位（不含任何 Blob） */
 export interface ProjectDoc {
   hdr?: import('./image/hdr').HdrSettings
+  /** RAW 基础风格与降噪；旧工程没有这一项，按不加处理渲染 */
+  raw?: import('./image/raw-develop').RawDevelop
   layers: Layer[]
   crop: CropSpec | null
   analysis: AnalysisResult | null
@@ -183,6 +185,10 @@ export interface ProjectRecord {
     settings: import('libraw-wasm').LibRawSettings
     cameraMake?: string
     cameraModel?: string
+    /** 导入时的分析结果（相机风格、噪声）；旧工程首次打开「RAW 基础」时补算 */
+    profile?: import('./image/raw-develop').RawProfile
+    /** 解码阶段已施加的校正；旧工程没有这一项（未做任何校正） */
+    corrections?: string[]
   }
   thumbnail: Blob
   /** 所属相册；不在任何相册中时没有这一项 */

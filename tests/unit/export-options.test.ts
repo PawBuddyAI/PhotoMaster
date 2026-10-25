@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { baseName, DEFAULT_EXPORT_QUALITY, defaultExportOptions, formatFromPath } from '~/lib/image/export-options'
+import { baseName, canKeepExif, DEFAULT_EXPORT_QUALITY, defaultExportOptions, formatFromPath, RAW_EXIF_FORMATS } from '~/lib/image/export-options'
 
 describe('formatFromPath', () => {
   it('由扩展名判断格式，忽略大小写与目录里的点', () => {
@@ -46,5 +46,26 @@ describe('defaultExportOptions（桌面版「保存」写入文件的参数）',
   it('无法识别的原图格式回退为 JPEG，且不保留 EXIF', () => {
     expect(defaultExportOptions('')).toEqual({ format: 'image/jpeg', quality: DEFAULT_EXPORT_QUALITY, keepExif: false })
     expect(defaultExportOptions('image/gif')).toEqual({ format: 'image/jpeg', quality: DEFAULT_EXPORT_QUALITY, keepExif: false })
+  })
+
+  it('RAW 工程：拍摄信息从原件读取，存成 JPEG / PNG 时保留，WebP 不保留', () => {
+    expect(defaultExportOptions('image/png', 'D:\\照片\\海边.jpg', true)).toEqual({ format: 'image/jpeg', quality: DEFAULT_EXPORT_QUALITY, keepExif: true })
+    expect(defaultExportOptions('image/png', undefined, true)).toEqual({ format: 'image/png', quality: DEFAULT_EXPORT_QUALITY, keepExif: true })
+    expect(defaultExportOptions('image/png', 'D:\\照片\\海边.webp', true)).toMatchObject({ keepExif: false })
+  })
+})
+
+describe('canKeepExif', () => {
+  it('RAW 工程支持 JPEG、Ultra HDR、PNG、HDR PNG；不支持 WebP、EXR', () => {
+    expect(RAW_EXIF_FORMATS).toEqual(['image/jpeg', 'image/ultrahdr', 'image/png', 'image/png-hdr'])
+    for (const format of RAW_EXIF_FORMATS) expect(canKeepExif(format, 'image/png', true)).toBe(true)
+    expect(canKeepExif('image/webp', 'image/png', true)).toBe(false)
+    expect(canKeepExif('image/x-exr', 'image/png', true)).toBe(false)
+  })
+
+  it('普通照片：只有 JPEG 原图存成 JPEG 时可保留', () => {
+    expect(canKeepExif('image/jpeg', 'image/jpeg', false)).toBe(true)
+    expect(canKeepExif('image/png', 'image/jpeg', false)).toBe(false)
+    expect(canKeepExif('image/jpeg', 'image/png', false)).toBe(false)
   })
 })

@@ -16,7 +16,8 @@ import {
   type AdjustmentLayerInit,
   type GenerativeLayerInit
 } from '~/lib/project/doc'
-import { collectGarbage, getProject, renameProject, saveProjectDoc, setProjectFilePath } from '~/lib/storage/db'
+import { normalizeRawDevelop, type RawDevelop, type RawProfile } from '~/lib/image/raw-develop'
+import { collectGarbage, getProject, renameProject, saveProjectDoc, setProjectFilePath, setProjectRawProfile } from '~/lib/storage/db'
 import type {
   AnalysisResult,
   BrushStroke,
@@ -30,9 +31,17 @@ import type {
 
 export type EditorTool = 'move' | 'brush' | 'erase' | 'crop'
 
-export type ProjectMeta = Pick<ProjectRecord, 'id' | 'name' | 'width' | 'height' | 'originalBlobId' | 'originalType' | 'thumbnail' | 'filePath' | 'linearBlobId'>
+export type ProjectMeta = Pick<ProjectRecord, 'id' | 'name' | 'width' | 'height' | 'originalBlobId' | 'originalType' | 'thumbnail' | 'filePath' | 'linearBlobId'> & {
+  /** 保留了 RAW 原件（可从原件读取 EXIF、补算分析结果） */
+  raw: boolean
+  /** RAW 分析结果；旧工程在打开「RAW 基础」时补算 */
+  rawProfile?: RawProfile
+}
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'error'
+
+/** 图层列表底部固定的「RAW 基础」项；选中它时检查器显示风格与降噪 */
+export const RAW_BASE_ID = 'raw-base'
 
 const SAVE_DELAY = 600
 
@@ -83,7 +92,9 @@ export const useEditorStore = defineStore('editor', () => {
       linearBlobId: record.linearBlobId,
       originalType: record.originalType,
       thumbnail: record.thumbnail,
-      filePath: record.filePath
+      filePath: record.filePath,
+      raw: !!record.rawSource,
+      rawProfile: record.rawSource?.profile
     }
     doc.value = normalizeDoc(record.doc)
     history.clear()
@@ -131,7 +142,7 @@ export const useEditorStore = defineStore('editor', () => {
   function restore(state: ProjectDoc): void {
     doc.value = state
     historyTick.value++
-    if (selectedLayerId.value && !state.layers.some(l => l.id === selectedLayerId.value)) {
+    if (selectedLayerId.value && selectedLayerId.value !== RAW_BASE_ID && !state.layers.some(l => l.id === selectedLayerId.value)) {
       selectedLayerId.value = state.layers[0]?.id ?? null
     }
     scheduleSave()
@@ -301,6 +312,16 @@ export const useEditorStore = defineStore('editor', () => {
     project.value = { ...meta, name: trimmed }
   }
 
+  /** 旧工程补算出的 RAW 分析结果写回工程记录（与文档无关，不进撤销历史） */
+  async function setRawProfile(profile: RawProfile): Promise<void> {
+    const meta = project.value
+    if (!meta) {
+      return
+    }
+    await setProjectRawProfile(meta.id, profile)
+    if (project.value?.id === meta.id) project.value = { ...project.value, rawProfile: profile }
+  }
+
   /** 记下这张照片对应的磁盘文件，之后「保存」写回这里 */
   async function setFilePath(filePath: string): Promise<void> {
     const meta = project.value
@@ -390,6 +411,9 @@ export const useEditorStore = defineStore('editor', () => {
     setGenerativeResult,
     setCrop,
     setHdr: (hdr: import('../lib/image/hdr').HdrSettings) => commit((d) => { d.hdr = { ...hdr } }),
+    /** RAW 基础设置；拖动降噪滑块时传 coalesceKey 合并为一次历史 */
+    setRaw: (raw: RawDevelop, coalesceKey?: string) => commit((d) => { d.raw = normalizeRawDevelop(raw) }, coalesceKey),
+    setRawProfile,
     setAnalysis,
     adoptSuggestion,
     rename,
