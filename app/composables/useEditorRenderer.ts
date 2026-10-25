@@ -1,6 +1,8 @@
 import { onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { cropOutputSize, outputToSourceAffine } from '~/lib/geometry/crop'
 import { type AnyCanvas, get2d } from '~/lib/image/canvas'
 import { composeBase } from '~/lib/image/compose'
+import { type HighlightHeadroom, measureHeadroom } from '~/lib/image/hdr'
 import { composeLinear } from '~/lib/image/high-depth'
 import { normalizeRawDevelop, resolveLook } from '~/lib/image/raw-develop'
 import { type RawLook, renderSdr } from '~/lib/image/raw-look'
@@ -19,6 +21,8 @@ const MASK_LONG_SIDE = 1024
 const MASK_CACHE_LIMIT = 48
 const OVERLAY_COLOR = [239, 68, 68] as const
 const OVERLAY_ALPHA = 0.45
+/** 统计高光余量时读回的长边：面积占比与高分位亮度在这个分辨率下已经稳定，读回约 12 MB */
+const HEADROOM_LONG_SIDE = 1024
 
 export type EditorView = ReturnType<typeof useEditorRenderer>
 
@@ -220,6 +224,26 @@ export function useEditorRenderer() {
     frame.value++
   }
 
+  /** 当前效果在最终保留画面（裁剪框内）的高光余量，供读图提示词使用；非 HDR 工程为 null */
+  function highlightHeadroom(): HighlightHeadroom | null {
+    if (!renderer || !assets.isHdr.value) {
+      return null
+    }
+    const crop = editor.doc.crop
+    const out = cropOutputSize(crop, imageW, imageH)
+    const scale = Math.min(1, HEADROOM_LONG_SIDE / Math.max(out.w, out.h))
+    const w = Math.max(1, Math.round(out.w * scale))
+    const h = Math.max(1, Math.round(out.h * scale))
+    // 读回像素 → 裁剪输出像素 → 原图像素 → 预览像素
+    const [a, b, c, d, e, f] = outputToSourceAffine(crop, imageW, imageH)
+    const sx = out.w / w
+    const sy = out.h / h
+    const kx = previewW / imageW
+    const ky = previewH / imageH
+    const data = renderer.readLinearPixels(w, h, [a * sx * kx, b * sy * kx, c * kx, d * sx * ky, e * sy * ky, f * ky])
+    return measureHeadroom({ data, width: w, height: h })
+  }
+
   function schedule(): void {
     if (!ready.value || disposed) {
       return
@@ -333,6 +357,7 @@ export function useEditorRenderer() {
     ready,
     error,
     init,
+    highlightHeadroom,
     dispose
   }
 }

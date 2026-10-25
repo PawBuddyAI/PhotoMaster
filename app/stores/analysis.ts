@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
 import type { CompletionUsage } from 'openai/resources/completions'
 import type { AnyCanvas } from '~/lib/image/canvas'
+import type { HighlightHeadroom } from '~/lib/image/hdr'
 import { encodeVisionImage } from '~/lib/image/vision'
 import { analyzeImage, type AnalysisProgress, type AnalyzeOutcome, VISION_MAX_SIDE, waitingProgress } from '~/lib/llm/analyze'
 import { createOpenAIClient } from '~/lib/llm/client'
@@ -21,9 +22,10 @@ export const useAnalysisStore = defineStore('analysis', () => {
   /**
    * 分析当前效果（source 为预览渲染结果，包含已应用的调整与重绘），
    * 这样新的建议是在现有修改基础上的增量。预览结果不含裁剪，
-   * 当前裁剪通过压暗框外区域和提示词告诉模型。
+   * 当前裁剪通过压暗框外区域和提示词告诉模型。HDR 工程的预览压缩了高光，
+   * headroom 补充参考白以上的实测亮度；普通工程为 null。
    */
-  async function analyze(source: AnyCanvas, hint?: string): Promise<AnalyzeOutcome> {
+  async function analyze(source: AnyCanvas, headroom: HighlightHeadroom | null, hint?: string): Promise<AnalyzeOutcome> {
     if (running.value) {
       throw new Error('正在分析中，请稍候')
     }
@@ -47,6 +49,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
         imageW: meta.width,
         imageH: meta.height,
         crop,
+        headroom,
         mode: settings.vision.structuredOutput,
         detail: settings.vision.detail,
         reasoningEffort: settings.vision.reasoningEffort,

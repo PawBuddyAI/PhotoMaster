@@ -270,7 +270,7 @@ function onShortcutUp(e: KeyboardEvent) {
         </template>
         <template #suggest>
           <div class="pt-3">
-            <EditorSuggestionPanel :source="view.displayCanvas.value" />
+            <EditorSuggestionPanel :view="view" />
           </div>
         </template>
         <template #layers>

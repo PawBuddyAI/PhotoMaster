@@ -1,5 +1,9 @@
+import type { LinearImage } from './high-depth'
+
 /** HDR 主数据用线性 Rec.2020；调色器用扩展线性 sRGB（允许负值和 >1），两者均为 D65。 */
 export type Rgb = readonly [number, number, number]
+/** Rec.709 亮度权重，与着色器的 luminance 一致 */
+const LUMA: Rgb = [0.2126, 0.7152, 0.0722]
 export interface HdrSettings {
   preview: 'auto' | 'sdr'
   referenceWhite: number
@@ -41,14 +45,14 @@ export function mapLuminance(value: number, ceiling = 1): number {
   return value <= knee ? Math.max(0, value) : knee + (ceiling - knee) * (1 - Math.exp(-(value - knee) / (ceiling - knee)))
 }
 /** 按亮度压缩并向中性轴压缩超色域颜色；仅在显示 / 交付出口调用。 */
-export function mapRgb(rgb: Rgb, ceiling = 1, weights: Rgb = [0.2126, 0.7152, 0.0722]): Rgb {
+export function mapRgb(rgb: Rgb, ceiling = 1, weights: Rgb = LUMA): Rgb {
   const out = new Float64Array(3)
   mapRgbInto(rgb[0], rgb[1], rgb[2], out, ceiling, weights)
   return [out[0]!, out[1]!, out[2]!]
 }
 
 /** mapRgb 的不分配版本，结果写入 out；逐像素的大循环（RAW 解码）用它，避免每像素产生临时数组 */
-export function mapRgbInto(r: number, g: number, b: number, out: Float64Array, ceiling = 1, weights: Rgb = [0.2126, 0.7152, 0.0722]): void {
+export function mapRgbInto(r: number, g: number, b: number, out: Float64Array, ceiling = 1, weights: Rgb = LUMA): void {
   const lum = Math.max(0, weights[0] * r + weights[1] * g + weights[2] * b)
   const mapped = mapLuminance(lum, ceiling)
   const scale = mapped / Math.max(lum, 1e-8)
@@ -62,6 +66,39 @@ export function mapRgbInto(r: number, g: number, b: number, out: Float64Array, c
     if (v > ceiling) saturation = Math.min(saturation, (ceiling - mapped) / (v - mapped))
   }
   for (let c = 0; c < 3; c++) out[c] = Math.min(ceiling, Math.max(0, mapped + (out[c]! - mapped) * saturation))
+}
+
+/** HDR 画面的高光余量，亮度以参考白（线性 1，普通屏幕上的白色）为基准 */
+export interface HighlightHeadroom {
+  /** 亮度超过参考白的像素占比，0–1 */
+  aboveWhite: number
+  /** 超过参考白一档（线性 2）的像素占比，0–1 */
+  aboveOneStop: number
+  /** 最亮 0.1% 像素的门槛比参考白高多少档（EV）；门槛不超过参考白时为 0 */
+  peakEv: number
+}
+
+/** 最亮处取高分位而不是最大值：个别热像素、镜面反光点不代表画面的高光 */
+const PEAK_QUANTILE = 0.001
+
+/** 统计扩展线性 sRGB 画面（风格之后、肩部之前）的高光余量 */
+export function measureHeadroom(image: LinearImage): HighlightHeadroom {
+  const n = image.width * image.height
+  const bright = new Float32Array(n)
+  let count = 0
+  let aboveOneStop = 0
+  for (let p = 0; p < n; p++) {
+    const y = LUMA[0] * image.data[p * 4]! + LUMA[1] * image.data[p * 4 + 1]! + LUMA[2] * image.data[p * 4 + 2]!
+    if (y > 1) {
+      bright[count++] = y
+      if (y > 2) aboveOneStop++
+    }
+  }
+  // 超过参考白的像素通常只占少数，只对它们排序；第 rank 亮的像素落在参考白以下时没有余量
+  const rank = Math.floor(n * PEAK_QUANTILE)
+  const sorted = bright.subarray(0, count).sort()
+  const peak = rank < count ? sorted[count - 1 - rank]! : 1
+  return { aboveWhite: count / n, aboveOneStop: aboveOneStop / n, peakEv: Math.log2(peak) }
 }
 /** ST 2084: absolute luminance (nits) ↔ PQ code value. */
 export function nitsToPq(nits: number): number {

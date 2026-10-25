@@ -181,6 +181,20 @@ describe('analyzeImage', () => {
     }
   })
 
+  it('HDR 工程的高光余量写进每次请求的用户文字，降级路径同样携带', async () => {
+    const { calls, fetchImpl } = mockFetch((_, i) => i === 0
+      ? json({ error: { message: 'response_format json_schema is not supported' } }, 400)
+      : streamed(JSON.stringify(SAMPLE)))
+    await analyzeImage(client(fetchImpl), { ...BASE_OPTIONS, headroom: { aboveWhite: 0.2, aboveOneStop: 0.05, peakEv: 2.3 }, mode: 'json_schema' })
+    expect(calls).toHaveLength(2)
+    for (const call of calls) {
+      const messages = JSON.stringify(bodyOf(call).messages)
+      expect(messages).toContain('相机 RAW 照片')
+      expect(messages).toContain('约 20% 的画面比参考白更亮')
+      expect(messages).toContain('高约 2.3 档')
+    }
+  })
+
   it('流式输出：请求带上 stream 与用量选项，思考过程和方案草稿逐步回调，界面拿不到 JSON 本身', async () => {
     const reasoning = '先看曝光：天空过曝，主体偏暗。再看构图……'
     const { calls, fetchImpl } = mockFetch(() => streamed(JSON.stringify(SAMPLE), { reasoning }))
@@ -341,6 +355,33 @@ describe('buildAnalysisUserText', () => {
     expect(lines[1]).toContain('已压暗')
     expect(lines[1]).toContain('区域坐标仍按整张图片计算')
     expect(lines[2]).toBe('用户的额外要求：保留暖色调')
+  })
+
+  it('普通工程不提 RAW 与 HDR', () => {
+    const base = buildAnalysisUserText(undefined)
+    expect(buildAnalysisUserText(undefined, null, null)).toBe(base)
+    expect(base).not.toMatch(/RAW|HDR|参考白/)
+  })
+
+  it('HDR 工程说明预览压缩了高光，附上保留画面的实测余量；顺序为裁剪、HDR、用户要求', () => {
+    const crop = { rect: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 }, angle: 0 }
+    const lines = buildAnalysisUserText('保留晚霞', crop, { aboveWhite: 0.1234, aboveOneStop: 0.034, peakEv: 1.84 }).split('\n')
+    expect(lines).toHaveLength(6)
+    expect(lines[1]).toContain('这张照片已经裁剪')
+    expect(lines[2]).toContain('相机 RAW 照片')
+    expect(lines[2]).toContain('发白的区域不一定丢了细节')
+    expect(lines[3]).toBe('实测亮度（只统计最终保留的画面）：约 12% 的画面比参考白更亮，其中 3.4% 亮一档以上，最亮的部分比参考白高约 1.8 档。')
+    expect(lines[4]).toContain('不必都压到参考白以下')
+    expect(lines[5]).toBe('用户的额外要求：保留晚霞')
+  })
+
+  it('HDR 余量的边界写法：几乎没有亮一档的部分、只略高于参考白、不到 0.1%', () => {
+    const slight = buildAnalysisUserText(undefined, null, { aboveWhite: 0.0042, aboveOneStop: 0.0004, peakEv: 0.04 })
+    expect(slight).toContain('约 0.4% 的画面比参考白更亮，几乎没有亮一档以上的部分，最亮的部分只略高于参考白。')
+    const none = buildAnalysisUserText(undefined, null, { aboveWhite: 0.0005, aboveOneStop: 0.0005, peakEv: 0 })
+    expect(none).toContain('比参考白更亮的部分不到 0.1%')
+    expect(none).toContain('相机 RAW 照片')
+    expect(none).not.toContain('不必都压到参考白以下')
   })
 })
 

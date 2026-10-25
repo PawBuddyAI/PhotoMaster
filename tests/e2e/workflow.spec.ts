@@ -3,6 +3,7 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { expect, type Page, type Route, test } from '@playwright/test'
 import { CHAT_DONE, CHAT_USAGE_CHUNK, chatChunk, chatStreamBody, pieces } from '../fixtures/chat-stream'
+import { makeDng } from '../fixtures/dng'
 
 /**
  * 端到端流程：导入 → AI 读图分析 → 采纳建议（区域调色 + 重绘）→ 生成式重绘 → 挑选结果 → 全分辨率导出；
@@ -57,6 +58,20 @@ const CROP_ANALYSIS = {
   crop: { x0: 100, y0: 100, x1: 900, y1: 900, angle: 6, reason: '收紧构图并校正水平' }
 }
 
+/**
+ * HDR 工程：整体提亮两档、高光 -50 两条全图建议，构图只保留左侧 40%。
+ * makeDng 的默认画面从左往右变亮，左侧较暗
+ */
+const HDR_ANALYSIS = {
+  overall: '画面偏暗，右侧高光还有余量。',
+  adjustments: [
+    { title: '整体提亮', reason: '画面偏暗', region: null, params: { ...zeroParams, exposure: 2 } },
+    { title: '压暗高光', reason: '找回高光细节', region: null, params: { ...zeroParams, highlights: -50 } }
+  ],
+  generative_edits: [],
+  crop: { x0: 0, y0: 0, x1: 400, y1: 1000, angle: 0, reason: '只保留较暗的左侧' }
+}
+
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': '*',
@@ -92,6 +107,16 @@ type UserPart = { type: string, text?: string, image_url?: { url: string } }
 const userParts = (body: ChatBody) => (body.messages as Array<{ content: unknown }>)[1]!.content as UserPart[]
 const sentImageUrl = (body: ChatBody) => userParts(body).find(part => part.type === 'image_url')!.image_url!.url
 const sentUserText = (body: ChatBody) => userParts(body).find(part => part.type === 'text')!.text!
+
+/** 读图文字里的高光余量（百分比、档）；超过参考白的部分不到 0.1% 时都记为 0 */
+function sentHeadroom(text: string): { above: number, peak: number } {
+  if (text.includes('比参考白更亮的部分不到 0.1%')) {
+    return { above: 0, peak: 0 }
+  }
+  const above = /约 ([\d.]+)% 的画面比参考白更亮/.exec(text)
+  const peak = /最亮的部分比参考白高约 ([\d.]+) 档/.exec(text)
+  return { above: Number(above![1]), peak: peak ? Number(peak[1]) : 0 }
+}
 
 async function importPhoto(page: Page, photoB64: string) {
   await page.locator('input[type=file]').setInputFiles({ name: 'e2e.png', mimeType: 'image/png', buffer: Buffer.from(photoB64, 'base64') })
@@ -161,6 +186,8 @@ test('导入 → 分析 → 采纳 → 重绘 → 导出，蒙版外像素保持
   expect((chatBodies[0]!.response_format as { type: string }).type).toBe('json_schema')
   expect(chatBodies[0]!.reasoning_effort).toBe('high')
   expect(JSON.stringify(chatBodies[0]!.messages)).toContain('data:image/jpeg;base64,')
+  // 普通照片不提 RAW / HDR
+  expect(sentUserText(chatBodies[0]!)).not.toMatch(/RAW|HDR|参考白/)
   // 发送的图片统一缩放到 1300×1300 以内（测试图为 1600×1000）
   const sentSize = await page.evaluate(async (url) => {
     const bitmap = await createImageBitmap(await (await fetch(url)).blob())
@@ -307,6 +334,54 @@ test('采纳构图建议后重新分析：框外压暗，提示词带上当前�
     expect(r).toBeGreaterThan(0.35)
     expect(r).toBeLessThan(0.55)
   }
+})
+
+test('HDR 工程读图：说明是 RAW/HDR 并附上保留画面的高光余量，随裁剪与调整变化', async ({ page }) => {
+  await page.addInitScript((settings) => {
+    localStorage.setItem('apm-settings', JSON.stringify(settings))
+  }, SETTINGS)
+  await page.goto('/')
+  const chatBodies = await mockChat(page, HDR_ANALYSIS)
+  await page.locator('input[type=file]').setInputFiles({ name: 'HDR.dng', mimeType: '', buffer: makeDng() })
+  await page.waitForURL(/\/editor\//)
+  await expect(page.getByText('正在加载图像')).toBeHidden()
+
+  const adopt = page.getByRole('button', { name: '采纳', exact: true })
+  /** 发起第 n 次分析，等新结果显示（采纳状态清空，三条建议都能采纳），返回这次的用户文字 */
+  async function analyze(n: number): Promise<string> {
+    await page.getByRole('button', { name: n === 1 ? '分析照片' : '重新分析当前效果' }).click()
+    await expect.poll(() => chatBodies.length).toBe(n)
+    await expect(adopt).toHaveCount(3)
+    return sentUserText(chatBodies[n - 1]!)
+  }
+  async function adoptAt(index: number): Promise<void> {
+    await adopt.nth(index).click()
+    await expect(page.getByText('已采纳', { exact: true })).toHaveCount(1)
+  }
+
+  const fullText = await analyze(1)
+  expect(fullText).toContain('相机 RAW 照片')
+  expect(fullText).toContain('发白的区域不一定丢了细节')
+  const full = sentHeadroom(fullText)
+  expect(full.above).toBeGreaterThan(0)
+
+  // 只保留较暗的左侧：只统计裁剪框内，超过参考白的比例下降
+  await adoptAt(2)
+  const croppedText = await analyze(2)
+  expect(croppedText).toContain('这张照片已经裁剪')
+  const cropped = sentHeadroom(croppedText)
+  expect(cropped.above).toBeLessThan(full.above)
+
+  // 整体提亮两档：统计的是渲染后的当前效果
+  await adoptAt(0)
+  const brighter = sentHeadroom(await analyze(3))
+  expect(brighter.above).toBeGreaterThan(cropped.above)
+  expect(brighter.peak).toBeGreaterThan(0)
+
+  // 高光 -50：最亮处压暗约一档，数值以档为单位
+  await adoptAt(1)
+  const recovered = sentHeadroom(await analyze(4))
+  expect(brighter.peak - recovered.peak).toBeCloseTo(1, 0)
 })
 
 /** 测试里手动放行的关卡：本地服务写到某一步后停下，等断言完成再继续 */

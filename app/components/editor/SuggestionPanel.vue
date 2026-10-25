@@ -1,14 +1,14 @@
 <script setup lang="ts">
+import type { EditorView } from '~/composables/useEditorRenderer'
 import { ADJUST_PARAM_DEFS } from '~/lib/adjust/params'
-import type { AnyCanvas } from '~/lib/image/canvas'
 import type { AdjustParams, MaskSpec } from '~/lib/types'
 import { useAnalysisStore } from '~/stores/analysis'
 import { useEditorStore } from '~/stores/editor'
 import { useSettingsStore } from '~/stores/settings'
 
 const props = defineProps<{
-  /** 当前预览结果，作为读图输入 */
-  source: AnyCanvas | null
+  /** 编辑器预览：渲染结果作为读图输入，HDR 工程另外统计高光余量 */
+  view: EditorView
 }>()
 
 const editor = useEditorStore()
@@ -17,6 +17,7 @@ const settings = useSettingsStore()
 const notify = useNotify()
 const hint = ref('')
 
+const source = computed(() => props.view.displayCanvas.value)
 const result = computed(() => editor.doc.analysis)
 const adopted = computed(() => new Set(editor.doc.adopted))
 const pendingAdjustments = computed(() => result.value?.adjustments.filter(s => !adopted.value.has(s.id)) ?? [])
@@ -24,11 +25,11 @@ const pendingAdjustments = computed(() => result.value?.adjustments.filter(s => 
 const STRUCTURED_LABELS: Record<string, string> = { json_object: 'JSON 模式', none: '仅提示词约束' }
 
 async function run() {
-  if (!props.source) {
+  if (!source.value) {
     return
   }
   try {
-    await analysis.analyze(props.source, hint.value)
+    await analysis.analyze(source.value, props.view.highlightHeadroom(), hint.value)
     if (analysis.downgradedTo) {
       notify.info('已自动调整结构化输出方式', `当前服务不支持 JSON Schema，已改用「${STRUCTURED_LABELS[analysis.downgradedTo]}」`)
     }

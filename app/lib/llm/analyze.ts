@@ -7,6 +7,7 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 import type { CompletionUsage } from 'openai/resources/completions'
 import type { ReasoningEffort } from 'openai/resources/shared'
 import { z } from 'zod'
+import type { HighlightHeadroom } from '../image/hdr'
 import type { AnalysisResult, CropSpec } from '../types'
 import { AnalysisFormatError } from './errors'
 import { ANALYSIS_SYSTEM_PROMPT, buildAnalysisUserText, buildJsonInstruction } from './prompts'
@@ -39,6 +40,8 @@ export interface AnalyzeOptions {
   imageH: number
   /** 当前裁剪；有裁剪时图片中框外已压暗，提示词同时说明保留区域 */
   crop?: CropSpec | null
+  /** HDR 工程最终保留画面的高光余量；提供时提示词说明这是 RAW/HDR 照片并附上数据 */
+  headroom?: HighlightHeadroom | null
   mode: StructuredOutputMode
   detail: 'auto' | 'low' | 'high'
   reasoningEffort?: ReasoningEffortSetting
@@ -144,7 +147,7 @@ function buildMessages(opts: AnalyzeOptions, systemSuffix?: string): ChatComplet
     {
       role: 'user',
       content: [
-        { type: 'text', text: buildAnalysisUserText(opts.hint, opts.crop) },
+        { type: 'text', text: buildAnalysisUserText(opts.hint, opts.crop, opts.headroom) },
         { type: 'image_url', image_url: { url: opts.imageDataUrl, detail: opts.detail } }
       ]
     }
