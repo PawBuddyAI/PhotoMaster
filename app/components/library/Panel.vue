@@ -94,6 +94,11 @@ async function importPhoto(photo: File, filePath?: string) {
   }
 }
 
+/** 拖入不在支持列表里的文件（如适马 X3F）时，UFileUpload 会直接丢弃，这里告诉用户原因 */
+function rejectFiles(files: File[]) {
+  notify.warning('不支持这种文件', `「${files[0]?.name}」不是 JPEG、PNG、WebP 或支持的相机 RAW。`)
+}
+
 watch(file, async (selected) => {
   if (selected) {
     await importPhoto(selected)
@@ -191,6 +196,7 @@ async function confirmDelete() {
             label: 'text-highlighted',
             description: 'max-w-xl text-balance text-muted'
           }"
+          @reject="rejectFiles"
         />
 
         <UModal

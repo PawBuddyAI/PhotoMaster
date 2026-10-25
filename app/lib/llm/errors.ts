@@ -1,5 +1,6 @@
 import { APIConnectionError, APIConnectionTimeoutError, APIError, APIUserAbortError } from 'openai'
 import { isDesktop } from '~/lib/desktop'
+import { RawImportError } from '~/lib/image/raw-errors'
 
 export interface FriendlyError {
   title: string
@@ -98,6 +99,9 @@ export function describeError(err: unknown): FriendlyError {
   }
   if (err instanceof AnalysisFormatError) {
     return { title: '模型输出格式不正确', description: err.message }
+  }
+  if (err instanceof RawImportError) {
+    return { title: '无法导入这张 RAW', description: err.message }
   }
   if (err instanceof Error) {
     return { title: '操作失败', description: err.message }

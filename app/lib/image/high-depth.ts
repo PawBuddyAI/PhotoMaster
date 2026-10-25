@@ -1,6 +1,6 @@
 import type { RawImageData } from 'libraw-wasm'
 import type { PixelRect } from '../types'
-import { RAW_MAX_PIXELS } from './raw-settings'
+import { RAW_MAX_PIXELS, RAW_MAX_PIXELS_LABEL } from './raw-settings'
 import { createCanvas, get2d } from './canvas'
 import type { PatchSource } from './compose'
 import { rec2020ToSrgb } from './hdr'
@@ -23,7 +23,7 @@ export function srgbToLinear(value: number): number {
 
 function checkSize(width: number, height: number): void {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0 || width * height > RAW_MAX_PIXELS) {
-    throw new Error('高位深图像尺寸无效或超过 6000 万像素。')
+    throw new Error(`高位深图像尺寸无效或超过 ${RAW_MAX_PIXELS_LABEL}。`)
   }
 }
 

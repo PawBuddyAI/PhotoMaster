@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 import { makeDng } from '../fixtures/dng'
 import { readPng16 } from '../fixtures/png16'
@@ -68,10 +68,59 @@ test('RAW 真实解码、方向校正、原件保留、重开和全尺寸导出'
 test('损坏 RAW 显示可恢复错误，之后仍可导入', async ({ page }) => {
   await page.goto('/')
   await page.locator('input[type=file]').setInputFiles({ name: 'broken.CR3', mimeType: '', buffer: Buffer.from('not raw') })
-  await expect(page.getByText(/^无法解码这张 RAW：/)).toBeVisible()
+  await expect(page.getByText('无法导入这张 RAW', { exact: true })).toBeVisible()
+  await expect(page.locator('[data-slot="description"]').filter({ hasText: /^认不出这个文件：/ })).toBeVisible()
   await expect(page.getByRole('button', { name: '导入照片', exact: true })).toBeEnabled()
   await page.locator('input[type=file]').setInputFiles({ name: 'recovered.dng', mimeType: '', buffer: makeDng() })
   await page.waitForURL(/\/editor\//)
+})
+
+test('不支持的压缩方式和超出像素上限都说明具体原因', async ({ page }) => {
+  await page.goto('/')
+  const description = page.locator('[data-slot="description"]')
+  // 52546 是 DNG 1.7 的 JPEG XL 压缩（iPhone 的 JPEG-XL ProRAW），解码器能识别但解不开
+  await page.locator('input[type=file]').setInputFiles({ name: 'iphone.DNG', mimeType: '', buffer: makeDng(1, { compression: 52546 }) })
+  await expect(description.filter({ hasText: /^这张 DNG 用了暂不支持的压缩方式/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: '导入照片', exact: true })).toBeEnabled()
+  // 只要文件头：尺寸在解码像素前就会检查
+  const huge = makeDng(1, { width: 10_000, height: 6_401, pixel: () => 0 }).subarray(0, 4096)
+  await page.locator('input[type=file]').setInputFiles({ name: 'huge.dng', mimeType: '', buffer: huge })
+  await expect(description.filter({ hasText: /^这张 RAW 超过 6400 万像素，暂不支持。/ })).toBeVisible()
+})
+
+test('拖入解码器打不开的适马 X3F 时提示不支持', async ({ page }) => {
+  await page.goto('/')
+  const zone = page.getByRole('button', { name: /^拖入照片，或点击选择/ })
+  const dataTransfer = await page.evaluateHandle(() => {
+    const transfer = new DataTransfer()
+    transfer.items.add(new File(['FOVb'], 'sigma.X3F'))
+    return transfer
+  })
+  for (const type of ['dragenter', 'dragover', 'drop']) await zone.dispatchEvent(type, { dataTransfer })
+  await expect(page.getByText('不支持这种文件', { exact: true })).toBeVisible()
+  await expect(page.locator('[data-slot="description"]').filter({ hasText: '「sigma.X3F」不是 JPEG、PNG、WebP 或支持的相机 RAW。' })).toBeVisible()
+  await expect(page).not.toHaveURL(/\/editor\//)
+})
+
+test('6100 万像素 RAW（索尼 α7R V 一档）完整导入并打开', async ({ page }, testInfo) => {
+  test.setTimeout(300_000)
+  // LibRaw 对索尼 6100 万像素机型的输出可达 9600×6376。文件约 122 MB，写到磁盘按路径选择，
+  // 不经 Playwright 协议传输（经路由或参数传这么大的内容会让浏览器连接断开）
+  const width = 9600
+  const height = 6376
+  const path = testInfo.outputPath('a7r5.ARW')
+  await writeFile(path, makeDng(1, { width, height }))
+  await page.goto('/')
+  await page.locator('input[type=file]').setInputFiles(path)
+  await page.waitForURL(/\/editor\//, { timeout: 150_000 })
+  await expect(page.getByText('正在加载图像')).toBeHidden({ timeout: 60_000 })
+  const stored = await page.evaluate(async () => {
+    const { getProject, getBlob } = await import('/_nuxt/lib/storage/db.ts')
+    const { linearInfo } = await import('/_nuxt/lib/image/high-depth.ts')
+    const project = (await getProject(location.pathname.split('/').at(-1)!))!
+    return { width: project.width, height: project.height, linear: await linearInfo(await getBlob(project.linearBlobId!)) }
+  })
+  expect(stored).toMatchObject({ width, height, linear: { width, height, hdr: true } })
 })
 
 test('RAW 解码弹窗在桌面和窄屏显示，取消后可再次导入', async ({ page }, testInfo) => {

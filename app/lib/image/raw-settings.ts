@@ -19,7 +19,12 @@ export const RAW_SETTINGS = {
 } satisfies LibRawSettings
 
 export const RAW_MAX_BYTES = 200 * 1024 * 1024
-export const RAW_MAX_PIXELS = 60_000_000
+/**
+ * 覆盖 6100 万像素一档（索尼 α7R IV / V、徕卡 M11 等，LibRaw 输出可达 9600×6376）。
+ * 再放宽前须验证 LibRaw WASM 堆（上限 2 GB）与 Worker 内浮点底图的内存峰值。
+ */
+export const RAW_MAX_PIXELS = 64_000_000
+export const RAW_MAX_PIXELS_LABEL = '6400 万像素'
 
 export interface RawDecoded {
   /** 8 位显示 / AI 副本，不作为 RAW 调色的像素源。 */

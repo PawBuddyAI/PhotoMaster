@@ -1,7 +1,20 @@
+export interface DngOptions {
+  neutral?: number[]
+  black?: number
+  white?: number
+  width?: number
+  height?: number
+  /** TIFF Compression；声明成解码器不支持的值（如 52546 JPEG XL）时，像素仍按未压缩写入 */
+  compression?: number
+  /** RGGB 阵列上每个样本的原始值；channel 0 / 1 / 2 为 R / G / B */
+  pixel?: (x: number, y: number, channel: number) => number
+}
+
 /** 自行生成的未压缩 Bayer DNG：无需下载照片，测试走真实 LibRaw 解码。 */
-export function makeDng(orientation = 1, options: { neutral?: number[], black?: number, white?: number } = {}): Buffer {
-  const width = 128
-  const height = 96
+export function makeDng(orientation = 1, options: DngOptions = {}): Buffer {
+  const width = options.width ?? 128
+  const height = options.height ?? 96
+  const pixel = options.pixel ?? ((x: number, y: number) => 4000 + Math.round(44000 * x / width) + Math.round(8000 * y / height))
   type Entry = { tag: number, type: number, count: number, bytes: Buffer }
   const entries: Entry[] = []
   const add = (tag: number, type: number, values: number[] | string) => {
@@ -25,7 +38,7 @@ export function makeDng(orientation = 1, options: { neutral?: number[], black?: 
   add(256, 4, [width])
   add(257, 4, [height])
   add(258, 3, [16])
-  add(259, 3, [1])
+  add(259, 3, [options.compression ?? 1])
   add(262, 3, [32803])
   add(271, 2, 'PhotoMaster')
   add(272, 2, 'Synthetic DNG')
@@ -71,7 +84,7 @@ export function makeDng(orientation = 1, options: { neutral?: number[], black?: 
   })
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      result.writeUInt16LE(4000 + Math.round(44000 * x / width) + Math.round(8000 * y / height), pixelsOffset + (y * width + x) * 2)
+      result.writeUInt16LE(pixel(x, y, [[0, 1], [1, 2]][y & 1]![x & 1]!), pixelsOffset + (y * width + x) * 2)
     }
   }
   return result

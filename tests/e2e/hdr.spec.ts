@@ -75,6 +75,34 @@ test('真实 RAW 数值线性、黑电平和白平衡高光不截断', async ({ 
   expect(result[2]!.min).toBeLessThan(0)
 })
 
+test('传感器饱和的高光还原为中性白，不偏粉紫', async ({ page }) => {
+  const white = 16383
+  const neutral = [0.5, 1, 0.66]
+  // 左半边中性灰；右半边比白电平亮 1.5 倍的中性物体：G 先饱和，R / B 乘上白平衡增益后会高于被截住的 G
+  const bytes = makeDng(1, {
+    neutral,
+    white,
+    pixel: (x, _y, channel) => Math.min(white, Math.round(white * (x >= 64 ? 1.5 : 0.18) * neutral[channel]!))
+  })
+  const result = await page.evaluate(async (bytes) => {
+    const { decodeRaw } = await import('/_nuxt/lib/image/raw.ts')
+    const { readLinearRegion } = await import('/_nuxt/lib/image/high-depth.ts')
+    const decoded = await decodeRaw(new File([new Uint8Array(bytes)], 'highlight.dng'))
+    const image = await readLinearRegion(decoded.linear, { x: 0, y: 0, w: 128, h: 96 }, 128, 96)
+    const linear = (x: number) => Array.from(image.data.slice((48 * 128 + x) * 4, (48 * 128 + x) * 4 + 3))
+    const bitmap = await createImageBitmap(decoded.blob)
+    const ctx = new OffscreenCanvas(bitmap.width, bitmap.height).getContext('2d')!
+    ctx.drawImage(bitmap, 0, 0)
+    bitmap.close()
+    return { gray: linear(30), clipped: linear(100), clippedSdr: Array.from(ctx.getImageData(100, 48, 1, 1).data.slice(0, 3)) }
+  }, [...bytes])
+  for (const v of result.gray) expect(v).toBeCloseTo(0.18, 2)
+  // 补到未饱和的最亮通道（约 1.5），保留超过参考白的 HDR 亮度
+  for (const v of result.clipped) expect(v).toBeCloseTo(1.5, 1)
+  expect(Math.max(...result.clipped) - Math.min(...result.clipped)).toBeLessThan(0.02)
+  expect(Math.max(...result.clippedSdr) - Math.min(...result.clippedSdr)).toBeLessThanOrEqual(1)
+})
+
 test('HDR 调色、EXR / PQ PNG / Ultra HDR 导出保留高光，SDR 回退有层次', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const { packFloatLinear } = await import('/_nuxt/lib/image/high-depth.ts')
