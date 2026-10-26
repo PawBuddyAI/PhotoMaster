@@ -5,6 +5,7 @@ version = "0.1.0"
 description = "AI修图大师 Windows 桌面版"
 authors = ["k99k5"]
 license = "Apache-2.0"
+repository = "https://github.com/PawBuddyAI/PhotoMaster"
 edition = "2024"
 rust-version = "1.90"
 

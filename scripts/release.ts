@@ -2,15 +2,14 @@ import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 // CI 用 node 直接运行本脚本（类型剥离），相对导入必须带 .ts 扩展名
-import { INSTALLER_NAME, MANIFEST_NAME, manifestSchema, type ReleaseManifest } from '../app/lib/release.ts'
+import { GITHUB_REPO, INSTALLER_NAME, MANIFEST_NAME, manifestSchema, type ReleaseManifest } from '../app/lib/release.ts'
 
 /**
  * 桌面版安装包的发布与取用。
  * 发布（GitHub Actions）：pack 把 NSIS 安装包整理成固定文件名 + 校验信息 latest.json，上传到 Release。
  * 取用（Cloudflare Pages 构建）：fetch 从最新 Release 下载并校验后放进站点的 /download/，国内用户从 Pages 下载。
- * 文件名与清单格式见 app/lib/release.ts，网页版的下载入口读取同一份清单。
+ * 仓库、文件名与清单格式见 app/lib/release.ts，网页版的下载入口读取同一份清单。
  */
-const DEFAULT_REPO = 'PawBuddyAI/PhotoMaster'
 
 /**
  * 站点里 /download/ 对应的目录，须与 nuxt generate 的产物目录一致：
@@ -90,7 +89,7 @@ export type FetchReleaseResult = { status: 'skipped' } | { status: 'fetched', ma
  */
 export async function fetchRelease(options: FetchReleaseOptions = {}): Promise<FetchReleaseResult> {
   const {
-    repo = DEFAULT_REPO,
+    repo = GITHUB_REPO,
     outDir = siteDownloadDir(),
     fetch: fetchImpl = globalThis.fetch,
     attempts = 3,

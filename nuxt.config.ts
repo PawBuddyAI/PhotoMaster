@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import pkg from './package.json'
+
 export default defineNuxtConfig({
   modules: [
     '@nuxt/eslint',
@@ -33,7 +35,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       // PawBuddy 网站：「使用 PawBuddy 账户」从这里的连接页授权（NUXT_PUBLIC_PAWBUDDY_SITE，构建时写入产物）
-      pawbuddySite: 'https://pawbuddy.chat'
+      pawbuddySite: 'https://pawbuddy.chat',
+      // 当前版本号，设置页「关于」显示；发布版本以 package.json 为准，桌面版的 tauri.conf.json 引用同一处
+      appVersion: pkg.version
     }
   },
 

@@ -2,11 +2,13 @@
 import { VISION_MAX_SIDE } from '~/lib/llm/analyze'
 import { IMAGE_MODEL_GROUP } from '~/lib/llm/models'
 import { STRUCTURED_OUTPUT_LABELS } from '~/lib/llm/probe'
+import { GITHUB_URL } from '~/lib/release'
 import { useSettingsStore } from '~/stores/settings'
 
 const settings = useSettingsStore()
 const { testing, testVision, testImage } = useConnectionTest()
 const { download } = useDesktopRelease()
+const { appVersion } = useRuntimeConfig().public
 
 const structuredOutputItems = Object.entries(STRUCTURED_OUTPUT_LABELS).map(([value, label]) => ({ label, value }))
 const reasoningEffortItems = [
@@ -292,6 +294,36 @@ const sizeModeItems = [
                   label="下载 Windows 版"
                   :href="download.url"
                   download
+                />
+              </div>
+            </SettingsRow>
+          </div>
+        </section>
+
+        <!-- 新标签页打开的链接在桌面版由 opener 插件交给系统浏览器，网页版与桌面版共用一个普通链接 -->
+        <section
+          aria-labelledby="about-heading"
+          class="flex flex-col gap-3"
+        >
+          <h2
+            id="about-heading"
+            class="section-title"
+          >
+            关于
+          </h2>
+          <div class="rounded-xl border border-default bg-default">
+            <SettingsRow
+              label="AI修图大师"
+              :description="`版本 ${appVersion}。开源软件，可以在 GitHub 查看更新内容、反馈问题`"
+            >
+              <div class="flex justify-end">
+                <UButton
+                  icon="i-lucide-github"
+                  label="在 GitHub 查看"
+                  color="neutral"
+                  variant="outline"
+                  :href="GITHUB_URL"
+                  target="_blank"
                 />
               </div>
             </SettingsRow>

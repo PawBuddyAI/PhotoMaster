@@ -5,6 +5,10 @@ import { z } from 'zod'
  * 浏览器与 Node（CI 直接运行脚本）共用，只放不依赖 Nuxt 自动导入和 Node 内置模块的内容。
  * 固定的 ASCII 文件名让 releases/latest/download/ 的地址不随版本变化，也避开产品名里的中文和空格。
  */
+/** 源代码与桌面版 Release 所在的 GitHub 仓库：设置页「关于」链到这里，Pages 构建时从它的最新 Release 取安装包 */
+export const GITHUB_REPO = 'PawBuddyAI/PhotoMaster'
+export const GITHUB_URL = `https://github.com/${GITHUB_REPO}`
+
 export const INSTALLER_NAME = 'ai-photo-master-setup.exe'
 export const MANIFEST_NAME = 'latest.json'
 
