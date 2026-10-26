@@ -321,11 +321,9 @@ export function useEditorRenderer() {
   }, { deep: true })
   watch(() => editor.doc.hdr?.preview, updateHdr)
   dynamicRange.addEventListener('change', updateHdr)
-  watch(
-    () => [editor.hoverMask, editor.selectedLayer?.mask, editor.showMaskOverlay, editor.tool, ready.value],
-    updateOverlay,
-    { deep: true }
-  )
+  // 直接监听 overlaySpec 的结果：它读到的状态（悬停建议、选中图层的区域与重绘结果、开关、工具）任一变化都会重算，
+  // 不另列一份依赖清单，免得两处判断对不上；深度遍历只涉及返回的蒙版，重绘结果只读取有无
+  watch(() => ready.value ? overlaySpec() : null, updateOverlay, { deep: true })
 
   function dispose(): void {
     disposed = true

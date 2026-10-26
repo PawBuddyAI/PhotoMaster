@@ -7,7 +7,8 @@ import { makeDng } from '../fixtures/dng'
 
 /**
  * 端到端流程：导入 → AI 读图分析 → 采纳建议（区域调色 + 重绘）→ 生成式重绘 → 挑选结果 → 全分辨率导出；
- * 采纳构图建议后重新分析时，读图输入带上当前裁剪；以及分析过程中实时显示思考过程与方案草稿。
+ * 应用与移除重绘结果时画布上的区域叠加随之收起、恢复；采纳构图建议后重新分析时，读图输入带上当前裁剪；
+ * 以及分析过程中实时显示思考过程与方案草稿。
  * OpenAI 兼容接口由 page.route 拦截模拟（需要控制输出节奏的流式用例改用本地服务），生产代码中没有任何测试分支。
  */
 const API = 'https://api.mock.test/v1'
@@ -264,6 +265,56 @@ test('导入 → 分析 → 采纳 → 重绘 → 导出，蒙版外像素保持
   expect(stats.outsideMax).toBeLessThanOrEqual(1)
   // 蒙版中心被生成内容替换
   expect(stats.insideMean).toBeGreaterThan(10)
+})
+
+/**
+ * 舞台中央 5×5 块的平均 R − G。照片与生成图都是纯绿（R < G，约 −48），
+ * 区域叠加是 45% 不透明的红色，盖在绿色上约为 +50：明显为正就说明叠加还在
+ */
+function centerRedness(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>('.konvajs-content canvas')!
+    const { data } = canvas.getContext('2d')!.getImageData(Math.round(canvas.width / 2) - 2, Math.round(canvas.height / 2) - 2, 5, 5)
+    let sum = 0
+    for (let i = 0; i < data.length; i += 4) {
+      sum += data[i]! - data[i + 1]!
+    }
+    return sum / (data.length / 4)
+  })
+}
+
+test('应用重绘结果后区域叠加随即收起，移除结果后重新出现', async ({ page }) => {
+  await page.addInitScript((settings) => {
+    localStorage.setItem('apm-settings', JSON.stringify(settings))
+  }, SETTINGS)
+  // 视角过渡会让照片在几百毫秒内移动，减少动态效果时直接到位，涂抹与取样的位置才对得上
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/')
+  const greenB64 = await makeImage(page, 'generated')
+  await page.route(`${API}/images/edits`, route => fulfillCors(route, { created: 0, data: [{ b64_json: greenB64 }, { b64_json: greenB64 }] }))
+  await importPhoto(page, greenB64)
+
+  // 新建的重绘图层默认「仅画笔」并切到画笔，穿过舞台中央横涂一笔
+  await page.getByRole('tab', { name: /图层/ }).click()
+  await page.getByRole('button', { name: '重绘区域' }).click()
+  const box = (await page.locator('.konvajs-content').boundingBox())!
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  await page.mouse.move(cx - 60, cy)
+  await page.mouse.down()
+  await page.mouse.move(cx + 60, cy, { steps: 12 })
+  await page.mouse.up()
+  await expect.poll(() => centerRedness(page)).toBeGreaterThan(30)
+
+  await page.getByPlaceholder('例如：移除画面中的行人').fill('Fill with grass')
+  await page.getByRole('button', { name: '生成', exact: true }).click()
+  await page.getByRole('button', { name: '应用所选' }).click()
+  await expect(page.getByText('已应用重绘结果').first()).toBeVisible()
+  // 不切换图层、不按住对比、不换工具，叠加层也不能盖在结果上
+  await expect.poll(() => centerRedness(page)).toBeLessThan(-30)
+
+  await page.getByRole('button', { name: '移除结果', exact: true }).click()
+  await expect.poll(() => centerRedness(page)).toBeGreaterThan(30)
 })
 
 test('采纳构图建议后重新分析：框外压暗，提示词带上当前裁剪', async ({ page }) => {
