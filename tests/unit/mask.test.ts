@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { binarize, dilateBinary, maskBoundingBox } from '~/lib/mask/ops'
-import { rasterizeMask } from '~/lib/mask/rasterize'
+import { createMaskRasterizer, rasterizeMask, rasterizeMaskFloat } from '~/lib/mask/rasterize'
 import { createMaskSpec, isFullMask, maskBoundsPx } from '~/lib/mask/spec'
+import type { BrushStroke } from '~/lib/types'
 
 const W = 200
 const H = 100
@@ -104,6 +105,35 @@ describe('rasterizeMask 画笔', () => {
     expect(center).toBeGreaterThan(200)
     expect(mid).toBeGreaterThan(0)
     expect(mid).toBeLessThan(center)
+  })
+})
+
+describe('createMaskRasterizer', () => {
+  const strokes: BrushStroke[] = [
+    { mode: 'add', radius: 0.05, hardness: 0.4, points: [0.1, 0.2, 0.6, 0.7, 0.9, 0.3] },
+    { mode: 'erase', radius: 0.08, hardness: 0.8, points: [0.3, 0.1, 0.4, 0.9] },
+    { mode: 'add', radius: 0.03, hardness: 0, points: [0.5, 0.5] }
+  ]
+
+  it.each([false, true])('逐笔补画、改密度、撤销笔画、换形状后都与从头栅格化逐值相同（浮点：%s）', (float) => {
+    const rasterize = createMaskRasterizer(W, H, FULL, W, H, float)
+    const reference = float ? rasterizeMaskFloat : rasterizeMask
+    const base = createMaskSpec('ellipse', { invert: true, density: 0.8 })
+    const steps = [
+      base,
+      { ...base, strokes: strokes.slice(0, 1) },
+      { ...base, strokes: strokes.slice(0, 2) },
+      { ...base, strokes },
+      { ...base, strokes, density: 0.35 },
+      // 撤销一笔、改掉中间一笔：都不是已有结果的延续，从头重画
+      { ...base, strokes: strokes.slice(0, 2) },
+      { ...base, strokes: [strokes[0]!, strokes[2]!, strokes[1]!] },
+      { ...createMaskSpec('rect'), strokes },
+      { ...base, strokes }
+    ]
+    for (const spec of steps) {
+      expect(rasterize(spec)).toEqual(reference(spec, W, H, FULL, W, H))
+    }
   })
 })
 

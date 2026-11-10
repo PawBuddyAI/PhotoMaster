@@ -22,7 +22,8 @@ export function buildRenderLayers(
   maskW: number,
   maskH: number,
   keyPrefix: string,
-  rasterize: (spec: MaskSpec) => Uint8Array | Float32Array = spec => rasterizeMask(spec, imageW, imageH, region, maskW, maskH)
+  /** key 是这张蒙版的 maskKey，带缓存的实现直接用它查，不必再序列化一遍 */
+  rasterize: (spec: MaskSpec, key: string) => Uint8Array | Float32Array = spec => rasterizeMask(spec, imageW, imageH, region, maskW, maskH)
 ): RenderLayer[] {
   const result: RenderLayer[] = []
   for (const layer of layers) {
@@ -33,11 +34,30 @@ export function buildRenderLayers(
       result.push({ params: layer.params, mask: null })
       continue
     }
-    const data = rasterize(layer.mask)
+    const key = maskKey(layer.mask)
+    const data = rasterize(layer.mask, key)
     result.push({
       params: layer.params,
-      mask: { key: `${keyPrefix}:${maskKey(layer.mask)}`, data, width: maskW, height: maskH, empty: !data.some(v => v > 0) }
+      mask: { key: `${keyPrefix}:${key}`, data, width: maskW, height: maskH, empty: isEmptyMask(data) }
     })
   }
   return result
+}
+
+/** 栅格化结果生成后不再改动；预览每帧拿到的是同一份缓存数组，是否全 0 只需扫一次 */
+const emptiness = new WeakMap<Uint8Array | Float32Array, boolean>()
+
+function isEmptyMask(data: Uint8Array | Float32Array): boolean {
+  let empty = emptiness.get(data)
+  if (empty === undefined) {
+    empty = true
+    for (let i = 0; i < data.length; i++) {
+      if (data[i]! > 0) {
+        empty = false
+        break
+      }
+    }
+    emptiness.set(data, empty)
+  }
+  return empty
 }

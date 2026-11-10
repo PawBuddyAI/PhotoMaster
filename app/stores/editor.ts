@@ -118,7 +118,7 @@ export const useEditorStore = defineStore('editor', () => {
 
   /** 修改文档：先压入修改前的快照，再执行修改并安排自动保存 */
   function commit(mutator: (doc: ProjectDoc) => void, coalesceKey?: string): void {
-    if (history.push(cloneDoc(doc.value), coalesceKey)) {
+    if (history.record(() => cloneDoc(doc.value), coalesceKey)) {
       historyTick.value++
     }
     mutator(doc.value)

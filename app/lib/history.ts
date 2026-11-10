@@ -16,6 +16,11 @@ export class HistoryStack<T> {
 
   /** 记录修改前的状态；返回是否真正入栈 */
   push(state: T, coalesceKey?: string): boolean {
+    return this.record(() => state, coalesceKey)
+  }
+
+  /** 同 push，但只在真正入栈时才调用 snapshot 取状态：连续修改被合并时不必白做一次深拷贝 */
+  record(snapshot: () => T, coalesceKey?: string): boolean {
     const time = this.now()
     const merge = coalesceKey !== undefined
       && coalesceKey === this.lastKey
@@ -26,7 +31,7 @@ export class HistoryStack<T> {
     if (merge) {
       return false
     }
-    this.past.push(state)
+    this.past.push(snapshot())
     if (this.past.length > this.limit) {
       this.past.shift()
     }

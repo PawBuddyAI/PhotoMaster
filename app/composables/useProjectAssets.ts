@@ -28,11 +28,23 @@ async function load(id: string, originalBlobId: string, linearBlobId?: string): 
   }
   release()
   const version = loadVersion
-  const blob = await getBlob(originalBlobId)
-  const master = linearBlobId ? await getBlob(linearBlobId) : null
-  const preview = master ? await useImageWorker().linearPreview(master, PREVIEW_LONG_SIDE) : null
-  const hdr = master ? (await linearInfo(master)).hdr : false
-  const bitmap = await decodeImage(blob)
+  const [blob, master] = await Promise.all([getBlob(originalBlobId), linearBlobId ? getBlob(linearBlobId) : null])
+  // 原图解码与 RAW 预览（在 Worker 里）同时进行
+  const decoding = decodeImage(blob)
+  // 预览先失败时这里的失败由下面接手处理，不让它成为未处理的拒绝
+  decoding.catch(() => undefined)
+  let preview: LinearImage | null
+  let hdr: boolean
+  try {
+    [preview, hdr] = await Promise.all([
+      master ? useImageWorker().linearPreview(master, PREVIEW_LONG_SIDE) : null,
+      master ? linearInfo(master).then(info => info.hdr) : false
+    ])
+  } catch (error) {
+    decoding.then(bitmap => bitmap.close(), () => undefined)
+    throw error
+  }
+  const bitmap = await decoding
   if (version !== loadVersion) {
     bitmap.close()
     throw new DOMException('工程加载已取消', 'AbortError')

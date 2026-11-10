@@ -3,7 +3,7 @@ import type { PixelRect } from '../types'
 import { RAW_MAX_PIXELS, RAW_MAX_PIXELS_LABEL } from './raw-settings'
 import { createCanvas, get2d } from './canvas'
 import type { PatchSource } from './compose'
-import { rec2020ToSrgb } from './hdr'
+import { rec2020ToSrgbInto } from './hdr'
 
 /** 持久化格式 v1：16 字节头 + RGB unsigned 16-bit little-endian，线性 sRGB。 */
 const MAGIC = 0x314c3652 // R6L1
@@ -114,32 +114,75 @@ export async function readLinearRegion(blob: Blob, region: PixelRect, outW: numb
   const sy = region.h / outH
   // 每批最多读取约 32 行，避免把完整 60MP 底图额外展开到内存。
   const batchRows = Math.max(1, Math.floor(32 / sy))
+  // 这里是打开 RAW 工程和导出每一块时最重的循环：样本直接以类型化数组读取（文件是小端，与运行平台一致），
+  // 颜色写进同一个复用的数组，不为每个像素新建对象
+  const rgb = new Float64Array(3)
+  const unit = sx === 1 && sy === 1
+  // 横向每个输出像素覆盖哪些源列、各占多宽，每一行都一样，先算好：第 x 个像素用 tapStart[x] 到 tapStart[x + 1] 之间的几项
+  const area = sx * sy
+  const tapStart = new Int32Array(outW + 1)
+  const tapColumn = new Int32Array(unit ? 0 : outW * (Math.ceil(sx) + 1))
+  const tapWidth = new Float64Array(tapColumn.length)
+  for (let x = 0, t = 0; !unit && x < outW; x++) {
+    const x0 = x * sx
+    const x1 = Math.min(region.w, (x + 1) * sx)
+    for (let ix = Math.floor(x0); ix < Math.ceil(x1); ix++, t++) {
+      tapColumn[t] = ix
+      tapWidth[t] = Math.min(x1, ix + 1) - Math.max(x0, ix)
+    }
+    tapStart[x + 1] = t
+  }
   for (let first = 0; first < outH; first += batchRows) {
     const last = Math.min(outH, first + batchRows)
     const rowStart = Math.floor(first * sy)
     const rowEnd = Math.min(region.h, Math.ceil(last * sy))
     const start = HEADER + (region.y + rowStart) * width * stride
-    const rows = new DataView(await blob.slice(start, HEADER + (region.y + rowEnd) * width * stride).arrayBuffer())
+    const buffer = await blob.slice(start, HEADER + (region.y + rowEnd) * width * stride).arrayBuffer()
+    const floats = hdr ? new Float32Array(buffer) : null
+    const words = hdr ? null : new Uint16Array(buffer)
+    /** 读出第 src 个样本起的一个像素（线性 sRGB）到 rgb */
+    const read = (src: number): void => {
+      if (floats) {
+        rec2020ToSrgbInto(floats[src]!, floats[src + 1]!, floats[src + 2]!, rgb)
+        // 任一分量为 NaN 或无穷时，三者之和也不是有限数
+        if (!Number.isFinite(rgb[0]! + rgb[1]! + rgb[2]!)) throw new Error('HDR 底图含有无效像素。')
+      } else {
+        rgb[0] = words![src]! / 65535
+        rgb[1] = words![src + 1]! / 65535
+        rgb[2] = words![src + 2]! / 65535
+      }
+    }
     for (let y = first; y < last; y++) {
+      if (unit) {
+        // 原尺寸（导出）：每个输出像素正好对应一个源像素，直接拷贝
+        let src = ((y - rowStart) * width + region.x) * 3
+        let dest = y * outW * 4
+        for (let x = 0; x < outW; x++, src += 3, dest += 4) {
+          read(src)
+          data[dest] = rgb[0]!
+          data[dest + 1] = rgb[1]!
+          data[dest + 2] = rgb[2]!
+          data[dest + 3] = 1
+        }
+        continue
+      }
       const y0 = y * sy
       const y1 = Math.min(region.h, (y + 1) * sy)
-      for (let x = 0; x < outW; x++) {
-        const x0 = x * sx
-        const x1 = Math.min(region.w, (x + 1) * sx)
-        const dest = (y * outW + x) * 4
-        for (let iy = Math.floor(y0); iy < Math.ceil(y1); iy++) {
-          const wy = Math.min(y1, iy + 1) - Math.max(y0, iy)
-          for (let ix = Math.floor(x0); ix < Math.ceil(x1); ix++) {
-            const weight = wy * (Math.min(x1, ix + 1) - Math.max(x0, ix)) / (sx * sy)
-            const src = ((iy - rowStart) * width + region.x + ix) * stride
-            const rgb = hdr ? rec2020ToSrgb(rows.getFloat32(src, true), rows.getFloat32(src + 4, true), rows.getFloat32(src + 8, true)) : [rows.getUint16(src, true) / 65535, rows.getUint16(src + 2, true) / 65535, rows.getUint16(src + 4, true) / 65535]
-            for (let c = 0; c < 3; c++) {
-              if (!Number.isFinite(rgb[c])) throw new Error('HDR 底图含有无效像素。')
-              data[dest + c] = data[dest + c]! + rgb[c]! * weight
-            }
+      for (let iy = Math.floor(y0); iy < Math.ceil(y1); iy++) {
+        const wy = Math.min(y1, iy + 1) - Math.max(y0, iy)
+        const row = ((iy - rowStart) * width + region.x) * 3
+        for (let x = 0, dest = y * outW * 4; x < outW; x++, dest += 4) {
+          for (let t = tapStart[x]!; t < tapStart[x + 1]!; t++) {
+            const weight = wy * tapWidth[t]! / area
+            read(row + tapColumn[t]! * 3)
+            data[dest] = data[dest]! + rgb[0]! * weight
+            data[dest + 1] = data[dest + 1]! + rgb[1]! * weight
+            data[dest + 2] = data[dest + 2]! + rgb[2]! * weight
           }
         }
-        data[dest + 3] = 1
+      }
+      for (let x = 0, dest = y * outW * 4 + 3; x < outW; x++, dest += 4) {
+        data[dest] = 1
       }
     }
   }
@@ -157,14 +200,31 @@ export function composeLinear(base: LinearImage, patches: PatchSource[], region:
   for (const patch of patches) {
     if (patch.x >= region.x + region.w || patch.y >= region.y + region.h
       || patch.x + patch.w <= region.x || patch.y + patch.h <= region.y) continue
+    const dx = (patch.x - region.x) * sx
+    const dy = (patch.y - region.y) * sy
+    const dw = patch.w * sx
+    const dh = patch.h * sy
     ctx.clearRect(0, 0, base.width, base.height)
-    ctx.drawImage(patch.image, (patch.x - region.x) * sx, (patch.y - region.y) * sy, patch.w * sx, patch.h * sy)
-    const pixels = ctx.getImageData(0, 0, base.width, base.height).data
-    for (let i = 0; i < data.length; i += 4) {
-      const alpha = pixels[i + 3]! / 255
-      if (!alpha) continue
-      for (let c = 0; c < 3; c++) data[i + c] = data[i + c]! * (1 - alpha) + srgbToLinear(pixels[i + c]! / 255) * alpha
+    ctx.drawImage(patch.image, dx, dy, dw, dh)
+    // 只读回补丁落到的那一块：其余位置 alpha 为 0，本来也不会改动
+    const left = Math.max(0, Math.floor(dx))
+    const top = Math.max(0, Math.floor(dy))
+    const w = Math.min(base.width, Math.ceil(dx + dw)) - left
+    const h = Math.min(base.height, Math.ceil(dy + dh)) - top
+    if (w <= 0 || h <= 0) continue
+    const pixels = ctx.getImageData(left, top, w, h).data
+    for (let y = 0; y < h; y++) {
+      let src = y * w * 4
+      let dest = ((top + y) * base.width + left) * 4
+      for (let x = 0; x < w; x++, src += 4, dest += 4) {
+        const alpha = pixels[src + 3]! / 255
+        if (!alpha) continue
+        for (let c = 0; c < 3; c++) data[dest + c] = data[dest + c]! * (1 - alpha) + SRGB8_TO_LINEAR[pixels[src + c]!]! * alpha
+      }
     }
   }
   return { ...base, data }
 }
+
+/** 8 位 sRGB 码值 → 线性（与 srgbToLinear(v / 255) 相同） */
+const SRGB8_TO_LINEAR = Float64Array.from({ length: 256 }, (_, v) => srgbToLinear(v / 255))

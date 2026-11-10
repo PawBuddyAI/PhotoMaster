@@ -13,8 +13,16 @@ export function rasterizeMask(
   outW: number,
   outH: number
 ): Uint8Array {
-  const values = rasterizeMaskFloat(spec, imageW, imageH, region, outW, outH)
-  return Uint8Array.from(values, value => Math.round(value * 255))
+  return toBytes(rasterizeMaskFloat(spec, imageW, imageH, region, outW, outH))
+}
+
+/** 普通循环：Uint8Array.from 带映射函数时逐元素走迭代器，慢几十倍。值已在 0–1 内，加 0.5 后截断即四舍五入 */
+function toBytes(values: Float32Array): Uint8Array {
+  const out = new Uint8Array(values.length)
+  for (let i = 0; i < values.length; i++) {
+    out[i] = values[i]! * 255 + 0.5
+  }
+  return out
 }
 
 /** RAW 调色的蒙版保留浮点覆盖率，避免平滑渐变先被量化成 256 级。 */
@@ -26,7 +34,22 @@ export function rasterizeMaskFloat(
   outW: number,
   outH: number
 ): Float32Array {
-  const values = new Float32Array(outW * outH)
+  return applyDensity(rasterizeCoverage(spec, imageW, imageH, region, outW, outH), spec.density)
+}
+
+/**
+ * 乘上密度之前的覆盖率：形状 → 反相 → 按顺序叠加笔画。
+ * previous 是同一蒙版只画了前 strokes 笔时的结果：传入后在它的副本上补画其余笔画，不从头重画。
+ */
+function rasterizeCoverage(
+  spec: MaskSpec,
+  imageW: number,
+  imageH: number,
+  region: PixelRect,
+  outW: number,
+  outH: number,
+  previous?: { values: Float32Array, strokes: number }
+): Float32Array {
   const ctx: RasterContext = {
     imageW,
     imageH,
@@ -36,23 +59,66 @@ export function rasterizeMaskFloat(
     sx: region.w / outW,
     sy: region.h / outH
   }
-
-  fillShape(values, spec, ctx)
-  if (spec.invert) {
-    for (let i = 0; i < values.length; i++) {
-      values[i] = 1 - values[i]!
+  let values: Float32Array
+  if (previous) {
+    values = previous.values.slice()
+  } else {
+    values = new Float32Array(outW * outH)
+    fillShape(values, spec, ctx)
+    if (spec.invert) {
+      for (let i = 0; i < values.length; i++) {
+        values[i] = 1 - values[i]!
+      }
     }
   }
-  for (const stroke of spec.strokes) {
-    applyStroke(values, stroke, ctx)
+  for (let i = previous?.strokes ?? 0; i < spec.strokes.length; i++) {
+    applyStroke(values, spec.strokes[i]!, ctx)
   }
+  return values
+}
 
-  const density = Math.min(1, Math.max(0, spec.density))
+/** 就地乘上密度并限制在 0–1 */
+function applyDensity(values: Float32Array, rawDensity: number): Float32Array {
+  const density = Math.min(1, Math.max(0, rawDensity))
   for (let i = 0; i < values.length; i++) {
     const v = values[i]! * density
     values[i] = Math.min(1, Math.max(0, v))
   }
   return values
+}
+
+/**
+ * 固定输出尺寸的蒙版栅格化器（编辑器预览用），结果与 rasterizeMask / rasterizeMaskFloat 逐值相同。
+ * 记住最近几个蒙版在乘密度之前的覆盖率：同一形状上多画一笔时只补画新的一笔，只改密度时不重画，
+ * 画笔因此不会随笔画增多越来越慢。撤销笔画或改动形状时从头重画。
+ */
+export function createMaskRasterizer(
+  imageW: number,
+  imageH: number,
+  region: PixelRect,
+  outW: number,
+  outH: number,
+  float: boolean,
+  limit = 4
+): (spec: MaskSpec) => Uint8Array | Float32Array {
+  const cache = new Map<string, { strokeKeys: string[], coverage: Float32Array }>()
+  return (spec) => {
+    const shapeKey = JSON.stringify({ ...spec, strokes: undefined, density: undefined })
+    const strokeKeys = spec.strokes.map(stroke => JSON.stringify(stroke))
+    const hit = cache.get(shapeKey)
+    const reusable = !!hit && hit.strokeKeys.length <= strokeKeys.length && hit.strokeKeys.every((key, i) => key === strokeKeys[i])
+    const coverage = reusable && hit.strokeKeys.length === strokeKeys.length
+      ? hit.coverage
+      : rasterizeCoverage(spec, imageW, imageH, region, outW, outH, reusable ? { values: hit.coverage, strokes: hit.strokeKeys.length } : undefined)
+    // 重新插入以维持“最近使用”顺序
+    cache.delete(shapeKey)
+    cache.set(shapeKey, { strokeKeys, coverage })
+    if (cache.size > limit) {
+      cache.delete(cache.keys().next().value!)
+    }
+    const values = applyDensity(coverage.slice(), spec.density)
+    return float ? values : toBytes(values)
+  }
 }
 
 interface RasterContext {

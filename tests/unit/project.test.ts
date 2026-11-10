@@ -39,6 +39,18 @@ describe('HistoryStack', () => {
     expect(h.push(3, 'other')).toBe(true)
   })
 
+  it('record 只在真正入栈时取快照，被合并的修改不取', () => {
+    let now = 0
+    let taken = 0
+    const h = new HistoryStack<number>(100, 800, () => now)
+    const snapshot = () => ++taken
+    expect(h.record(snapshot, 'slider')).toBe(true)
+    now = 100
+    expect(h.record(snapshot, 'slider')).toBe(false)
+    expect(taken).toBe(1)
+    expect(h.undo(9)).toBe(1)
+  })
+
   it('新的修改清空重做栈，超出上限丢弃最早记录', () => {
     const h = new HistoryStack<number>(3)
     for (let i = 0; i < 5; i++) h.push(i)

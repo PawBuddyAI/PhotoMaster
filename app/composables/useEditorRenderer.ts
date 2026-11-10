@@ -7,7 +7,7 @@ import { composeLinear } from '~/lib/image/high-depth'
 import { normalizeRawDevelop, resolveLook } from '~/lib/image/raw-develop'
 import { type RawLook, renderSdr } from '~/lib/image/raw-look'
 import { noiseThresholds } from '~/lib/image/raw-noise'
-import { rasterizeMask, rasterizeMaskFloat } from '~/lib/mask/rasterize'
+import { createMaskRasterizer } from '~/lib/mask/rasterize'
 import { isFullMask, maskKey } from '~/lib/mask/spec'
 import { buildRenderLayers } from '~/lib/pipeline/layers'
 import { PhotoRenderer } from '~/lib/pipeline/renderer'
@@ -95,6 +95,9 @@ export function useEditorRenderer() {
   let pending = false
   let disposed = false
   const maskCache = new Map<string, Uint8Array | Float32Array>()
+  let rasterizer: ReturnType<typeof createMaskRasterizer> | null = null
+  /** HDR 预览每帧读回的浮点像素（约 45 MB），复用同一块缓冲 */
+  let hdrPixels: Float32Array<ArrayBuffer> | null = null
 
   function init(): void {
     const meta = editor.project
@@ -111,6 +114,9 @@ export function useEditorRenderer() {
     const maskScale = Math.min(1, MASK_LONG_SIDE / Math.max(previewW, previewH))
     maskW = Math.max(1, Math.round(previewW * maskScale))
     maskH = Math.max(1, Math.round(previewH * maskScale))
+    maskCache.clear()
+    rasterizer = null
+    hdrPixels = null
 
     updateOriginalPreview()
     const canvas = document.createElement('canvas')
@@ -158,8 +164,7 @@ export function useEditorRenderer() {
     originalPreview.value = canvas
   }
 
-  function rasterCached(spec: MaskSpec): Uint8Array | Float32Array {
-    const key = maskKey(spec)
+  function rasterCached(spec: MaskSpec, key = maskKey(spec)): Uint8Array | Float32Array {
     const hit = maskCache.get(key)
     if (hit) {
       // 重新插入以维持“最近使用”顺序
@@ -167,8 +172,8 @@ export function useEditorRenderer() {
       maskCache.set(key, hit)
       return hit
     }
-    const rasterize = assets.linearPreview.value ? rasterizeMaskFloat : rasterizeMask
-    const data = rasterize(spec, imageW, imageH, fullRegion, maskW, maskH)
+    rasterizer ??= createMaskRasterizer(imageW, imageH, fullRegion, maskW, maskH, !!assets.linearPreview.value)
+    const data = rasterizer(spec)
     maskCache.set(key, data)
     if (maskCache.size > (data instanceof Float32Array ? MASK_CACHE_LIMIT / 4 : MASK_CACHE_LIMIT)) {
       maskCache.delete(maskCache.keys().next().value!)
@@ -211,7 +216,9 @@ export function useEditorRenderer() {
     renderer.present()
     if (hdrDisplay) {
       try {
-        hdrDisplay.present(renderer.readLinearPixels(), previewW, previewH)
+        // present 内的 writeTexture 当场拷走数据，下一帧可以覆盖这块缓冲
+        hdrPixels = renderer.readLinearPixels(previewW, previewH, undefined, hdrPixels ?? undefined)
+        hdrDisplay.present(hdrPixels, previewW, previewH)
         hdrCanvas.value = hdrDisplay.canvas
       } catch {
         hdrVersion++
@@ -338,6 +345,8 @@ export function useEditorRenderer() {
     renderer?.dispose()
     renderer = null
     maskCache.clear()
+    rasterizer = null
+    hdrPixels = null
     ready.value = false
   }
 
